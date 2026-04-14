@@ -36,7 +36,11 @@ class PilotProgressService:
         ("fr", "French"),
         ("de", "German"),
         ("es", "Spanish"),
+        ("it", "Italian"),
+        ("nl", "Dutch"),
+        ("pl", "Polish"),
         ("ru", "Russian"),
+        ("uk", "Ukrainian"),
         ("ja", "Japanese"),
         ("ko", "Korean"),
         ("zh", "Chinese"),
@@ -233,12 +237,31 @@ class PilotProgressService:
 
     @staticmethod
     def _resolve_itemtype_name_field(language: str) -> str:
-        candidate = f"name_{language}"
-        try:
-            ItemType._meta.get_field(candidate)
-            return candidate
-        except Exception:
-            pass
+        # eve_sde field names can be locale-specific (e.g. name_fr_fr, name_ko_kr, name_zh_hans).
+        language_field_candidates = {
+            "en": ("name_en",),
+            "fr": ("name_fr", "name_fr_fr"),
+            "de": ("name_de",),
+            "es": ("name_es",),
+            "it": ("name_it", "name_it_it"),
+            "nl": ("name_nl", "name_nl_nl"),
+            "pl": ("name_pl", "name_pl_pl"),
+            "ru": ("name_ru",),
+            "uk": ("name_uk",),
+            "ja": ("name_ja",),
+            "ko": ("name_ko", "name_ko_kr"),
+            "zh": ("name_zh", "name_zh_hans"),
+        }
+
+        candidates = list(language_field_candidates.get(language, (f"name_{language}",)))
+        candidates.append(f"name_{language}")
+
+        for candidate in candidates:
+            try:
+                ItemType._meta.get_field(candidate)
+                return candidate
+            except Exception:
+                continue
 
         for fallback in ("name_en", "name"):
             try:
@@ -371,6 +394,24 @@ class PilotProgressService:
             ordered_nodes.extend(remaining)
 
         return [f"{skill_names.get(skill_id, f'Skill {skill_id}')} {self._roman(level)}" for skill_id, level in ordered_nodes]
+
+    def localize_missing_rows(self, rows: list[dict], language: str) -> list[dict]:
+        """Return missing skill rows with skill_name localized for the given language."""
+        language = self.normalize_export_language(language)
+        if not rows:
+            return []
+
+        skill_ids = [int(row["skill_type_id"]) for row in rows if row.get("skill_type_id")]
+        names = self._load_skill_names(skill_ids, language=language)
+
+        localized = []
+        for row in rows:
+            skill_id = int(row.get("skill_type_id", 0))
+            row_copy = dict(row)
+            if skill_id:
+                row_copy["skill_name"] = names.get(skill_id, row_copy.get("skill_name", f"Skill {skill_id}"))
+            localized.append(row_copy)
+        return localized
 
     def build_for_character(self, character, skillset):
         skills_qs = skillset.skills.select_related("eve_type").order_by("eve_type__name")

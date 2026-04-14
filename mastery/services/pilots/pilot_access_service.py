@@ -5,6 +5,10 @@ from fittings.models import Category, Doctrine, Fitting
 
 class PilotAccessService:
     @staticmethod
+    def _can_access_fittings(user) -> bool:
+        return user.has_perm("fittings.manage") or user.has_perm("fittings.access_fittings")
+
+    @staticmethod
     def _accessible_category_ids(user) -> set[int]:
         if user.has_perm("fittings.manage"):
             return set(Category.objects.values_list("id", flat=True))
@@ -16,6 +20,9 @@ class PilotAccessService:
         return public_ids | group_ids
 
     def accessible_fitting_ids(self, user) -> set[int]:
+        if not self._can_access_fittings(user):
+            return set()
+
         if user.has_perm("fittings.manage"):
             return set(Fitting.objects.values_list("id", flat=True))
 
@@ -34,6 +41,9 @@ class PilotAccessService:
 
     def accessible_doctrines(self, user):
         qs = Doctrine.objects.prefetch_related("fittings__ship_type", "category").order_by("name")
+        if not self._can_access_fittings(user):
+            return qs.none()
+
         if user.has_perm("fittings.manage"):
             return qs
 

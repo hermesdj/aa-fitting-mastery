@@ -10,7 +10,8 @@
     </div>
 </div>
 
-{% for group, skills in grouped_skills.items %}
+{% for group, payload in grouped_skills.items %}
+{% with skills=payload.skills %}
 <div class="card mb-3">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span>{{ group }}</span>
@@ -87,6 +88,7 @@
         </div>
     </div>
 </div>
+{% endwith %}
 {% empty %}
 <div class="alert alert-info mb-0">No skills found for this fitting at the selected mastery level.</div>
 {% endfor %}

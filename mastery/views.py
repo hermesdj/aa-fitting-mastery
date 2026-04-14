@@ -113,7 +113,7 @@ def _group_preview_skills(skill_rows: List[dict]) -> dict:
         )
     }
 
-    grouped = defaultdict(list)
+    grouped = defaultdict(lambda: {"skills": [], "suggestion_count": 0})
 
     for row in sorted(skill_rows, key=lambda x: (x.get("group_name", "Other"), x.get("skill_name", ""))):
         item_type = item_types.get(row["skill_type_id"])
@@ -122,17 +122,18 @@ def _group_preview_skills(skill_rows: List[dict]) -> dict:
         group_name = item_type.group.name if item_type and item_type.group else "Other"
         group_id = item_type.group.id if item_type and item_type.group else None
 
-        grouped[group_name].append(
-            {
-                **row,
-                "skill_name": skill_name,
-                "skill_description": skill_description,
-                "group_name": group_name,
-                "group_id": group_id,
-            }
-        )
+        row_payload = {
+            **row,
+            "skill_name": skill_name,
+            "skill_description": skill_description,
+            "group_name": group_name,
+            "group_id": group_id,
+        }
+        grouped[group_name]["skills"].append(row_payload)
+        if row_payload.get("is_suggested"):
+            grouped[group_name]["suggestion_count"] += 1
 
-    return dict(sorted(grouped.items()))
+    return dict(sorted(grouped.items(), key=lambda x: (x[0] or "").lower()))
 
 
 def _get_skill_name_options() -> List[str]:
@@ -155,13 +156,14 @@ def _build_fitting_preview_context(
         mastery_level=mastery_level,
     )
     effective_mastery_level = preview["effective_mastery_level"]
-    visible_rows = [row for row in preview["skills"] if not row.get("is_blacklisted")]
+    all_rows = list(preview["skills"])
+    active_rows = [row for row in all_rows if not row.get("is_blacklisted")]
 
     return {
         "fitting": fitting,
         "doctrine_map": doctrine_map,
         "fitting_map": fitting_map,
-        "grouped_skills": _group_preview_skills(visible_rows),
+        "grouped_skills": _group_preview_skills(all_rows),
         "effective_mastery_level": effective_mastery_level,
         "effective_mastery_label": _get_mastery_label(effective_mastery_level),
         "doctrine_default_mastery_level": doctrine_map.default_mastery_level,
@@ -169,7 +171,7 @@ def _build_fitting_preview_context(
         "fitting_mastery_override": None if not fitting_map else fitting_map.mastery_level,
         "mastery_choices": MASTERY_LEVEL_CHOICES,
         "recommended_choices": list(range(6)),
-        "suggestion_count": sum(1 for row in visible_rows if row.get("is_suggested")),
+        "suggestion_count": sum(1 for row in all_rows if row.get("is_suggested")),
         "skill_name_options": _get_skill_name_options(),
         "skillset_skill_count": (
             fitting_map.skillset.skills.count() if fitting_map and fitting_map.skillset else None
@@ -180,7 +182,7 @@ def _build_fitting_preview_context(
         "skillset_id": (
             fitting_map.skillset.pk if fitting_map and fitting_map.skillset else None
         ),
-        **_build_plan_kpis(visible_rows),
+        **_build_plan_kpis(active_rows),
         "plan_estimate_sp_per_hour": app_settings.MASTERY_PLAN_ESTIMATE_SP_PER_HOUR,
     }
 
@@ -246,6 +248,38 @@ def _build_plan_kpis(skill_rows: list[dict]) -> dict:
         "recommended_plan_total_sp": recommended_total_sp,
         "recommended_plan_total_time": _format_duration_from_seconds(recommended_seconds),
     }
+
+
+def _apply_preview_suggestions(
+    fitting,
+    doctrine_map,
+    *,
+    allowed_skill_ids=None,
+) -> int:
+    """Apply pending suggestion actions and return how many were applied."""
+    preview = doctrine_skill_service.preview_fitting(doctrine_map=doctrine_map, fitting=fitting)
+    applied_count = 0
+
+    for row in preview["skill_rows"]:
+        if not row.get("is_suggested"):
+            continue
+
+        skill_type_id = int(row["skill_type_id"])
+        if allowed_skill_ids is not None and skill_type_id not in allowed_skill_ids:
+            continue
+
+        action = row.get("suggestion_action")
+        if action == "remove":
+            control_service.set_blacklist(fitting_id=fitting.id, skill_type_id=skill_type_id, value=True)
+            applied_count += 1
+        elif action == "add":
+            control_service.set_blacklist(fitting_id=fitting.id, skill_type_id=skill_type_id, value=False)
+            applied_count += 1
+
+    if applied_count:
+        doctrine_skill_service.generate_for_fitting(doctrine_map, fitting)
+
+    return applied_count
 
 
 def _get_member_characters(user):
@@ -751,6 +785,20 @@ def pilot_fitting_detail_view(request, fitting_id):
         selected_character = character_rows[0]["character"]
         selected_progress = character_rows[0]["progress"]
 
+    if selected_progress is not None:
+        # Keep display labels in sync with chosen export language.
+        selected_progress = {
+            **selected_progress,
+            "missing_required": pilot_progress_service.localize_missing_rows(
+                selected_progress.get("missing_required", []),
+                language=export_language,
+            ),
+            "missing_recommended": pilot_progress_service.localize_missing_rows(
+                selected_progress.get("missing_recommended", []),
+                language=export_language,
+            ),
+        }
+
     export_lines = [] if not selected_progress else pilot_progress_service.build_export_lines(
         selected_progress,
         export_mode,
@@ -776,6 +824,7 @@ def pilot_fitting_detail_view(request, fitting_id):
         "selected_mode_stats": selected_mode_stats,
         "selected_export_lines": export_lines,
         "export_language": export_language,
+        "export_language_scope_label": "Affects export and selected missing-skill labels",
         "export_language_choices": pilot_progress_service.export_language_choices(),
         "summary_group_id": None if summary_group is None else summary_group.id,
     }
@@ -1449,18 +1498,90 @@ def apply_suggestions_view(request, fitting_id):
     if doctrine_map is None:
         return HttpResponseBadRequest("No doctrine map found for fitting")
 
-    preview = doctrine_skill_service.preview_fitting(doctrine_map=doctrine_map, fitting=fitting)
+    applied_count = _apply_preview_suggestions(fitting=fitting, doctrine_map=doctrine_map)
+    if applied_count:
+        messages.success(request, f"Applied {applied_count} suggestion(s)")
+    else:
+        messages.info(request, "No pending suggestion to apply")
 
-    for row in preview["skill_rows"]:
-        if not row["is_suggested"]:
-            continue
-        action = row.get("suggestion_action")
-        if action == "remove":
-            control_service.set_blacklist(fitting_id=fitting_id, skill_type_id=row["skill_type_id"], value=True)
-        elif action == "add":
-            control_service.set_blacklist(fitting_id=fitting_id, skill_type_id=row["skill_type_id"], value=False)
+    next_url = request.POST.get("next")
+    if next_url:
+        return redirect(next_url)
 
-    doctrine_skill_service.generate_for_fitting(doctrine_map, fitting)
+    return redirect('mastery:fitting_skills', fitting_id=fitting_id)
+
+
+@login_required
+@permissions_required('mastery.manage_fittings')
+def apply_group_suggestions_view(request, fitting_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+
+    fitting, doctrine, doctrine_map, _ = _get_doctrine_and_map_for_fitting(fitting_id)
+
+    if doctrine is None:
+        return HttpResponseBadRequest("No doctrine found for fitting")
+
+    if doctrine_map is None:
+        return HttpResponseBadRequest("No doctrine map found for fitting")
+
+    try:
+        allowed_skill_ids = {
+            _parse_posted_int(skill_type_id, "skill_type_ids")
+            for skill_type_id in request.POST.getlist("skill_type_ids")
+            if skill_type_id not in (None, "")
+        }
+    except ValueError as ex:
+        return HttpResponseBadRequest(str(ex))
+
+    if not allowed_skill_ids:
+        return HttpResponseBadRequest("No skills provided")
+
+    applied_count = _apply_preview_suggestions(
+        fitting=fitting,
+        doctrine_map=doctrine_map,
+        allowed_skill_ids=allowed_skill_ids,
+    )
+    if applied_count:
+        messages.success(request, f"Applied {applied_count} suggestion(s) for this group")
+    else:
+        messages.info(request, "No pending suggestion in this group")
+
+    next_url = request.POST.get("next")
+    if next_url:
+        return redirect(next_url)
+
+    return redirect('mastery:fitting_skills', fitting_id=fitting_id)
+
+
+@login_required
+@permissions_required('mastery.manage_fittings')
+def apply_skill_suggestion_view(request, fitting_id):
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST required")
+
+    try:
+        skill_type_id = _parse_posted_int(request.POST.get("skill_type_id"), "skill_type_id")
+    except ValueError as ex:
+        return HttpResponseBadRequest(str(ex))
+
+    fitting, doctrine, doctrine_map, _ = _get_doctrine_and_map_for_fitting(fitting_id)
+
+    if doctrine is None:
+        return HttpResponseBadRequest("No doctrine found for fitting")
+
+    if doctrine_map is None:
+        return HttpResponseBadRequest("No doctrine map found for fitting")
+
+    applied_count = _apply_preview_suggestions(
+        fitting=fitting,
+        doctrine_map=doctrine_map,
+        allowed_skill_ids={skill_type_id},
+    )
+    if applied_count:
+        messages.success(request, "Suggestion applied")
+    else:
+        messages.info(request, "No pending suggestion for this skill")
 
     next_url = request.POST.get("next")
     if next_url:

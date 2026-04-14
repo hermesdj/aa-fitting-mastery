@@ -14,10 +14,19 @@
             <div class="text-muted">{{ fitting.ship_type.name }}{% if doctrine %} · Doctrine: {{ doctrine.name }}{% endif %}</div>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:pilot_index' %}">Back to Skill Mastery</a>
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_fit' fitting.id %}">View fitting</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:pilot_index' %}">
+                <span class="fas fa-arrow-left" aria-hidden="true"></span>
+                Back to Skill Mastery
+            </a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_fit' fitting.id %}">
+                <span class="fas fa-ship" aria-hidden="true"></span>
+                View fitting
+            </a>
             {% if doctrine %}
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_doctrine' doctrine.id %}">View doctrine</a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_doctrine' doctrine.id %}">
+                <span class="fas fa-sitemap" aria-hidden="true"></span>
+                View doctrine
+            </a>
             {% endif %}
         </div>
     </div>
@@ -72,7 +81,15 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a class="btn btn-sm {% if selected_character and selected_character.id == row.character.id %}btn-success{% else %}btn-outline-primary{% endif %}" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ row.character.id }}&export_mode={{ export_mode }}&export_language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">{% if selected_character and selected_character.id == row.character.id %}Selected{% else %}Select{% endif %}</a>
+                            <a class="btn btn-sm {% if selected_character and selected_character.id == row.character.id %}btn-success{% else %}btn-outline-primary{% endif %}" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ row.character.id }}&export_mode={{ export_mode }}&export_language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">
+                                {% if selected_character and selected_character.id == row.character.id %}
+                                <span class="fas fa-check-circle" aria-hidden="true"></span>
+                                Selected
+                                {% else %}
+                                <span class="fas fa-crosshairs" aria-hidden="true"></span>
+                                Select
+                                {% endif %}
+                            </a>
                         </td>
                     </tr>
                     {% empty %}
@@ -103,7 +120,7 @@
                     <input type="hidden" name="character_id" value="{{ selected_character.id }}">
                     <input type="hidden" name="export_mode" value="{{ export_mode }}">
                     {% if summary_group_id %}<input type="hidden" name="group_id" value="{{ summary_group_id }}">{% endif %}
-                    <label class="small text-muted" for="exportLanguageSelect">Language</label>
+                    <label class="small text-muted" for="exportLanguageSelect" title="{{ export_language_scope_label|default:'Affects export' }}">Export language</label>
                     <select id="exportLanguageSelect" class="form-select form-select-sm" name="export_language" onchange="this.form.submit()">
                         {% for value, label in export_language_choices %}
                         <option value="{{ value }}" {% if export_language == value %}selected{% endif %}>{{ label }}</option>
@@ -161,7 +178,10 @@
                     <div class="d-flex gap-2">
                         <span class="badge bg-danger" title="Missing required">Req {{ selected_progress.missing_required_count }}</span>
                         <span class="badge bg-warning text-dark" title="Missing recommended">Rec {{ selected_progress.missing_recommended_count }}</span>
-                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#missingSkillsModal">View full gap</button>
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#missingSkillsModal">
+                            <span class="fas fa-list-ul" aria-hidden="true"></span>
+                            View full gap
+                        </button>
                     </div>
                 </div>
                 <div class="card-body">
@@ -196,7 +216,6 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>{{ export_mode_label }} gap and plan export</span>
-                    <a class="btn btn-sm btn-primary" href="{% url 'mastery:pilot_fitting_skillplan_export' fitting.id %}?character_id={{ selected_character.id }}&mode={{ export_mode }}&language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">Download .txt</a>
                 </div>
                 <div class="card-body">
                     <div class="small mb-2">
@@ -211,7 +230,16 @@
                     <label class="form-label small text-muted" for="skillPlanText">EVE clipboard text</label>
                     <textarea id="skillPlanText" class="form-control form-control-sm" rows="10" readonly>{% for line in selected_export_lines %}{{ line }}
 {% empty %}No missing skills for this fitting.{% endfor %}</textarea>
-                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="copySkillPlanBtn">Copy to clipboard</button>
+                    <div class="d-flex flex-wrap gap-2 mt-2">
+                        <button type="button" class="btn btn-sm btn-primary" id="copySkillPlanBtn">
+                            <span class="fas fa-copy" aria-hidden="true"></span>
+                            <span class="copy-btn-label">Copy to clipboard</span>
+                        </button>
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_skillplan_export' fitting.id %}?character_id={{ selected_character.id }}&mode={{ export_mode }}&language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">
+                            <span class="fas fa-download" aria-hidden="true"></span>
+                            Download .txt
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -262,6 +290,17 @@
     {% endif %}
 </div>
 
+<style>
+    #copySkillPlanBtn .fas,
+    .btn .fas {
+        margin-right: 0.35rem;
+    }
+
+    #copySkillPlanBtn {
+        box-shadow: var(--bs-box-shadow-sm);
+    }
+</style>
+
 <script>
     $(document).ready(() => {
         $('#copySkillPlanBtn').on('click', function () {
@@ -277,9 +316,14 @@
                 document.execCommand('copy');
             }
             const btn = $(this);
-            const original = btn.text();
-            btn.text('Copied!').prop('disabled', true);
-            setTimeout(() => btn.text(original).prop('disabled', false), 1500);
+            const label = btn.find('.copy-btn-label');
+            const original = label.text();
+            label.text('Copied!');
+            btn.prop('disabled', true);
+            setTimeout(() => {
+                label.text(original);
+                btn.prop('disabled', false);
+            }, 1500);
         });
     });
 </script>
