@@ -1,0 +1,46 @@
+{% extends 'allianceauth/base-bs5.html' %}
+{% load i18n %}
+{% load navactive %}
+
+{% block page_title %}{{ page_title }} - {% translate "Ship Mastery" %}{% endblock %}
+
+{% block header_nav_brand %}{% translate "Ship Mastery" %}{% endblock %}
+
+{% block header_nav_collapse_left %}
+<li class="nav-item">
+    <a class="nav-link {% navactive request 'mastery:pilot_index' %}" href="{% url 'mastery:pilot_index' %}">
+        {% translate 'Skill Mastery' %}
+    </a>
+</li>
+{% if perms.mastery.doctrine_summary %}
+<li class="nav-item">
+    <a class="nav-link {% navactive request 'mastery:summary_list' %}" href="{% url 'mastery:summary_list' %}">
+        {% translate 'Doctrine Summary' %}
+    </a>
+</li>
+{% endif %}
+{% if perms.mastery.manage_summary_groups %}
+<li class="nav-item">
+    <a class="nav-link {% navactive request 'mastery:summary_settings' %}" href="{% url 'mastery:summary_settings' %}">
+        {% translate 'Summary Group Settings' %}
+    </a>
+</li>
+{% endif %}
+{% if perms.mastery.manage_fittings %}
+<li class="nav-item">
+    <a class="nav-link {% navactive request 'mastery:doctrine_list' %}" href="{% url 'mastery:doctrine_list' %}">
+        {% translate 'Manage Skill Plans' %}
+    </a>
+</li>
+{% endif %}
+{% endblock header_nav_collapse_left %}
+
+{% block header_nav_user_character_control %}
+{% comment %}
+This block is left empty intentionally to disable defaults.
+{% endcomment %}
+{% endblock %}
+
+{% block content %}
+{% block details %}{% endblock %}
+{% endblock %}

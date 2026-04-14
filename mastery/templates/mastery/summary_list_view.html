@@ -1,0 +1,137 @@
+{% extends 'mastery/base.html' %}
+{% load i18n %}
+{% load humanize %}
+{% load evelinks %}
+
+{% block details %}
+<div class="container mt-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h2 class="mb-1">Doctrine Coverage Summary</h2>
+            <div class="text-muted">Global view for leadership and FCs</div>
+        </div>
+        <div class="d-flex gap-2">
+            <span class="badge bg-secondary">{{ member_count }} members</span>
+            <span class="badge bg-info text-dark">{{ active_character_count }} active characters</span>
+            {% if perms.mastery.manage_summary_groups %}
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_settings' %}">Summary settings</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <form method="get" class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-lg-5">
+                    <label class="form-label small text-muted" for="summarySearchInput">Search doctrine / fitting / ship</label>
+                    <input id="summarySearchInput" class="form-control" type="text" name="q" value="{{ search_query }}" placeholder="Armor, Cerb, Muninn...">
+                </div>
+                <div class="col-12 col-sm-6 col-lg-2">
+                    <label class="form-label small text-muted" for="summaryGroupInput">Audience group</label>
+                    <select id="summaryGroupInput" class="form-select" name="group_id">
+                        {% for group in summary_groups %}
+                        <option value="{{ group.id }}" {% if selected_group and selected_group.id == group.id %}selected{% endif %}>{{ group.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="form-label small text-muted" for="activityDaysInput">Activity window (days)</label>
+                    <input id="activityDaysInput" class="form-control" type="number" min="1" max="90" name="activity_days" value="{{ activity_days }}">
+                </div>
+                <div class="col-12 col-sm-6 col-lg-2">
+                    <div class="form-check mt-4">
+                        <input class="form-check-input" type="checkbox" id="includeInactiveInput" name="include_inactive" value="1" {% if include_inactive %}checked{% endif %}>
+                        <label class="form-check-label" for="includeInactiveInput">Include inactive</label>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-2 d-flex gap-2">
+                    <button class="btn btn-primary w-100" type="submit">Apply</button>
+                    <a class="btn btn-outline-secondary" href="{% url 'mastery:summary_list' %}">Reset</a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    {% if not selected_group %}
+    <div class="alert alert-warning">
+        No summary audience group is configured yet.
+        {% if perms.mastery.manage_summary_groups %}
+        <a href="{% url 'mastery:summary_settings' %}">Create one in summary settings</a>.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if selected_group %}
+    {% for item in doctrine_summaries %}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center py-3">
+            <div class="d-flex align-items-center gap-2">
+                <img src="{{ item.doctrine.icon_url }}" class="rounded" width="36" height="36" alt="{{ item.doctrine.name }}">
+                <div>
+                    <div class="fw-semibold fs-5">{{ item.doctrine.name }}</div>
+                    <div class="small text-muted">{{ item.configured_fittings }}/{{ item.fittings_total }} fittings configured</div>
+                </div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <span class="badge bg-success">{{ item.users_with_any_flyable }} members can fly at least one fit</span>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_doctrine_detail' item.doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Open doctrine detail</a>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Fitting</th>
+                        <th>Coverage</th>
+                        <th>Best progress</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for fit in item.fittings %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="{{ fit.fitting.ship_type_type_id|type_render_url:32 }}" class="rounded" width="32" height="32" alt="{{ fit.fitting.ship_type.name }}">
+                                <div>
+                                    <div class="fw-semibold">{{ fit.fitting.name }}</div>
+                                    <div class="small text-muted">{{ fit.fitting.ship_type.name }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if fit.configured %}
+                            <div class="small text-muted">Members with flyable chars: {{ fit.users_with_flyable }}/{{ fit.users_total }}</div>
+                            {% else %}
+                            <span class="text-muted">Not configured</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if fit.configured %}
+                            <div class="small text-muted">Required {{ fit.best_required_pct }}%</div>
+                            <div class="small text-muted">Recommended {{ fit.best_recommended_pct }}%</div>
+                            {% else %}
+                            <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if fit.configured %}
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Member detail</a>
+                            {% else %}
+                            <span class="text-muted small">Unavailable</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-info mb-0">No doctrines available for this filter scope.</div>
+    {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

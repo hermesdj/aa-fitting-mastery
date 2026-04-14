@@ -1,0 +1,172 @@
+{% extends 'mastery/base.html' %}
+{% load i18n %}
+{% load humanize %}
+{% load evelinks %}
+{% load static %}
+
+{% block details %}
+<div class="container mt-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <img src="{{ doctrine.icon_url }}" class="rounded" width="44" height="44" alt="{{ doctrine.name }}">
+            <div>
+                <h2 class="mb-1">{{ doctrine.name }}</h2>
+                <div class="text-muted">Fitting mastery configuration for this doctrine</div>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:doctrine_list' %}">Back to doctrines</a>
+            <form method="post" action="{% url 'mastery:sync_doctrine' doctrine.id %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-primary">Sync doctrine</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
+                <div>
+                    <h5 class="card-title mb-1">Doctrine default mastery</h5>
+                    <p class="text-muted mb-0">Applied to all fittings unless an override is set on a fitting.</p>
+                </div>
+                <form method="post" action="{% url 'mastery:update_doctrine_mastery' doctrine.id %}" class="d-flex align-items-center gap-2 flex-wrap">
+                    {% csrf_token %}
+                    <select class="form-select" name="mastery_level">
+                        {% for value, label in mastery_choices %}
+                        <option value="{{ value }}" {% if doctrine_default_mastery_level == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary text-nowrap px-3">Save &amp; sync doctrine</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center py-3">
+            <div class="fw-semibold">Fittings</div>
+            <span class="badge bg-secondary">{{ fittings|length }} total</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Fitting</th>
+                        <th>Status</th>
+                        <th>Mastery</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for f in fittings %}
+                    <tr>
+                        <td>
+                            <a class="text-decoration-none" href="{% url 'mastery:fitting_skills' f.id %}">
+                                <div class="d-flex align-items-center gap-2">
+                                    <img src="{{ f.ship_type_id|type_render_url:32 }}" class="rounded" height="32" width="32" alt="{{ f.ship_name }}">
+                                    <div>
+                                        <div class="fw-semibold text-body">{{ f.name }}</div>
+                                        <div class="small text-muted">{{ f.ship_name }}</div>
+                                    </div>
+                                </div>
+                            </a>
+                        </td>
+                        <td>
+                            {% if f.configured %}
+                            <span class="badge bg-success">Configured</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">Missing</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="small text-muted mb-1">Effective: <strong>{{ f.effective_mastery_label }}</strong></div>
+                            <form method="post" action="{% url 'mastery:update_fitting_mastery' f.id %}" class="d-flex align-items-center gap-2 flex-wrap">
+                                {% csrf_token %}
+                                <input type="hidden" name="doctrine_id" value="{{ doctrine.id }}">
+                                <select class="form-select form-select-sm" name="mastery_level" id="fitting-mastery-{{ f.id }}">
+                                    <option value="" {% if f.mastery_override is None %}selected{% endif %}>Use doctrine default ({{ doctrine_default_mastery_label }})</option>
+                                    {% for value, label in mastery_choices %}
+                                    <option value="{{ value }}" {% if f.mastery_override == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="hidden" name="next" value="{% url 'mastery:doctrine_detail' doctrine.id %}">
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Apply</button>
+                            </form>
+                        </td>
+                        <td>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:fitting_skills' f.id %}">Open fitting</a>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-info preview-fittings-btn"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#fittingPreviewModal"
+                                    data-preview-url="{% url 'mastery:fitting_skills_preview' f.id %}?doctrine_id={{ doctrine.id }}"
+                                    data-select-id="fitting-mastery-{{ f.id }}"
+                                    data-fitting-name="{{ f.name|escape }}"
+                                >
+                                    Preview skills
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-muted">No fittings found in this doctrine.</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="fittingPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Fitting skill preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="fittingPreviewModalBody">
+                <div class="text-muted">Loading preview...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (() => {
+        const modalElement = document.getElementById('fittingPreviewModal');
+        const modalBody = document.getElementById('fittingPreviewModalBody');
+        const modalTitle = modalElement.querySelector('.modal-title');
+
+        modalElement.addEventListener('show.bs.modal', async (event) => {
+            const button = event.relatedTarget;
+            if (!button) {
+                return;
+            }
+
+            const select = document.getElementById(button.dataset.selectId);
+            const masteryLevel = select ? select.value : '';
+            const separator = button.dataset.previewUrl.includes('?') ? '&' : '?';
+            const previewUrl = `${button.dataset.previewUrl}${separator}mastery_level=${encodeURIComponent(masteryLevel)}`;
+
+            modalTitle.textContent = `Fitting skill preview - ${button.dataset.fittingName}`;
+            modalBody.innerHTML = '<div class="text-muted">Loading preview...</div>';
+
+            const response = await fetch(previewUrl, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            modalBody.innerHTML = await response.text();
+        });
+    })();
+</script>
+
+{% endblock %}

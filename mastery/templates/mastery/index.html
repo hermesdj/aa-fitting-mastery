@@ -1,0 +1,313 @@
+{% extends 'mastery/base.html' %}
+{% load i18n %}
+{% load humanize %}
+{% load static %}
+{% load evelinks %}
+
+{% block details %}
+<div class="container mt-4">
+	<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+		<div>
+			<h2 class="mb-1">Skill Mastery</h2>
+			<p class="text-muted mb-0">Doctrine readiness overview for your characters ({{ character_count }} tracked).</p>
+		</div>
+	</div>
+
+	<form method="get" class="card shadow-sm border-0 mb-4">
+		<div class="card-body">
+			<div class="row g-3 align-items-end">
+				<div class="col-12 col-lg-5">
+					<label class="form-label small text-muted" for="pilotSearchInput">Search doctrine / fitting / ship</label>
+					<input id="pilotSearchInput" type="text" name="q" value="{{ search_query }}" class="form-control" placeholder="Cerb, Armor, Fleet Issue...">
+				</div>
+				<div class="col-12 col-md-6 col-lg-3">
+					<label class="form-label small text-muted" for="pilotCharacterFilter">Focus character</label>
+					<select id="pilotCharacterFilter" name="character_id" class="form-select">
+						<option value="">Best character available</option>
+						{% for character in member_characters %}
+						<option value="{{ character.id }}" {% if selected_character_id == character.id %}selected{% endif %}>{{ character.eve_character.character_name }}</option>
+						{% endfor %}
+					</select>
+				</div>
+				<div class="col-12 col-md-6 col-lg-2">
+					<label class="form-label small text-muted" for="pilotStatusFilter">Status</label>
+					<select id="pilotStatusFilter" name="status" class="form-select">
+						<option value="all" {% if selected_status == 'all' %}selected{% endif %}>All</option>
+						<option value="elite" {% if selected_status == 'elite' %}selected{% endif %}>Elite ready</option>
+						<option value="flyable" {% if selected_status == 'flyable' %}selected{% endif %}>Flyable</option>
+						<option value="training" {% if selected_status == 'training' %}selected{% endif %}>Needs training</option>
+					</select>
+				</div>
+				<div class="col-12 col-lg-2 d-flex gap-2">
+					<button class="btn btn-primary w-100" type="submit">Apply</button>
+					<a class="btn btn-outline-secondary" href="{% url 'mastery:pilot_index' %}">Reset</a>
+				</div>
+			</div>
+		</div>
+	</form>
+
+	<div class="row g-3 mb-4">
+		<div class="col-12 col-md-4">
+			<div class="card shadow-sm border-0 h-100">
+				<div class="card-body">
+					<div class="small text-muted mb-1">Configured fittings in view</div>
+					<div class="display-6 fw-semibold">{{ configured_fittings_count }}</div>
+				</div>
+			</div>
+		</div>
+		<div class="col-12 col-md-4">
+			<div class="card shadow-sm border-0 h-100">
+				<div class="card-body">
+					<div class="small text-muted mb-1">Flyable fittings{% if selected_character %} for {{ selected_character.eve_character.character_name }}{% endif %}</div>
+					<div class="display-6 fw-semibold text-success">{{ flyable_fittings_count }}</div>
+				</div>
+			</div>
+		</div>
+		<div class="col-12 col-md-4">
+			<div class="card shadow-sm border-0 h-100">
+				<div class="card-body">
+					<div class="small text-muted mb-1">Focused pilot</div>
+					<div class="fs-5 fw-semibold">{% if selected_character %}{{ selected_character.eve_character.character_name }}{% else %}Best available pilot{% endif %}</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="pilotDoctrineContainer">
+	{% for doctrine_card in doctrine_cards %}
+	<div class="card mb-4 shadow-sm border-0 doctrine-card" data-doctrine-name="{{ doctrine_card.doctrine.name|lower }}">
+		<div class="card-header d-flex justify-content-between align-items-center py-3">
+			<div class="d-flex align-items-center gap-2">
+				<img src="{{ doctrine_card.doctrine.icon_url }}" class="rounded" width="36" height="36" alt="{{ doctrine_card.doctrine.name }}">
+				<div>
+					<div class="fw-semibold fs-5">
+						<a class="text-decoration-none text-body" href="{% url 'fittings:view_doctrine' doctrine_card.doctrine.id %}">{{ doctrine_card.doctrine.name }}</a>
+					</div>
+				<div class="small text-muted">{{ doctrine_card.fittings|length }} fitting{{ doctrine_card.fittings|length|pluralize }} visible after filters</div>
+				</div>
+			</div>
+			<span class="badge bg-secondary">Doctrine</span>
+		</div>
+		<div class="card-body p-0">
+			<div class="table-responsive">
+				<table class="table table-sm align-middle mb-0" style="table-layout: fixed; width: 100%;">
+					<colgroup>
+						<col style="width: 320px;">
+						<col style="width: 280px;">
+						<col>
+						<col style="width: 170px;">
+					</colgroup>
+					<thead class="table-light">
+					<tr>
+						<th>Fitting</th>
+						<th>Readiness</th>
+						<th>Character overview</th>
+						<th>Actions</th>
+					</tr>
+					</thead>
+					<tbody>
+					{% for fit_card in doctrine_card.fittings %}
+					<tr class="pilot-fit-row" data-fit-name="{{ fit_card.fitting.name|lower }} {{ fit_card.fitting.ship_type.name|lower }} {{ doctrine_card.doctrine.name|lower }}">
+						<td>
+							<div class="d-flex align-items-center gap-2 fitting-main-line">
+								<img src="{{ fit_card.fitting.ship_type_type_id|type_render_url:32 }}" class="rounded flex-shrink-0" width="32" height="32" alt="{{ fit_card.fitting.ship_type.name }}">
+								<a class="text-decoration-none text-body fw-semibold fitting-name" href="{% url 'fittings:view_fit' fit_card.fitting.id %}" title="View fitting in Fittings">{{ fit_card.fitting.name }}</a>
+							</div>
+							<div class="small text-muted text-truncate">{{ fit_card.fitting.ship_type.name }}</div>
+							{% if fit_card.is_configured %}
+							<div class="small mt-2">
+								<span class="badge {% if fit_card.can_any_fly %}bg-success{% else %}bg-warning text-dark{% endif %}">
+									{% if fit_card.can_any_fly %}At least one pilot can fly{% else %}Training required{% endif %}
+								</span>
+							</div>
+							{% else %}
+							<div class="small mt-2"><span class="badge bg-secondary">Leadership has not configured this fit yet</span></div>
+							{% endif %}
+						</td>
+						<td>
+							{% if fit_card.is_configured and fit_card.selected_progress %}
+							<div class="mb-2 d-flex justify-content-between">
+								<span class="small text-muted">{{ selected_character.eve_character.character_name }}</span>
+								<span class="badge bg-{{ fit_card.selected_progress.status_class }}{% if fit_card.selected_progress.status_class == 'warning' %} text-dark{% endif %}">{{ fit_card.selected_progress.status_label }}</span>
+							</div>
+							<div class="small text-muted mb-1">Required {{ fit_card.selected_progress.required_pct }}%</div>
+							<div class="progress mb-2" style="height: 8px;">
+								<div class="progress-bar bg-success" role="progressbar" style="width: {{ fit_card.selected_progress.required_pct }}%"></div>
+							</div>
+							<div class="small text-muted mb-1">Recommended {{ fit_card.selected_progress.recommended_pct }}%</div>
+							<div class="progress" style="height: 8px;">
+								<div class="progress-bar bg-primary" role="progressbar" style="width: {{ fit_card.selected_progress.recommended_pct }}%"></div>
+							</div>
+							{% elif fit_card.is_configured %}
+							<div class="small text-muted mb-1">Best required coverage {{ fit_card.best_required_pct }}%</div>
+							<div class="progress mb-2" style="height: 8px;">
+								<div class="progress-bar bg-success" role="progressbar" style="width: {{ fit_card.best_required_pct }}%"></div>
+							</div>
+							<div class="small text-muted mb-1">Best recommended coverage {{ fit_card.best_recommended_pct }}%</div>
+							<div class="progress" style="height: 8px;">
+								<div class="progress-bar bg-primary" role="progressbar" style="width: {{ fit_card.best_recommended_pct }}%"></div>
+							</div>
+							{% else %}
+							<span class="text-muted small">No pilot data available.</span>
+							{% endif %}
+						</td>
+						<td>
+							{% if fit_card.is_configured %}
+							<div class="character-overview-list d-flex flex-wrap gap-2">
+								{% if selected_character %}
+									{% for character_row in fit_card.characters %}
+										{% if character_row.character.id == selected_character.id %}
+										<a class="text-decoration-none character-focus-link" href="{% url 'mastery:pilot_fitting_detail' fit_card.fitting.id %}?character_id={{ character_row.character.id }}">
+											<div class="border rounded-3 px-2 py-2 bg-body character-focus-card is-focused">
+												<div class="d-flex align-items-center gap-2 mb-1">
+													<img src="{{ character_row.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ character_row.character.eve_character.character_name }}">
+													<div class="small fw-semibold text-body">{{ character_row.character.eve_character.character_name }}</div>
+													<span class="badge bg-primary">Focused</span>
+												</div>
+																											<div class="character-metrics small">
+																												<div class="d-flex justify-content-between text-muted">
+																													<span>Required</span>
+																													<span class="fw-semibold text-body">{{ character_row.progress.required_pct }}%</span>
+																												</div>
+																												<div class="progress mb-1" style="height: 5px;">
+																													<div class="progress-bar bg-success" role="progressbar" style="width: {{ character_row.progress.required_pct }}%"></div>
+																												</div>
+																												<div class="d-flex justify-content-between text-muted">
+																													<span>Recommended</span>
+																													<span class="fw-semibold text-body">{{ character_row.progress.recommended_pct }}%</span>
+																												</div>
+																												<div class="progress" style="height: 5px;">
+																													<div class="progress-bar bg-primary" role="progressbar" style="width: {{ character_row.progress.recommended_pct }}%"></div>
+																												</div>
+																											</div>
+												<span class="badge bg-{{ character_row.progress.status_class }}{% if character_row.progress.status_class == 'warning' %} text-dark{% endif %}">{{ character_row.progress.status_label }}</span>
+											</div>
+										</a>
+										{% endif %}
+									{% endfor %}
+								{% endif %}
+
+								{% for character_row in fit_card.characters %}
+								{% if not selected_character or character_row.character.id != selected_character.id %}
+								<a class="text-decoration-none character-focus-link" href="{% url 'mastery:pilot_fitting_detail' fit_card.fitting.id %}?character_id={{ character_row.character.id }}">
+									<div class="border rounded-3 px-2 py-2 bg-body character-focus-card">
+										<div class="d-flex align-items-center gap-2 mb-1">
+											<img src="{{ character_row.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ character_row.character.eve_character.character_name }}">
+											<div class="small fw-semibold text-body">{{ character_row.character.eve_character.character_name }}</div>
+										</div>
+										<div class="character-metrics small">
+											<div class="d-flex justify-content-between text-muted">
+												<span>Required</span>
+												<span class="fw-semibold text-body">{{ character_row.progress.required_pct }}%</span>
+											</div>
+											<div class="progress mb-1" style="height: 5px;">
+												<div class="progress-bar bg-success" role="progressbar" style="width: {{ character_row.progress.required_pct }}%"></div>
+											</div>
+											<div class="d-flex justify-content-between text-muted">
+												<span>Recommended</span>
+												<span class="fw-semibold text-body">{{ character_row.progress.recommended_pct }}%</span>
+											</div>
+											<div class="progress" style="height: 5px;">
+												<div class="progress-bar bg-primary" role="progressbar" style="width: {{ character_row.progress.recommended_pct }}%"></div>
+											</div>
+										</div>
+										<span class="badge bg-{{ character_row.progress.status_class }}{% if character_row.progress.status_class == 'warning' %} text-dark{% endif %}">{{ character_row.progress.status_label }}</span>
+									</div>
+								</a>
+								{% endif %}
+								{% empty %}
+								<span class="text-muted small">No characters found for your account.</span>
+								{% endfor %}
+							</div>
+							{% else %}
+							<span class="text-muted small">Unavailable until a skill plan is generated.</span>
+							{% endif %}
+						</td>
+						<td>
+							{% if fit_card.is_configured %}
+							<a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_detail' fit_card.fitting.id %}{% if selected_character %}?character_id={{ selected_character.id }}{% endif %}">Open fit planner</a>
+							{% else %}
+							<span class="text-muted small">Unavailable</span>
+							{% endif %}
+						</td>
+					</tr>
+					{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	</div>
+	{% empty %}
+	<div class="alert alert-info mb-0">No accessible doctrines found.</div>
+	{% endfor %}
+	</div>
+</div>
+
+<style>
+	.character-focus-link {
+		display: block;
+		color: inherit;
+	}
+
+	.fitting-main-line {
+		min-width: 0;
+	}
+
+	.fitting-name {
+		display: block;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.character-focus-card {
+		transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+	}
+
+	.character-metrics {
+		margin: 0.15rem 0 0.4rem;
+	}
+
+	.character-overview-list {
+		max-height: 190px;
+		overflow-y: auto;
+		padding-right: 2px;
+	}
+
+	.character-focus-card.is-focused {
+		border-color: var(--bs-primary);
+		box-shadow: inset 0 0 0 1px rgba(var(--bs-primary-rgb), 0.25);
+		background-color: rgba(var(--bs-primary-rgb), 0.08) !important;
+	}
+
+	.character-focus-link:hover .character-focus-card,
+	.character-focus-link:focus-visible .character-focus-card {
+		transform: translateY(-1px);
+		box-shadow: var(--bs-box-shadow-sm);
+		border-color: var(--bs-primary);
+	}
+</style>
+
+<script>
+    $(document).ready(() => {
+        const searchInput = document.getElementById('pilotSearchInput');
+        if (!searchInput) {
+            return;
+        }
+
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.trim().toLowerCase();
+            document.querySelectorAll('.pilot-fit-row').forEach((row) => {
+                const haystack = `${row.dataset.fitName || ''}`;
+                row.style.display = haystack.includes(query) ? '' : 'none';
+            });
+
+            document.querySelectorAll('.doctrine-card').forEach((card) => {
+                const visibleRows = card.querySelectorAll('.pilot-fit-row:not([style*="display: none"])').length;
+                card.style.display = visibleRows > 0 ? '' : 'none';
+            });
+        });
+    });
+</script>
+{% endblock %}

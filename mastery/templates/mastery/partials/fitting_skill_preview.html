@@ -1,0 +1,99 @@
+{% load skill_render %}
+
+<div class="mb-3">
+    <div><strong>Effective mastery:</strong> {{ effective_mastery_label }}</div>
+    <div class="small text-muted">
+        Doctrine default: {{ doctrine_default_mastery_label }}
+        {% if fitting_mastery_override is not None %}
+        · Saved fitting override: {{ fitting_mastery_override }}
+        {% endif %}
+    </div>
+</div>
+
+{% for group, skills in grouped_skills.items %}
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ group }}</span>
+        <span class="badge bg-secondary">{{ skills|length }}</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0" style="table-layout: fixed; width: 100%;">
+                <colgroup>
+                    <col style="width: 420px;">
+                    <col style="width: 120px;">
+                    <col style="width: 140px;">
+                    <col>
+                    <col style="width: 120px;">
+                </colgroup>
+                <thead>
+                <tr>
+                    <th>Skill</th>
+                    <th>Required</th>
+                    <th>Recommended</th>
+                    <th>Suggestion</th>
+                    <th>Status</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for skill in skills %}
+                <tr class="{% if skill.is_blacklisted %}table-danger{% elif skill.is_suggested %}table-warning{% endif %}">
+                    <td>
+                        <span>{{ skill.skill_name }}</span>
+                        {% if skill.is_manual %}
+                        <span class="badge text-bg-info ms-1">Manual</span>
+                        {% endif %}
+                        {% if skill.skill_description %}
+                        <button
+                                type="button"
+                                class="btn btn-link btn-sm p-0 ms-1 align-baseline"
+                                data-bs-tooltip="aa-mastery"
+                                data-bs-placement="top"
+                                data-bs-title="{{ skill.skill_description|striptags }}"
+                                aria-label="Skill description"
+                        >
+                            <span class="badge rounded-pill text-bg-secondary">?</span>
+                        </button>
+                        {% endif %}
+                    </td>
+                    <td>{{ skill.required_level|skill_render }}</td>
+                    <td>{{ skill.recommended_level|skill_render }}</td>
+                    <td>
+                        {% if skill.is_suggested %}
+                        {% if skill.suggestion_action == 'remove' %}
+                        Suggested to remove: {{ skill.suggestion_reason }}
+                        {% elif skill.suggestion_action == 'add' %}
+                        Suggested to add: {{ skill.suggestion_reason }}
+                        {% else %}
+                        {{ skill.suggestion_reason }}
+                        {% endif %}
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if skill.is_blacklisted %}
+                        <span class="badge bg-danger">Blacklisted</span>
+                        {% elif skill.is_suggested %}
+                        <span class="badge bg-warning text-dark">Suggested</span>
+                        {% else %}
+                        <span class="badge bg-success">Included</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% empty %}
+<div class="alert alert-info mb-0">No skills found for this fitting at the selected mastery level.</div>
+{% endfor %}
+
+<script>
+    $(document).ready(() => {
+        $('[data-bs-tooltip="aa-mastery"]').tooltip();
+    });
+</script>
+

@@ -1,0 +1,111 @@
+{% extends 'mastery/base.html' %}
+{% load humanize %}
+{% load evelinks %}
+
+{% block details %}
+<div class="container mt-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+        <div class="d-flex align-items-center gap-2">
+            <img src="{{ summary.doctrine.icon_url }}" class="rounded" width="40" height="40" alt="{{ summary.doctrine.name }}">
+            <div>
+                <h2 class="mb-0">{{ summary.doctrine.name }}</h2>
+                <div class="text-muted">{{ summary.users_with_any_flyable }}/{{ summary.users_tracked }} members can fly at least one fit</div>
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_list' %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Back to summary</a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_doctrine' summary.doctrine.id %}">View doctrine</a>
+            {% if perms.mastery.manage_summary_groups %}
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_settings' %}?group_id={{ selected_group.id }}">Summary settings</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body d-flex flex-wrap justify-content-between gap-2 align-items-center">
+            <div class="small text-muted">Audience group: <strong>{{ selected_group.name }}</strong></div>
+            <form method="get" class="d-flex flex-wrap align-items-center gap-2">
+                <input type="hidden" name="activity_days" value="{{ activity_days }}">
+                {% if include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
+                <label class="small text-muted" for="summaryGroupSwitchDoctrine">Switch group</label>
+                <select id="summaryGroupSwitchDoctrine" name="group_id" class="form-select form-select-sm" style="width: 240px;">
+                    {% for group in summary_groups %}
+                    <option value="{{ group.id }}" {% if selected_group.id == group.id %}selected{% endif %}>{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+                <button class="btn btn-sm btn-outline-primary" type="submit">Apply</button>
+            </form>
+        </div>
+    </div>
+
+    {% for fit in summary.fittings %}
+    <div class="card border-0 shadow-sm mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <img src="{{ fit.fitting.ship_type_type_id|type_render_url:32 }}" class="rounded" width="32" height="32" alt="{{ fit.fitting.ship_type.name }}">
+                <div>
+                    <div class="fw-semibold">{{ fit.fitting.name }}</div>
+                    <div class="small text-muted">{{ fit.fitting.ship_type.name }}</div>
+                </div>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                {% if fit.configured %}
+                <span class="badge bg-success">{{ fit.users_with_flyable }}/{{ fit.users_total }} members have a flyable alt</span>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Open member detail</a>
+                {% else %}
+                <span class="badge bg-secondary">Not configured</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if fit.configured %}
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Member (main)</th>
+                        <th>Best character for this fit</th>
+                        <th>Flyable alts</th>
+                        <th>Best progress</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for row in fit.user_rows|slice:":12" %}
+                    <tr>
+                        <td>
+                            {% if row.main_character %}
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="{{ row.main_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ row.main_character.character_name }}">
+                                <span>{{ row.main_character.character_name }}</span>
+                            </div>
+                            {% else %}
+                            <span>{{ row.user.username }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="{{ row.best_character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ row.best_character.eve_character.character_name }}">
+                                <span>{{ row.best_character.eve_character.character_name }}</span>
+                            </div>
+                        </td>
+                        <td>{{ row.flyable_count }}/{{ row.active_count }} <span class="text-muted">(of {{ row.total_count }})</span></td>
+                        <td>
+                            <div class="small text-muted">Required {{ row.best_progress.required_pct }}%</div>
+                            <div class="small text-muted">Recommended {{ row.best_progress.recommended_pct }}%</div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-muted">No active characters in the selected activity window.</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+

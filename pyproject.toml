@@ -1,0 +1,82 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "aa-fitting-mastery"
+dynamic = ["version", "description"]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.8"
+authors = [
+    { name = "Jay", email = "jays.gaming.contact@gmail.com" },
+]
+classifiers = [
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 4.0",
+    "Framework :: Django :: 4.2",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+dependencies = [
+    "aa-memberaudit>=4.3.1",
+    "fittings>=2.3.0",
+    "allianceauth-app-utils>=1.18",
+    "allianceauth>=4,<5",
+    "django-esi>=8.3.1",
+    "django-eveonline-sde>=0.0.1b2",
+]
+
+[project.urls]
+Homepage = "https://github.com/hermesdj/aa-fitting-mastery"
+Source = "https://github.com/hermesdj/aa-fitting-mastery"
+Changelog = "https://github.com/hermesdj/aa-fitting-mastery/-/blob/master/CHANGELOG.md"
+Tracker = "https://github.com/hermesdj/aa-fitting-mastery/-/issues"
+
+[tool.flit.module]
+name = "mastery"
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+sections = [
+    "FUTURE",
+    "STDLIB",
+    "THIRDPARTY",
+    "DJANGO",
+    "ALLIANCEAUTH",
+    "FIRSTPARTY",
+    "LOCALFOLDER",
+]
+known_allianceauth = ["allianceauth", "app_utils"]
+known_django = ["django", "django_webtest", "esi", "eveuniverse"]
+
+[tool.pylint.'MASTER']
+ignore-patterns = ["__init__.py", "auth_hooks.py", "apps.py"]
+ignore-paths = ["^.*/tests/.*$", "^.*/migrations/.*$"]
+
+[tool.pylint.'BASIC']
+good-names = ["i", "j", "k", "ex", "pk", "id"]
+
+[tool.pylint.'FORMAT']
+max-line-length = 120
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = [
+    "too-many-instance-attributes",
+    "too-few-public-methods",
+    "cyclic-import",
+    "imported-auth-user",
+    "import-outside-toplevel",
+    "fixme",
+]
