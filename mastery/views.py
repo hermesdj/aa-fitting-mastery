@@ -89,6 +89,57 @@ def _parse_posted_int(raw_value: str, field_name: str) -> int:
     return int(number)
 
 
+def _to_int(value, default: int = 0) -> int:
+    """Best-effort int parser for mixed payloads coming from preview/services."""
+    if value in (None, ""):
+        return default
+
+    if isinstance(value, bool):
+        return int(value)
+
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, Decimal):
+        return int(value)
+
+    normalized = str(value).strip()
+    if not normalized:
+        return default
+
+    normalized = normalized.replace("\u202f", "").replace("\xa0", "").replace(" ", "")
+    if "," in normalized and "." in normalized:
+        normalized = normalized.replace(",", "")
+    elif "," in normalized:
+        normalized = normalized.replace(",", ".")
+
+    try:
+        return int(Decimal(normalized))
+    except (InvalidOperation, ValueError, TypeError):
+        return default
+
+
+def _resolve_row_levels(row: dict) -> tuple[int, int]:
+    """Resolve required/recommended levels from preview rows with backward-compatible key fallbacks."""
+    required_level = _to_int(
+        row.get("required_level", row.get("required", row.get("required_target_level"))),
+        default=0,
+    )
+
+    recommended_value = row.get("recommended_level")
+    if recommended_value in (None, ""):
+        recommended_value = row.get("recommended")
+    if recommended_value in (None, ""):
+        recommended_value = row.get("recommended_level_override")
+    if recommended_value in (None, ""):
+        recommended_value = row.get("target_level")
+
+    recommended_level = _to_int(recommended_value, default=0)
+    recommended_level = max(recommended_level, required_level)
+
+    return required_level, recommended_level
+
+
 def _get_doctrine_and_map_for_fitting(fitting_id: int):
     fitting = get_object_or_404(Fitting.objects.select_related("ship_type"), id=fitting_id)
     fitting_map = FittingSkillsetMap.objects.select_related("doctrine_map").filter(fitting_id=fitting_id).first()
@@ -106,24 +157,49 @@ def _get_doctrine_and_map_for_fitting(fitting_id: int):
 
 
 def _group_preview_skills(skill_rows: List[dict]) -> dict:
+    normalized_skill_ids = [
+        _to_int(row.get("skill_type_id"), default=0)
+        for row in skill_rows
+    ]
+    skill_type_ids = [skill_type_id for skill_type_id in normalized_skill_ids if skill_type_id > 0]
     item_types = {
         item_type.id: item_type
         for item_type in ItemType.objects.select_related("group").filter(
-            id__in=[row["skill_type_id"] for row in skill_rows]
+            id__in=skill_type_ids
         )
     }
 
-    grouped = defaultdict(lambda: {"skills": [], "suggestion_count": 0})
+    rank_by_skill = {skill_id: 1 for skill_id in skill_type_ids}
+    if skill_type_ids:
+        for row in TypeDogma.objects.filter(
+            item_type_id__in=skill_type_ids,
+            dogma_attribute_id=pilot_progress_service.DOGMA_SKILL_TIME_CONSTANT,
+        ).values("item_type_id", "value"):
+            rank_by_skill[int(row["item_type_id"])] = max(1, int(row["value"]))
+
+    grouped = defaultdict(
+        lambda: {
+            "skills": [],
+            "suggestion_count": 0,
+            "required_total_sp": 0,
+            "recommended_total_sp": 0,
+        }
+    )
 
     for row in sorted(skill_rows, key=lambda x: (x.get("group_name", "Other"), x.get("skill_name", ""))):
-        item_type = item_types.get(row["skill_type_id"])
-        skill_name = item_type.name if item_type else f"Skill {row['skill_type_id']}"
+        skill_type_id = _to_int(row.get("skill_type_id"), default=0)
+        if skill_type_id <= 0:
+            continue
+
+        item_type = item_types.get(skill_type_id)
+        skill_name = item_type.name if item_type else f"Skill {skill_type_id}"
         skill_description = "" if not item_type else (getattr(item_type, "description", "") or "")
         group_name = item_type.group.name if item_type and item_type.group else "Other"
         group_id = item_type.group.id if item_type and item_type.group else None
 
         row_payload = {
             **row,
+            "skill_type_id": skill_type_id,
             "skill_name": skill_name,
             "skill_description": skill_description,
             "group_name": group_name,
@@ -132,6 +208,14 @@ def _group_preview_skills(skill_rows: List[dict]) -> dict:
         grouped[group_name]["skills"].append(row_payload)
         if row_payload.get("is_suggested"):
             grouped[group_name]["suggestion_count"] += 1
+
+        rank = rank_by_skill.get(skill_type_id, 1)
+        required_level, recommended_level = _resolve_row_levels(row_payload)
+
+        if required_level > 0:
+            grouped[group_name]["required_total_sp"] += pilot_progress_service._sp_for_level(rank, required_level)
+        if recommended_level > 0:
+            grouped[group_name]["recommended_total_sp"] += pilot_progress_service._sp_for_level(rank, recommended_level)
 
     return dict(sorted(grouped.items(), key=lambda x: (x[0] or "").lower()))
 
@@ -208,12 +292,11 @@ def _build_plan_kpis(skill_rows: list[dict]) -> dict:
     recommended_targets = {}
 
     for row in skill_rows:
-        skill_type_id = int(row.get("skill_type_id", 0))
+        skill_type_id = _to_int(row.get("skill_type_id"), default=0)
         if not skill_type_id:
             continue
 
-        required_level = int(row.get("required_level") or 0)
-        recommended_level = int(row.get("recommended_level") or 0)
+        required_level, recommended_level = _resolve_row_levels(row)
 
         if required_level > 0:
             required_targets[skill_type_id] = max(required_targets.get(skill_type_id, 0), required_level)
@@ -351,6 +434,14 @@ def _parse_export_language(raw_value: str) -> str:
 
 
 def _parse_activity_days(raw_value: str, default: int = 14) -> int:
+    try:
+        days = int(raw_value) if raw_value is not None else default
+    except (TypeError, ValueError):
+        return default
+    return max(1, min(days, 90))
+
+
+def _parse_training_days(raw_value: str, default: int = 7) -> int:
     try:
         days = int(raw_value) if raw_value is not None else default
     except (TypeError, ValueError):
@@ -537,7 +628,179 @@ def _build_fitting_user_rows(fitting_map: FittingSkillsetMap, member_groups: lis
     )
 
 
-def _build_doctrine_summary(doctrine, fitting_maps: dict, member_groups: list, progress_cache: dict) -> dict:
+def _build_fitting_kpis(user_rows: list, training_days: int = 7) -> dict:
+    one_week = timedelta(days=training_days)
+    users_total = len(user_rows)
+    flyable_now_users = 0
+    flyable_now_characters = 0
+    trainable_under_week = 0
+    recommended_ready = 0
+    recommended_sum = 0.0
+
+    for row in user_rows:
+        best_progress = row["best_progress"]
+        can_fly = bool(best_progress.get("can_fly"))
+        recommended_pct = float(best_progress.get("recommended_pct") or 0)
+        required_stats = (best_progress.get("mode_stats") or {}).get(
+            pilot_progress_service.EXPORT_MODE_REQUIRED,
+            {},
+        )
+        required_time = required_stats.get("total_missing_time")
+
+        flyable_now_characters += sum(1 for pilot in row.get("character_rows", []) if pilot["progress"].get("can_fly"))
+
+        if can_fly:
+            flyable_now_users += 1
+        elif required_time is not None and required_time <= one_week:
+            trainable_under_week += 1
+
+        if recommended_pct >= 100:
+            recommended_ready += 1
+        recommended_sum += recommended_pct
+
+    recommended_avg = round((recommended_sum / users_total), 1) if users_total else 0.0
+
+    return {
+        "users_total": users_total,
+        "flyable_now_users": flyable_now_users,
+        "flyable_now_characters": flyable_now_characters,
+        "trainable_under_week": trainable_under_week,
+        "recommended_ready": recommended_ready,
+        "recommended_avg_pct": recommended_avg,
+    }
+
+
+def _build_doctrine_kpis(fittings: list, users_tracked: int, training_days: int = 7) -> dict:
+    """Aggregate doctrine-level KPIs from configured fitting user rows.
+
+    Semantics:
+    - flyable_now: members with at least one flyable fitting now
+    - trainable_under_week: non-flyable members that can reach required for at least one fitting in < 7 days
+    - recommended_ready: members at 100% recommended on at least one fitting
+    - recommended_avg_pct: average best recommended completion per member
+    """
+    one_week = timedelta(days=training_days)
+    per_user_best = {}
+
+    for fit in fittings:
+        if not fit.get("configured"):
+            continue
+        for row in fit.get("user_rows", []):
+            user_id = row["user"].id
+            progress = row["best_progress"]
+            existing = per_user_best.get(user_id)
+            if existing is None:
+                per_user_best[user_id] = progress
+                continue
+
+            if (
+                (progress.get("can_fly"), progress.get("recommended_pct", 0), progress.get("required_pct", 0))
+                > (existing.get("can_fly"), existing.get("recommended_pct", 0), existing.get("required_pct", 0))
+            ):
+                per_user_best[user_id] = progress
+
+    flyable_now_users = 0
+    flyable_now_characters_set = set()
+    trainable_under_week = 0
+    recommended_ready = 0
+    recommended_sum = 0.0
+
+    for fit in fittings:
+        if not fit.get("configured"):
+            continue
+        for row in fit.get("user_rows", []):
+            for pilot in row.get("character_rows", []):
+                if pilot["progress"].get("can_fly"):
+                    flyable_now_characters_set.add(pilot["character"].id)
+
+    for progress in per_user_best.values():
+        can_fly = bool(progress.get("can_fly"))
+        recommended_pct = float(progress.get("recommended_pct") or 0)
+        required_stats = (progress.get("mode_stats") or {}).get(
+            pilot_progress_service.EXPORT_MODE_REQUIRED,
+            {},
+        )
+        required_time = required_stats.get("total_missing_time")
+
+        if can_fly:
+            flyable_now_users += 1
+        elif required_time is not None and required_time <= one_week:
+            trainable_under_week += 1
+
+        if recommended_pct >= 100:
+            recommended_ready += 1
+        recommended_sum += recommended_pct
+
+    users_total = users_tracked
+    recommended_avg = round((recommended_sum / users_total), 1) if users_total else 0.0
+
+    return {
+        "users_total": users_total,
+        "flyable_now_users": flyable_now_users,
+        "flyable_now_characters": len(flyable_now_characters_set),
+        "trainable_under_week": trainable_under_week,
+        "recommended_ready": recommended_ready,
+        "recommended_avg_pct": recommended_avg,
+    }
+
+
+def _annotate_member_detail_pilots(user_rows: list, training_days: int = 7) -> list:
+    threshold = timedelta(days=training_days)
+    annotated_rows = []
+    for row in user_rows:
+        req_ready_not_recommended = []
+        near_required = []
+        for pilot in row.get("character_rows", []):
+            progress = pilot["progress"]
+            required_stats = (progress.get("mode_stats") or {}).get(
+                pilot_progress_service.EXPORT_MODE_REQUIRED,
+                {},
+            )
+            recommended_stats = (progress.get("mode_stats") or {}).get(
+                pilot_progress_service.EXPORT_MODE_RECOMMENDED,
+                {},
+            )
+            required_time = required_stats.get("total_missing_time")
+            is_trainable_soon = (
+                (not progress.get("can_fly"))
+                and required_time is not None
+                and required_time <= threshold
+            )
+
+            pilot_enriched = {
+                **pilot,
+                "required_missing_sp": int(required_stats.get("total_missing_sp") or 0),
+                "recommended_missing_sp": int(recommended_stats.get("total_missing_sp") or 0),
+                "is_trainable_soon": is_trainable_soon,
+            }
+
+            if progress.get("can_fly") and float(progress.get("recommended_pct") or 0) < 100:
+                req_ready_not_recommended.append(pilot_enriched)
+            elif ((not progress.get("can_fly")) and float(progress.get("required_pct") or 0) > 90) or is_trainable_soon:
+                near_required.append(pilot_enriched)
+
+        should_keep_row = bool(row.get("flyable_count")) or bool(req_ready_not_recommended) or bool(near_required)
+        if not should_keep_row:
+            continue
+
+        annotated_rows.append(
+            {
+                **row,
+                "req_ready_not_recommended": req_ready_not_recommended,
+                "near_required": near_required,
+            }
+        )
+
+    return annotated_rows
+
+
+def _build_doctrine_summary(
+    doctrine,
+    fitting_maps: dict,
+    member_groups: list,
+    progress_cache: dict,
+    training_days: int = 7,
+) -> dict:
     fittings = []
     users_with_any_flyable = set()
     unique_fittings = []
@@ -560,6 +823,13 @@ def _build_doctrine_summary(doctrine, fitting_maps: dict, member_groups: list, p
                     "best_required_pct": 0,
                     "best_recommended_pct": 0,
                     "user_rows": [],
+                    "kpis": {
+                        "users_total": 0,
+                        "flyable_now": 0,
+                        "trainable_under_week": 0,
+                        "recommended_ready": 0,
+                        "recommended_avg_pct": 0.0,
+                    },
                 }
             )
             continue
@@ -583,6 +853,7 @@ def _build_doctrine_summary(doctrine, fitting_maps: dict, member_groups: list, p
                 "best_required_pct": max((row["best_progress"]["required_pct"] for row in user_rows), default=0),
                 "best_recommended_pct": max((row["best_progress"]["recommended_pct"] for row in user_rows), default=0),
                 "user_rows": user_rows,
+                "kpis": _build_fitting_kpis(user_rows),
             }
         )
 
@@ -595,6 +866,11 @@ def _build_doctrine_summary(doctrine, fitting_maps: dict, member_groups: list, p
         "users_tracked": len(member_groups),
         "users_with_any_flyable": len(users_with_any_flyable),
         "active_characters_total": sum(group["active_count"] for group in member_groups),
+        "kpis": _build_doctrine_kpis(
+            fittings=fittings,
+            users_tracked=len(member_groups),
+            training_days=training_days,
+        ),
     }
 
 
@@ -810,6 +1086,12 @@ def pilot_fitting_detail_view(request, fitting_id):
             selected_progress.get("mode_stats", {}).get(export_mode)
             or selected_progress.get("mode_stats", {}).get(pilot_progress_service.EXPORT_MODE_RECOMMENDED)
     )
+    skill_plan_summary = None if not selected_progress else pilot_progress_service.build_skill_plan_summary(
+        selected_progress,
+        export_mode,
+        character=selected_character,
+        language=export_language,
+    )
 
     context = {
         "fitting": fitting,
@@ -823,6 +1105,7 @@ def pilot_fitting_detail_view(request, fitting_id):
         "export_mode_label": export_mode_labels.get(export_mode, export_mode.title()),
         "selected_mode_stats": selected_mode_stats,
         "selected_export_lines": export_lines,
+        "skill_plan_summary": skill_plan_summary,
         "export_language": export_language,
         "export_language_scope_label": "Affects export and selected missing-skill labels",
         "export_language_choices": pilot_progress_service.export_language_choices(),
@@ -872,6 +1155,7 @@ def pilot_fitting_skillplan_export_view(request, fitting_id):
 @permissions_required('mastery.doctrine_summary')
 def summary_list_view(request):
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
+    training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
     search_query = (request.GET.get("q") or "").strip().lower()
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
@@ -895,20 +1179,21 @@ def summary_list_view(request):
             fitting_names = [f"{fit.name} {fit.ship_type.name}".lower() for fit in doctrine.fittings.all()]
             if not any(search_query in name for name in fitting_names):
                 continue
-        doctrine_summaries.append(
-            _build_doctrine_summary(
-                doctrine=doctrine,
-                fitting_maps=fitting_maps,
-                member_groups=member_groups,
-                progress_cache=progress_cache,
-            )
+        summary_item = _build_doctrine_summary(
+            doctrine=doctrine,
+            fitting_maps=fitting_maps,
+            member_groups=member_groups,
+            progress_cache=progress_cache,
+            training_days=training_days,
         )
+        doctrine_summaries += [summary_item]
 
     context = {
         "doctrine_summaries": doctrine_summaries,
         "summary_groups": summary_groups,
         "selected_group": selected_group,
         "activity_days": activity_days,
+        "training_days": training_days,
         "include_inactive": include_inactive,
         "search_query": request.GET.get("q", ""),
         "member_count": len(member_groups),
@@ -921,6 +1206,7 @@ def summary_list_view(request):
 @permissions_required('mastery.doctrine_summary')
 def summary_doctrine_detail_view(request, doctrine_id):
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
+    training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
 
@@ -946,7 +1232,11 @@ def summary_doctrine_detail_view(request, doctrine_id):
         fitting_maps=fitting_maps,
         member_groups=member_groups,
         progress_cache=progress_cache,
+        training_days=training_days,
     )
+    for fit in summary["fittings"]:
+        if fit.get("configured"):
+            fit["kpis"] = _build_fitting_kpis(fit.get("user_rows", []), training_days=training_days)
 
     return render(
         request,
@@ -956,6 +1246,7 @@ def summary_doctrine_detail_view(request, doctrine_id):
             "summary_groups": summary_groups,
             "selected_group": selected_group,
             "activity_days": activity_days,
+            "training_days": training_days,
             "include_inactive": include_inactive,
         },
     )
@@ -965,6 +1256,7 @@ def summary_doctrine_detail_view(request, doctrine_id):
 @permissions_required('mastery.doctrine_summary')
 def summary_fitting_detail_view(request, fitting_id):
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
+    training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
     export_mode = _parse_export_mode(request.GET.get("export_mode"))
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
@@ -988,6 +1280,8 @@ def summary_fitting_detail_view(request, fitting_id):
         member_groups=member_groups,
         progress_cache=progress_cache,
     )
+    fitting_kpis = _build_fitting_kpis(user_rows, training_days=training_days)
+    user_rows = _annotate_member_detail_pilots(user_rows, training_days=training_days)
 
     return render(
         request,
@@ -996,10 +1290,12 @@ def summary_fitting_detail_view(request, fitting_id):
             "fitting": fitting,
             "fitting_map": fitting_map,
             "doctrine": doctrine,
+            "fitting_kpis": fitting_kpis,
             "user_rows": user_rows,
             "summary_groups": summary_groups,
             "selected_group": selected_group,
             "activity_days": activity_days,
+            "training_days": training_days,
             "include_inactive": include_inactive,
             "export_mode": export_mode,
             "export_mode_choices": pilot_progress_service.export_mode_choices(),
@@ -1334,6 +1630,13 @@ def update_skill_recommended_view(request, fitting_id):
     if doctrine_map is None:
         doctrine_map = doctrine_map_service.create_doctrine_map(doctrine)
 
+    required_by_skill = extractor_service.get_required_skills_for_fitting(fitting)
+    required_level = int(required_by_skill.get(skill_type_id, 0) or 0)
+    if level is not None and level < required_level:
+        return HttpResponseBadRequest(
+            f"recommended_level cannot be lower than required level ({required_level})"
+        )
+
     control_service.set_recommended_level(
         fitting_id=fitting_id,
         skill_type_id=skill_type_id,
@@ -1389,6 +1692,17 @@ def update_skill_group_controls_view(request, fitting_id):
                 return HttpResponseBadRequest(str(ex))
             if level is not None and level not in range(0, 6):
                 return HttpResponseBadRequest("recommended_level must be between 0 and 5")
+
+            required_by_skill = extractor_service.get_required_skills_for_fitting(fitting)
+            invalid_skill_ids = [
+                skill_type_id
+                for skill_type_id in skill_type_ids
+                if level < int(required_by_skill.get(skill_type_id, 0) or 0)
+            ]
+            if invalid_skill_ids:
+                return HttpResponseBadRequest(
+                    "recommended_level cannot be lower than required level for one or more selected skills"
+                )
 
         control_service.set_recommended_level_batch(
             fitting_id=fitting_id,

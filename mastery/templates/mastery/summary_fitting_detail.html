@@ -14,7 +14,7 @@
         </div>
         <div class="d-flex gap-2 flex-wrap">
             {% if doctrine %}
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_doctrine_detail' doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Back to doctrine</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_doctrine_detail' doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}&training_days={{ training_days|default:7 }}{% if include_inactive %}&include_inactive=1{% endif %}">Back to doctrine</a>
             {% endif %}
             <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_fit' fitting.id %}">View fitting</a>
         </div>
@@ -25,6 +25,7 @@
             <div class="small text-muted">Audience group: <strong>{{ selected_group.name }}</strong></div>
             <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                 <input type="hidden" name="activity_days" value="{{ activity_days }}">
+                <input type="hidden" name="training_days" value="{{ training_days|default:7 }}">
                 {% if include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
                 <input type="hidden" name="export_mode" value="{{ export_mode }}">
                 <label class="small text-muted" for="summaryGroupSwitchFitting">Switch group</label>
@@ -39,12 +40,27 @@
     </div>
 
     <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div class="small text-muted">Export mode for detailed percentages</div>
-            <div class="btn-group" role="group" aria-label="Export mode">
-                {% for value, label in export_mode_choices %}
-                <a class="btn btn-sm {% if export_mode == value %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'mastery:summary_fitting_detail' fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&export_mode={{ value }}">{{ label }}</a>
-                {% endfor %}
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="small text-muted">Flyable now (players)</div>
+                    <div class="fw-semibold">{{ fitting_kpis.flyable_now_users }}/{{ fitting_kpis.users_total }}</div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="small text-muted">Flyable now (characters)</div>
+                    <div class="fw-semibold">{{ fitting_kpis.flyable_now_characters }}</div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="small text-muted">Trainable &lt; {{ training_days|default:7 }}d (required only, non-flyable)</div>
+                    <div class="fw-semibold">{{ fitting_kpis.trainable_under_week }}</div>
+                </div>
+                <div class="col-12 col-md-6 col-xl-3">
+                    <div class="small text-muted">Avg recommended</div>
+                    <div class="small fw-semibold mb-1">{{ fitting_kpis.recommended_avg_pct }}%</div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ fitting_kpis.recommended_avg_pct }}%"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -58,11 +74,9 @@
                     <tr>
                         <th>Main</th>
                         <th>Best character</th>
+                        <th>Req-ready</th>
+                        <th>Near-req</th>
                         <th>Flyable chars</th>
-                        <th>Coverage</th>
-                        <th>Missing SP</th>
-                        <th>Status</th>
-                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -81,34 +95,70 @@
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 <img src="{{ row.best_character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ row.best_character.eve_character.character_name }}">
-                                <span>{{ row.best_character.eve_character.character_name }}</span>
+                                <div>
+                                    <div>{{ row.best_character.eve_character.character_name }}</div>
+                                    <div class="small text-muted mb-1">Req</div>
+                                    <div class="progress mb-1" style="height: 6px; width: 120px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ row.best_progress.required_pct }}% · Missing {{ row.best_progress.mode_stats.required.total_missing_sp|intcomma }} SP">
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ row.best_progress.required_pct }}%"></div>
+                                    </div>
+                                    <div class="small text-muted mb-1">Rec</div>
+                                    <div class="progress" style="height: 6px; width: 120px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ row.best_progress.recommended_pct }}% · Missing {{ row.best_progress.mode_stats.recommended.total_missing_sp|intcomma }} SP">
+                                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ row.best_progress.recommended_pct }}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for pilot in row.req_ready_not_recommended %}
+                                <div class="pilot-chip border rounded px-2 py-1 d-flex align-items-center gap-2">
+                                    <img src="{{ pilot.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="28" height="28" alt="{{ pilot.character.eve_character.character_name }}">
+                                    <div class="small fw-semibold text-truncate" style="max-width: 120px;">{{ pilot.character.eve_character.character_name }}</div>
+                                    <div class="pilot-bars">
+                                        <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ pilot.progress.required_pct }}% · Missing {{ pilot.required_missing_sp|intcomma }} SP">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ pilot.progress.required_pct }}%"></div>
+                                        </div>
+                                        <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ pilot.progress.recommended_pct }}% · Missing {{ pilot.recommended_missing_sp|intcomma }} SP">
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct }}%"></div>
+                                        </div>
+                                    </div>
+                                    <a class="btn btn-sm btn-outline-primary btn-icon-sm" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ pilot.character.id }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}" data-bs-tooltip="aa-mastery" data-bs-title="Open pilot focus">
+                                        <span class="fas fa-external-link-alt" aria-hidden="true"></span>
+                                    </a>
+                                </div>
+                                {% empty %}
+                                <span class="small text-muted">-</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                {% for pilot in row.near_required %}
+                                <div class="pilot-chip border rounded px-2 py-1 d-flex align-items-center gap-2">
+                                    <img src="{{ pilot.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="28" height="28" alt="{{ pilot.character.eve_character.character_name }}">
+                                    <div class="small fw-semibold text-truncate" style="max-width: 120px;">{{ pilot.character.eve_character.character_name }}</div>
+                                    <div class="pilot-bars">
+                                        <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ pilot.progress.required_pct }}% · Missing {{ pilot.required_missing_sp|intcomma }} SP{% if pilot.is_trainable_soon %} · Trainable < {{ training_days|default:7 }}d{% endif %}">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ pilot.progress.required_pct }}%"></div>
+                                        </div>
+                                        <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ pilot.progress.recommended_pct }}% · Missing {{ pilot.recommended_missing_sp|intcomma }} SP">
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct }}%"></div>
+                                        </div>
+                                    </div>
+                                    <a class="btn btn-sm btn-outline-primary btn-icon-sm" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ pilot.character.id }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}" data-bs-tooltip="aa-mastery" data-bs-title="Open pilot focus">
+                                        <span class="fas fa-external-link-alt" aria-hidden="true"></span>
+                                    </a>
+                                </div>
+                                {% empty %}
+                                <span class="small text-muted">-</span>
+                                {% endfor %}
                             </div>
                         </td>
                         <td>{{ row.flyable_count }}/{{ row.active_count }} <span class="text-muted">(of {{ row.total_count }})</span></td>
-                        <td>
-                            {% if export_mode == 'required' %}
-                            {{ row.best_progress.required_pct }}%
-                            {% else %}
-                            {{ row.best_progress.recommended_pct }}%
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if export_mode == 'required' %}
-                            {{ row.best_progress.mode_stats.required.total_missing_sp|intcomma }}
-                            {% else %}
-                            {{ row.best_progress.mode_stats.recommended.total_missing_sp|intcomma }}
-                            {% endif %}
-                        </td>
-                        <td>
-                            <span class="badge bg-{{ row.best_progress.status_class }}{% if row.best_progress.status_class == 'warning' %} text-dark{% endif %}">{{ row.best_progress.status_label }}</span>
-                        </td>
-                        <td>
-                            <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ row.best_character.id }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}">Open pilot focus</a>
-                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-muted">No active characters in the selected activity window.</td>
+                        <td colspan="5" class="text-muted">No active characters in the selected activity window.</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -117,5 +167,33 @@
         </div>
     </div>
 </div>
+
+<style>
+    .pilot-chip {
+        min-width: 155px;
+    }
+
+    .pilot-bars {
+        width: 68px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .btn-icon-sm {
+        width: 1.75rem;
+        height: 1.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
+</style>
+
+<script>
+    $(document).ready(() => {
+        $('[data-bs-tooltip="aa-mastery"]').tooltip();
+    });
+</script>
 {% endblock %}
 

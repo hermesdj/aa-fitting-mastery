@@ -39,6 +39,10 @@
                     <input id="activityDaysInput" class="form-control" type="number" min="1" max="90" name="activity_days" value="{{ activity_days }}">
                 </div>
                 <div class="col-12 col-sm-6 col-lg-2">
+                    <label class="form-label small text-muted" for="trainingDaysInput">Trainable window (days)</label>
+                    <input id="trainingDaysInput" class="form-control" type="number" min="1" max="90" name="training_days" value="{{ training_days|default:7 }}">
+                </div>
+                <div class="col-12 col-sm-6 col-lg-2">
                     <div class="form-check mt-4">
                         <input class="form-check-input" type="checkbox" id="includeInactiveInput" name="include_inactive" value="1" {% if include_inactive %}checked{% endif %}>
                         <label class="form-check-label" for="includeInactiveInput">Include inactive</label>
@@ -62,66 +66,54 @@
     {% endif %}
 
     {% if selected_group %}
-    {% for item in doctrine_summaries %}
-    <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center py-3">
-            <div class="d-flex align-items-center gap-2">
-                <img src="{{ item.doctrine.icon_url }}" class="rounded" width="36" height="36" alt="{{ item.doctrine.name }}">
-                <div>
-                    <div class="fw-semibold fs-5">{{ item.doctrine.name }}</div>
-                    <div class="small text-muted">{{ item.configured_fittings }}/{{ item.fittings_total }} fittings configured</div>
-                </div>
-            </div>
-            <div class="d-flex gap-2 align-items-center">
-                <span class="badge bg-success">{{ item.users_with_any_flyable }} members can fly at least one fit</span>
-                <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_doctrine_detail' item.doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Open doctrine detail</a>
-            </div>
-        </div>
+    <div class="card border-0 shadow-sm">
+        <div class="card-header">Doctrines</div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead class="table-light">
                     <tr>
-                        <th>Fitting</th>
-                        <th>Coverage</th>
-                        <th>Best progress</th>
+                        <th>Doctrine</th>
+                        <th>Flyable now (players)</th>
+                        <th>Flyable now (characters)</th>
+                        <th>Trainable &lt; {{ training_days|default:7 }}d</th>
+                        <th>100% recommended</th>
+                        <th>Avg recommended</th>
+                        <th>Configured fits</th>
                         <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
-                    {% for fit in item.fittings %}
+                    {% for item in doctrine_summaries %}
                     <tr>
                         <td>
                             <div class="d-flex align-items-center gap-2">
-                                <img src="{{ fit.fitting.ship_type_type_id|type_render_url:32 }}" class="rounded" width="32" height="32" alt="{{ fit.fitting.ship_type.name }}">
+                                <img src="{{ item.doctrine.icon_url }}" class="rounded" width="32" height="32" alt="{{ item.doctrine.name }}">
                                 <div>
-                                    <div class="fw-semibold">{{ fit.fitting.name }}</div>
-                                    <div class="small text-muted">{{ fit.fitting.ship_type.name }}</div>
+                                    <div class="fw-semibold">{{ item.doctrine.name }}</div>
+                                    <div class="small text-muted">{{ item.active_characters_total }} active characters</div>
                                 </div>
                             </div>
                         </td>
+                        <td>{{ item.kpis.flyable_now_users }}/{{ item.kpis.users_total }}</td>
+                        <td>{{ item.kpis.flyable_now_characters }}</td>
+                        <td>{{ item.kpis.trainable_under_week }}</td>
+                        <td>{{ item.kpis.recommended_ready }}/{{ item.kpis.users_total }}</td>
                         <td>
-                            {% if fit.configured %}
-                            <div class="small text-muted">Members with flyable chars: {{ fit.users_with_flyable }}/{{ fit.users_total }}</div>
-                            {% else %}
-                            <span class="text-muted">Not configured</span>
-                            {% endif %}
+                            <div class="small fw-semibold mb-1">{{ item.kpis.recommended_avg_pct }}%</div>
+                            <div class="small text-muted mb-1">Recommended avg</div>
+                            <div class="progress" style="height: 8px; min-width: 120px;">
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ item.kpis.recommended_avg_pct }}%"></div>
+                            </div>
                         </td>
+                        <td>{{ item.configured_fittings }}/{{ item.fittings_total }}</td>
                         <td>
-                            {% if fit.configured %}
-                            <div class="small text-muted">Required {{ fit.best_required_pct }}%</div>
-                            <div class="small text-muted">Recommended {{ fit.best_recommended_pct }}%</div>
-                            {% else %}
-                            <span class="text-muted">-</span>
-                            {% endif %}
+                            <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_doctrine_detail' item.doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}&training_days={{ training_days|default:7 }}{% if include_inactive %}&include_inactive=1{% endif %}">Open doctrine detail</a>
                         </td>
-                        <td>
-                            {% if fit.configured %}
-                            <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Member detail</a>
-                            {% else %}
-                            <span class="text-muted small">Unavailable</span>
-                            {% endif %}
-                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-muted">No doctrines available for this filter scope.</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -129,9 +121,6 @@
             </div>
         </div>
     </div>
-    {% empty %}
-    <div class="alert alert-info mb-0">No doctrines available for this filter scope.</div>
-    {% endfor %}
     {% endif %}
 </div>
 {% endblock %}

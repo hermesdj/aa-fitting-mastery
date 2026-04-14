@@ -25,6 +25,7 @@
 - Data creation is intentionally idempotent-ish: `filter().first()`, `create()`, and `update_or_create()` are used heavily to avoid duplicate maps/control rows.
 - `mastery/api.py` is minimal right now: `toggle_blacklist` is the real mutating endpoint; `update_skill_level` currently parses JSON and returns `{"status": "ok"}` without persistence.
 - `auth_hooks.py` is the navigation/URL integration point: menu entry uses `mastery.basic_access`, while management screens require `mastery.manage_fittings`.
+- `character_portrait_url` does not reliably support arbitrary sizes (e.g. 24). Use supported portrait sizes in templates (this plugin standardises on `32`).
 
 ## External dependencies and integration points
 - Hard package dependencies are declared in `pyproject.toml`: `allianceauth`, `aa-memberaudit`, `fittings`, `allianceauth-app-utils`, `django-esi`, and `django-eveonline-sde`.
@@ -34,7 +35,7 @@
 
 ## Testing and developer workflow
 - `Makefile` assumes an active virtualenv; `make dev` installs editable mode and `make test` runs `tox`.
-- Be careful with `tox.ini`: it expects `testauth.settings_aa4.local` and `runtests.py`, but those files are not present in this repo snapshot. Do not assume `tox` is currently runnable without adding the missing harness.
+- `tox.ini` expects `testauth.settings_aa4.local` and `runtests.py`; keep those files in sync when changing test setup.
 - For real validation, prefer focused checks in the integrated AA instance or targeted Django shell/management-command smoke tests over guessing from `tox.ini`.
 - If you change SDE import logic, validate both the management command `python manage.py import_sde_masteries --dry-run` and the Celery task path in `mastery/tasks.py`.
 

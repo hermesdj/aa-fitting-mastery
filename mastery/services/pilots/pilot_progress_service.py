@@ -2,6 +2,8 @@ import math
 from datetime import timedelta
 import heapq
 
+from django.core.exceptions import ObjectDoesNotExist
+
 from eve_sde.models import ItemType
 from eve_sde.models import TypeDogma
 
@@ -9,6 +11,7 @@ from eve_sde.models import TypeDogma
 class PilotProgressService:
     EXPORT_MODE_REQUIRED = "required"
     EXPORT_MODE_RECOMMENDED = "recommended"
+    LARGE_SKILL_INJECTOR_TYPE_ID = 40520
 
     DOGMA_SKILL_TIME_CONSTANT = 275
     DOGMA_PRIMARY_ATTRIBUTE = 180
@@ -21,6 +24,30 @@ class PilotProgressService:
         167: "perception",
         168: "willpower",
     }
+    ATTRIBUTE_DISPLAY = {
+        "charisma": "Charisma",
+        "intelligence": "Intelligence",
+        "memory": "Memory",
+        "perception": "Perception",
+        "willpower": "Willpower",
+    }
+    ATTRIBUTE_ORDER = ("charisma", "intelligence", "memory", "perception", "willpower")
+    REMAP_MIN_ATTRIBUTE = 17
+    REMAP_MAX_PRIMARY = 27
+    REMAP_MAX_SECONDARY = 21
+    IMPLANT_BONUS_ATTRIBUTE_MAP = {
+        175: "charisma",
+        176: "intelligence",
+        177: "memory",
+        178: "perception",
+        179: "willpower",
+    }
+    LARGE_SKILL_INJECTOR_BREAKPOINTS = (
+        (5_000_000, 500_000),
+        (50_000_000, 400_000),
+        (80_000_000, 300_000),
+        (None, 150_000),
+    )
 
     ROMAN_LEVEL = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V"}
     REQUIRED_SKILL_ATTRIBUTES = [
@@ -49,6 +76,22 @@ class PilotProgressService:
     def __init__(self):
         self._prereq_cache: dict[int, list[tuple[int, int]]] = {}
         self._skill_name_cache: dict[tuple[str, int], str] = {}
+
+    @staticmethod
+    def _safe_related(instance, attr_name: str):
+        try:
+            return getattr(instance, attr_name)
+        except (AttributeError, ObjectDoesNotExist):
+            return None
+
+    @staticmethod
+    def _as_int(value, default: int = 0) -> int:
+        try:
+            if value is None:
+                return default
+            return int(value)
+        except (TypeError, ValueError):
+            return default
 
     def _load_skill_dogma(self, skill_type_ids: list[int]) -> dict[int, dict[str, object | None]]:
         dogma_map: dict[int, dict[str, object | None]] = {
@@ -87,6 +130,232 @@ class PilotProgressService:
             return 0
         return int(math.ceil(250 * rank * (2 ** (2.5 * (level - 1)))))
 
+    @staticmethod
+    def _skillpoints_per_hour(primary_value: int, secondary_value: int) -> int:
+        return (int(primary_value) * 60) + (int(secondary_value) * 30)
+
+    @classmethod
+    def _empty_attribute_map(cls, default: int = 0) -> dict[str, int]:
+        return {attribute_name: int(default) for attribute_name in cls.ATTRIBUTE_ORDER}
+
+    def _resolve_implant_bonus_map(self, character) -> tuple[dict[str, int], bool]:
+        bonus_by_attribute = self._empty_attribute_map(default=0)
+        if not character:
+            return bonus_by_attribute, False
+
+        implants_qs = getattr(character, "implants", None)
+        if implants_qs is None:
+            return bonus_by_attribute, False
+
+        has_implant_data = False
+        for implant in implants_qs.select_related("eve_type").prefetch_related("eve_type__dogma_attributes"):
+            implant_type = getattr(implant, "eve_type", None)
+            if implant_type is None:
+                continue
+
+            dogma_rows = getattr(implant_type, "dogma_attributes", None)
+            if dogma_rows is None:
+                continue
+
+            has_implant_data = True
+            for dogma_obj in dogma_rows.all():
+                attribute_name = self.IMPLANT_BONUS_ATTRIBUTE_MAP.get(
+                    self._as_int(getattr(dogma_obj, "eve_dogma_attribute_id", 0))
+                )
+                if not attribute_name:
+                    continue
+
+                bonus_value = self._as_int(getattr(dogma_obj, "value", 0))
+                if bonus_value > 0:
+                    bonus_by_attribute[attribute_name] += bonus_value
+
+        return bonus_by_attribute, has_implant_data
+
+    @classmethod
+    def _attribute_label(cls, attribute_name: str | None) -> str:
+        if not attribute_name:
+            return "Unknown"
+        return cls.ATTRIBUTE_DISPLAY.get(attribute_name, attribute_name.replace("_", " ").title())
+
+    @classmethod
+    def large_skill_injector_gain(cls, total_sp: int) -> int:
+        total_sp = max(0, int(total_sp or 0))
+
+        for cap, gain in cls.LARGE_SKILL_INJECTOR_BREAKPOINTS:
+            if cap is None or total_sp < cap:
+                return gain
+
+        return cls.LARGE_SKILL_INJECTOR_BREAKPOINTS[-1][1]
+
+    @classmethod
+    def estimate_large_skill_injectors(cls, required_sp: int, current_total_sp: int | None) -> dict:
+        remaining_sp = max(0, int(required_sp or 0))
+        if current_total_sp is None:
+            return {
+                "known": False,
+                "count": None,
+                "required_sp": remaining_sp,
+                "gained_sp": 0,
+                "final_total_sp": None,
+            }
+
+        total_sp = max(0, int(current_total_sp or 0))
+        if remaining_sp == 0:
+            return {
+                "known": True,
+                "count": 0,
+                "required_sp": 0,
+                "gained_sp": 0,
+                "final_total_sp": total_sp,
+            }
+
+        count = 0
+        gained_sp = 0
+
+        while remaining_sp > 0:
+            gain = cls.large_skill_injector_gain(total_sp)
+            remaining_sp -= gain
+            gained_sp += gain
+            total_sp += gain
+            count += 1
+
+        return {
+            "known": True,
+            "count": count,
+            "required_sp": max(0, int(required_sp or 0)),
+            "gained_sp": gained_sp,
+            "final_total_sp": total_sp,
+        }
+
+    def build_optimal_remap(self, plan_rows: list[dict], current_attributes=None, character=None) -> dict | None:
+        eligible_rows = [
+            row
+            for row in plan_rows
+            if int(row.get("missing_sp") or 0) > 0
+            and row.get("primary_attribute")
+            and row.get("secondary_attribute")
+        ]
+        if not eligible_rows:
+            return None
+
+        implant_bonus_map, has_implant_data = self._resolve_implant_bonus_map(character)
+
+        def _effective_map(base_attribute_map: dict[str, int]) -> dict[str, int]:
+            return {
+                attribute_name: int(base_attribute_map.get(attribute_name, 0)) + int(implant_bonus_map.get(attribute_name, 0))
+                for attribute_name in self.ATTRIBUTE_ORDER
+            }
+
+        def _estimate_seconds(attribute_map: dict[str, int]) -> float:
+            total_seconds = 0.0
+            for row in eligible_rows:
+                primary_value = attribute_map.get(row["primary_attribute"])
+                secondary_value = attribute_map.get(row["secondary_attribute"])
+                if primary_value is None or secondary_value is None:
+                    return float("inf")
+
+                skillpoints_per_hour = self._skillpoints_per_hour(primary_value, secondary_value)
+                if skillpoints_per_hour <= 0:
+                    return float("inf")
+
+                total_seconds += (int(row["missing_sp"]) / skillpoints_per_hour) * 3600
+
+            return total_seconds
+
+        best_primary = None
+        best_secondary = None
+        best_map = None
+        best_seconds = None
+
+        for primary_attribute in self.ATTRIBUTE_ORDER:
+            for secondary_attribute in self.ATTRIBUTE_ORDER:
+                if primary_attribute == secondary_attribute:
+                    continue
+
+                attribute_map = {
+                    attribute_name: self.REMAP_MIN_ATTRIBUTE
+                    for attribute_name in self.ATTRIBUTE_ORDER
+                }
+                attribute_map[primary_attribute] = self.REMAP_MAX_PRIMARY
+                attribute_map[secondary_attribute] = self.REMAP_MAX_SECONDARY
+
+                total_seconds = _estimate_seconds(_effective_map(attribute_map))
+                if best_seconds is None or total_seconds < best_seconds:
+                    best_seconds = total_seconds
+                    best_primary = primary_attribute
+                    best_secondary = secondary_attribute
+                    best_map = attribute_map
+
+        current_seconds = None
+        current_map = None
+        current_base_map = None
+        if current_attributes is not None:
+            current_map = {}
+            for attribute_name in self.ATTRIBUTE_ORDER:
+                value = getattr(current_attributes, attribute_name, None)
+                if value is None:
+                    current_map = None
+                    break
+                current_map[attribute_name] = self._as_int(value)
+
+            if current_map is not None:
+                current_base_map = {
+                    attribute_name: max(0, current_map[attribute_name] - implant_bonus_map[attribute_name])
+                    for attribute_name in self.ATTRIBUTE_ORDER
+                }
+                current_seconds = _estimate_seconds(current_map)
+                if math.isinf(current_seconds):
+                    current_seconds = None
+
+        best_seconds_int = 0 if best_seconds is None or math.isinf(best_seconds) else int(best_seconds)
+        current_seconds_int = None if current_seconds is None else int(current_seconds)
+
+        return {
+            "primary_attribute": best_primary,
+            "primary_label": self._attribute_label(best_primary),
+            "secondary_attribute": best_secondary,
+            "secondary_label": self._attribute_label(best_secondary),
+            "attributes": [
+                {
+                    "name": attribute_name,
+                    "label": self._attribute_label(attribute_name),
+                    "value": best_map[attribute_name],
+                    "base_value": best_map[attribute_name],
+                    "implant_bonus": implant_bonus_map[attribute_name],
+                    "effective_value": best_map[attribute_name] + implant_bonus_map[attribute_name],
+                    "is_primary": attribute_name == best_primary,
+                    "is_secondary": attribute_name == best_secondary,
+                }
+                for attribute_name in self.ATTRIBUTE_ORDER
+            ],
+            "current_attributes_rows": [] if current_map is None else [
+                {
+                    "name": attribute_name,
+                    "label": self._attribute_label(attribute_name),
+                    "value": current_map[attribute_name],
+                    "base_value": current_base_map[attribute_name],
+                    "implant_bonus": implant_bonus_map[attribute_name],
+                    "effective_value": current_map[attribute_name],
+                }
+                for attribute_name in self.ATTRIBUTE_ORDER
+            ],
+            "implant_bonus_rows": [
+                {
+                    "name": attribute_name,
+                    "label": self._attribute_label(attribute_name),
+                    "value": implant_bonus_map[attribute_name],
+                }
+                for attribute_name in self.ATTRIBUTE_ORDER
+                if implant_bonus_map[attribute_name] > 0
+            ],
+            "has_implant_bonus": any(value > 0 for value in implant_bonus_map.values()),
+            "has_implant_data": has_implant_data,
+            "estimated_time": timedelta(seconds=best_seconds_int),
+            "current_time": None if current_seconds_int is None else timedelta(seconds=current_seconds_int),
+            "time_saved": None if current_seconds_int is None else timedelta(seconds=max(0, current_seconds_int - best_seconds_int)),
+            "current_attributes": current_map,
+        }
+
     def _estimate_missing(self, character, target_rows: list[dict[str, object]],
                           dogma_map: dict[int, dict[str, object | None]]) -> tuple[int, timedelta | None]:
         total_missing_sp = 0
@@ -94,16 +363,16 @@ class PilotProgressService:
         can_estimate_time = hasattr(character, "attributes")
 
         for row in target_rows:
-            skill_type_id = int(row.get("skill_type_id", 0))
-            target_level = int(row.get("target_level", 0))
-            current_level = int(row.get("current_level", 0))
-            current_sp = int(row.get("current_sp", 0))
+            skill_type_id = self._as_int(row.get("skill_type_id", 0))
+            target_level = self._as_int(row.get("target_level", 0))
+            current_level = self._as_int(row.get("current_level", 0))
+            current_sp = self._as_int(row.get("current_sp", 0))
 
             dogma = dogma_map.get(
                 skill_type_id,
                 {"rank": 1, "primary_attribute": None, "secondary_attribute": None},
             )
-            rank = int(dogma.get("rank") or 1)
+            rank = self._as_int(dogma.get("rank"), default=1)
 
             target_sp = self._sp_for_level(rank, target_level)
             current_level_sp = self._sp_for_level(rank, current_level)
@@ -127,8 +396,8 @@ class PilotProgressService:
                 can_estimate_time = False
                 continue
 
-            primary_value = int(primary_value_raw)
-            secondary_value = int(secondary_value_raw)
+            primary_value = self._as_int(primary_value_raw)
+            secondary_value = self._as_int(secondary_value_raw)
 
             skillpoints_per_hour = (primary_value * 60) + (secondary_value * 30)
             if skillpoints_per_hour <= 0:
@@ -143,6 +412,12 @@ class PilotProgressService:
     @staticmethod
     def _roman(level: int) -> str:
         return PilotProgressService.ROMAN_LEVEL.get(level, str(level))
+
+    def _source_rows_for_mode(self, progress: dict, mode: str) -> list[dict]:
+        mode = mode or self.EXPORT_MODE_RECOMMENDED
+        if mode == self.EXPORT_MODE_REQUIRED:
+            return list(progress.get("missing_required", []))
+        return list(progress.get("missing_recommended", []))
 
     def _load_skill_prerequisites(self, skill_type_ids: list[int]) -> dict[int, list[tuple[int, int]]]:
         missing_ids = [skill_id for skill_id in skill_type_ids if skill_id not in self._prereq_cache]
@@ -200,6 +475,15 @@ class PilotProgressService:
         return {
             skill_id: self._skill_name_cache.get(_cache_key(skill_id), f"Skill {skill_id}")
             for skill_id in skill_type_ids
+        }
+
+    @staticmethod
+    def _load_character_skills(character, skill_type_ids: list[int]) -> dict[int, object]:
+        if not character:
+            return {}
+        return {
+            obj.eve_type_id: obj
+            for obj in character.skills.filter(eve_type_id__in=skill_type_ids)
         }
 
     @staticmethod
@@ -282,28 +566,26 @@ class PilotProgressService:
             return "Almost ready", "warning"
         return "Training needed", "danger"
 
-    def build_export_lines(self, progress: dict, mode: str, character=None, language: str = "en") -> list[str]:
+    def _build_training_plan_rows(self, progress: dict, mode: str, character=None, language: str = "en") -> list[dict]:
         mode = mode or self.EXPORT_MODE_RECOMMENDED
         language = self.normalize_export_language(language)
-        if mode == self.EXPORT_MODE_REQUIRED:
-            source = progress.get("missing_required", [])
-        else:
-            source = progress.get("missing_recommended", [])
+        source = self._source_rows_for_mode(progress, mode)
 
         if not source:
             return []
 
-        # Base targets from selected mode.
         target_by_skill: dict[int, int] = {}
         current_levels: dict[int, int] = {}
+        current_skillpoints: dict[int, int] = {}
         for row in source:
-            skill_id = int(row["skill_type_id"])
-            target_level = int(row["target_level"])
-            current_level = int(row.get("current_level", 0))
+            skill_id = self._as_int(row["skill_type_id"])
+            target_level = self._as_int(row["target_level"])
+            current_level = self._as_int(row.get("current_level", 0))
+            current_sp = self._as_int(row.get("current_sp", 0))
             target_by_skill[skill_id] = max(target_by_skill.get(skill_id, 0), target_level)
             current_levels[skill_id] = max(current_levels.get(skill_id, 0), current_level)
+            current_skillpoints[skill_id] = max(current_skillpoints.get(skill_id, 0), current_sp)
 
-        # Expand recursively with missing prerequisites.
         queue = list(target_by_skill.keys())
         visited = set()
         while queue:
@@ -317,12 +599,18 @@ class PilotProgressService:
                     target_by_skill[prereq_skill_id] = prereq_level
                     queue.append(prereq_skill_id)
 
-        # Fill current levels for skills discovered via prerequisites.
-        missing_level_skill_ids = [skill_id for skill_id in target_by_skill if skill_id not in current_levels]
-        if missing_level_skill_ids:
-            current_levels.update(self._load_current_levels(character, missing_level_skill_ids))
+        character_skills = self._load_character_skills(character, list(target_by_skill.keys()))
+        for skill_id in target_by_skill:
+            current_skill = character_skills.get(skill_id)
+            current_levels.setdefault(
+                skill_id,
+                0 if current_skill is None else self._as_int(getattr(current_skill, "active_skill_level", 0)),
+            )
+            current_skillpoints.setdefault(
+                skill_id,
+                0 if current_skill is None else self._as_int(getattr(current_skill, "skillpoints_in_skill", 0)),
+            )
 
-        # Build level nodes for all missing levels.
         nodes = set()
         first_missing_level = {}
         for skill_id, target_level in target_by_skill.items():
@@ -336,11 +624,9 @@ class PilotProgressService:
         if not nodes:
             return []
 
-        # Build dependency graph.
         adjacency: dict[tuple[int, int], set[tuple[int, int]]] = {node: set() for node in nodes}
         indegree: dict[tuple[int, int], int] = {node: 0 for node in nodes}
 
-        # Same-skill progression dependencies.
         for skill_id, target_level in target_by_skill.items():
             current_level = int(current_levels.get(skill_id, 0))
             for level in range(current_level + 2, target_level + 1):
@@ -350,24 +636,23 @@ class PilotProgressService:
                     adjacency[src].add(dst)
                     indegree[dst] += 1
 
-        # Prerequisite dependencies before first missing level of dependent skill.
         prereq_all = self._load_skill_prerequisites(list(target_by_skill.keys()))
         for skill_id, prereqs in prereq_all.items():
             start_level = first_missing_level.get(skill_id)
             if start_level is None:
                 continue
-            dst = (skill_id, start_level)
+            dst = (self._as_int(skill_id), self._as_int(start_level))
             if dst not in adjacency:
                 continue
             for prereq_skill_id, prereq_level in prereqs:
-                src = (prereq_skill_id, prereq_level)
+                src = (self._as_int(prereq_skill_id), self._as_int(prereq_level))
                 if src in adjacency and dst not in adjacency[src]:
                     adjacency[src].add(dst)
                     indegree[dst] += 1
 
+        dogma_map = self._load_skill_dogma(list(target_by_skill.keys()))
         skill_names = self._load_skill_names(list(target_by_skill.keys()), language=language)
 
-        # Kahn topological sort, grouped naturally by level where possible.
         heap = []
         for node, degree in indegree.items():
             if degree == 0:
@@ -387,13 +672,108 @@ class PilotProgressService:
                         (nxt_level, skill_names.get(nxt_skill_id, f"Skill {nxt_skill_id}").lower(), nxt_skill_id, nxt),
                     )
 
-        # Fallback for unexpected cycles (should not happen in valid dogma data).
         if len(ordered_nodes) != len(nodes):
             remaining = [node for node in nodes if node not in set(ordered_nodes)]
             remaining.sort(key=lambda n: (n[1], skill_names.get(n[0], f"Skill {n[0]}").lower(), n[0]))
             ordered_nodes.extend(remaining)
 
-        return [f"{skill_names.get(skill_id, f'Skill {skill_id}')} {self._roman(level)}" for skill_id, level in ordered_nodes]
+        plan_rows = []
+        for skill_id, level in ordered_nodes:
+            dogma = dogma_map.get(
+                skill_id,
+                {"rank": 1, "primary_attribute": None, "secondary_attribute": None},
+            )
+            rank = self._as_int(dogma.get("rank"), default=1)
+            current_level = self._as_int(current_levels.get(skill_id, 0))
+            current_sp = self._as_int(current_skillpoints.get(skill_id, 0))
+            primary_attribute = None if dogma.get("primary_attribute") is None else str(dogma.get("primary_attribute"))
+            secondary_attribute = None if dogma.get("secondary_attribute") is None else str(dogma.get("secondary_attribute"))
+
+            if level == current_level + 1:
+                previous_level = current_level
+                baseline_current_sp = max(current_sp, self._sp_for_level(rank, previous_level))
+            else:
+                previous_level = level - 1
+                baseline_current_sp = self._sp_for_level(rank, previous_level)
+
+            target_sp = self._sp_for_level(rank, level)
+            missing_sp = max(0, target_sp - baseline_current_sp)
+
+            plan_rows.append(
+                {
+                    "skill_type_id": skill_id,
+                    "skill_name": skill_names.get(skill_id, f"Skill {skill_id}"),
+                    "target_level": level,
+                    "current_level": previous_level,
+                    "current_sp": baseline_current_sp,
+                    "target_sp": target_sp,
+                    "missing_sp": missing_sp,
+                    "rank": rank,
+                    "primary_attribute": primary_attribute,
+                    "secondary_attribute": secondary_attribute,
+                    "primary_label": self._attribute_label(primary_attribute),
+                    "secondary_label": self._attribute_label(secondary_attribute),
+                    "line": f"{skill_names.get(skill_id, f'Skill {skill_id}')} {self._roman(level)}",
+                }
+            )
+
+        return plan_rows
+
+    def build_export_lines(self, progress: dict, mode: str, character=None, language: str = "en") -> list[str]:
+        return [
+            row["line"]
+            for row in self._build_training_plan_rows(
+                progress=progress,
+                mode=mode,
+                character=character,
+                language=language,
+            )
+        ]
+
+    def build_skill_plan_summary(self, progress: dict, mode: str, character=None, language: str = "en") -> dict:
+        plan_rows = self._build_training_plan_rows(
+            progress=progress,
+            mode=mode,
+            character=character,
+            language=language,
+        )
+        total_missing_sp = int(sum(int(row.get("missing_sp") or 0) for row in plan_rows))
+
+        skillpoints_obj = self._safe_related(character, "skillpoints") if character else None
+        current_total_sp = None if skillpoints_obj is None else int(skillpoints_obj.total or 0)
+        current_unallocated_sp = None if skillpoints_obj is None else int(skillpoints_obj.unallocated or 0)
+        usable_unallocated_sp = 0 if current_unallocated_sp is None else current_unallocated_sp
+        remaining_sp_after_unallocated = max(0, total_missing_sp - usable_unallocated_sp)
+
+        attributes_obj = self._safe_related(character, "attributes") if character else None
+        optimal_remap = self.build_optimal_remap(
+            plan_rows,
+            current_attributes=attributes_obj,
+            character=character,
+        )
+        injector_estimate = self.estimate_large_skill_injectors(
+            remaining_sp_after_unallocated,
+            current_total_sp,
+        )
+        injector_gain_now = None if current_total_sp is None else self.large_skill_injector_gain(current_total_sp)
+        injector_overage_sp = max(0, int(injector_estimate.get("gained_sp") or 0) - remaining_sp_after_unallocated)
+
+        return {
+            "plan_rows": plan_rows,
+            "line_count": len(plan_rows),
+            "unique_skill_count": len({row["skill_type_id"] for row in plan_rows}),
+            "total_missing_sp": total_missing_sp,
+            "current_total_sp": current_total_sp,
+            "current_unallocated_sp": current_unallocated_sp,
+            "remaining_sp_after_unallocated": remaining_sp_after_unallocated,
+            "optimal_remap": optimal_remap,
+            "injector_estimate": {
+                **injector_estimate,
+                "large_skill_injector_type_id": self.LARGE_SKILL_INJECTOR_TYPE_ID,
+                "current_gain_per_injector": injector_gain_now,
+                "overage_sp": injector_overage_sp,
+            },
+        }
 
     def localize_missing_rows(self, rows: list[dict], language: str) -> list[dict]:
         """Return missing skill rows with skill_name localized for the given language."""

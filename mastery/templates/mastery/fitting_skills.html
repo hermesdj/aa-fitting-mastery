@@ -156,7 +156,12 @@
         <div class="col">
             <div class="card border-0 shadow-sm h-100 skill-group-card">
                 <div class="card-header d-flex justify-content-between align-items-center py-2">
-                    <span class="fw-semibold">{{ group }}</span>
+                    <div>
+                        <span class="fw-semibold">{{ group }}</span>
+                        <div class="small text-muted">
+                            Req {{ payload.required_total_sp|default_if_none:0|default:0|intcomma }} SP · Rec {{ payload.recommended_total_sp|default_if_none:0|default:0|intcomma }} SP
+                        </div>
+                    </div>
                     <span class="badge bg-secondary">{{ skills|length }}</span>
                 </div>
                 <div class="card-body pt-2">
@@ -257,7 +262,7 @@
                                         <select class="form-select form-select-sm rec-level-select" name="recommended_level">
                                             <option value="" {% if skill.recommended_level_override is None %}selected{% endif %}>Auto</option>
                                             {% for level in recommended_choices %}
-                                            <option value="{{ level }}" {% if skill.recommended_level_override == level %}selected{% endif %}>Level {{ level }}</option>
+                                            <option value="{{ level }}" {% if skill.recommended_level_override == level %}selected{% endif %} {% if level < skill.required_level %}disabled{% endif %}>Level {{ level }}</option>
                                             {% endfor %}
                                         </select>
                                         <button class="btn btn-sm btn-outline-primary rec-set-btn" type="submit">Set</button>

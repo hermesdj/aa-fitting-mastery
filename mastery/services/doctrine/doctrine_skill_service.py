@@ -60,13 +60,14 @@ class DoctrineSkillService:
         for skill_id in all_skill_ids:
             suggestion = suggestions.get(skill_id)
             control = controls_map.get(skill_id)
+            required_level = min_skills.get(skill_id, 0)
             recommended_override = None if control is None else control["recommended_level_override"]
             is_manual = False if control is None else control.get("is_manual", False)
             recommended_level = recommended_skills.get(skill_id, 0)
             if recommended_override is not None:
                 recommended_level = recommended_override
-
-            required_level = min_skills.get(skill_id, 0)
+            if recommended_level < required_level:
+                recommended_level = required_level
             is_blacklisted = skill_id in blacklisted
 
             # Une suggestion est consideree comme deja appliquee si l'etat actuel
