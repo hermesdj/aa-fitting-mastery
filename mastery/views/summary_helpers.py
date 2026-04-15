@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 from allianceauth.eveonline.models import EveCharacter
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -14,6 +14,8 @@ from memberaudit.models import Character
 from mastery.models import FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
 
 from .deps import pilot_access_service, pilot_progress_service
+
+User = get_user_model()
 
 
 def _get_member_characters(user):
