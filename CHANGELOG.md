@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Nothing yet.
 
+## [0.1.3] - 2026-04-15
+
+### Changed
+
+- Improve Doctrine Summary performance for large groups by reusing request-scoped caches for skillset skills, character skills and dogma lookups across repeated progress calculations.
+- Reduce repeated pilot/summary view work by sharing cached progress-loading context across doctrine, fitting and pilot readiness pages.
+
+### Tests
+
+- Add regression coverage to verify that repeated progress builds reuse the new request cache instead of reloading the same skill data multiple times.
+
 ## [0.1.2] - 2026-04-15
 
 ### Fixed

@@ -44,6 +44,7 @@ def index(request):
         obj.fitting.pk: obj
         for obj in FittingSkillsetMap.objects.select_related("skillset", "doctrine_map").all()
     }
+    progress_context = {}
 
     doctrine_cards = []
     configured_fittings_count = 0
@@ -66,6 +67,7 @@ def index(request):
                     character=character,
                     skillset=fitting_map.skillset,
                     include_export_lines=False,
+                    cache_context=progress_context,
                 )
                 character_rows.append(
                     {
@@ -174,11 +176,13 @@ def pilot_fitting_detail_view(request, fitting_id):
         return HttpResponseBadRequest("Invalid summary group")
     member_characters = list(_get_pilot_detail_characters(request.user, summary_group=summary_group))
     character_rows = []
+    progress_context = {}
     for character in member_characters:
         progress = pilot_progress_service.build_for_character(
             character=character,
             skillset=fitting_map.skillset,
             include_export_lines=False,
+            cache_context=progress_context,
         )
         character_rows.append(
             {
@@ -290,6 +294,7 @@ def pilot_fitting_skillplan_export_view(request, fitting_id):
         character=character,
         skillset=fitting_map.skillset,
         include_export_lines=False,
+        cache_context={},
     )
     lines = pilot_progress_service.build_export_lines(
         progress,

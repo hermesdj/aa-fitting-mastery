@@ -165,3 +165,61 @@ class TestPilotProgressService(SimpleTestCase):
         self.assertIsNotNone(result["time_saved"])
         self.assertGreater(result["time_saved"].total_seconds(), 0)
 
+    def test_build_for_character_reuses_request_cache_context(self):
+        class DummyRelation:
+            def __init__(self, items):
+                self._items = list(items)
+                self.select_related_calls = 0
+
+            def select_related(self, *_args, **_kwargs):
+                self.select_related_calls += 1
+                return self
+
+            def all(self):
+                return list(self._items)
+
+        skill_type = SimpleNamespace(name="Skill A")
+        skillset_skill = SimpleNamespace(
+            eve_type_id=1001,
+            eve_type=skill_type,
+            required_level=4,
+            recommended_level=5,
+        )
+        trained_skill = SimpleNamespace(
+            eve_type_id=1001,
+            eve_type=skill_type,
+            active_skill_level=3,
+            skillpoints_in_skill=8000,
+        )
+
+        skillset_relation = DummyRelation([skillset_skill])
+        character_relation = DummyRelation([trained_skill])
+        skillset = SimpleNamespace(id=42, skills=skillset_relation)
+        character = SimpleNamespace(id=7, skills=character_relation, attributes=None)
+
+        service = PilotProgressService()
+        cache_context = {}
+
+        with patch.object(
+            service,
+            "_load_skill_dogma",
+            return_value={1001: {"rank": 1, "primary_attribute": None, "secondary_attribute": None}},
+        ) as mock_load_skill_dogma:
+            first = service.build_for_character(
+                character=character,
+                skillset=skillset,
+                include_export_lines=False,
+                cache_context=cache_context,
+            )
+            second = service.build_for_character(
+                character=character,
+                skillset=skillset,
+                include_export_lines=False,
+                cache_context=cache_context,
+            )
+
+        self.assertEqual(first["required_pct"], second["required_pct"])
+        self.assertEqual(skillset_relation.select_related_calls, 1)
+        self.assertEqual(character_relation.select_related_calls, 1)
+        mock_load_skill_dogma.assert_called_once_with([1001])
+

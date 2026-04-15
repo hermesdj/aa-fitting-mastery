@@ -1,6 +1,7 @@
 """Helpers for pilot and summary views."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import cast
 
 from allianceauth.eveonline.models import EveCharacter
 from django.contrib.auth import get_user_model
@@ -122,7 +123,10 @@ def _get_selected_summary_group(group_id_raw: str):
         except (TypeError, ValueError):
             group_id = None
         if group_id is not None:
-            selected_group = next((group for group in groups if group.id == group_id), None)
+            selected_group = next(
+                (group for group in groups if getattr(group, "id", None) == group_id),
+                None,
+            )
 
     if selected_group is None and groups:
         selected_group = groups[0]
@@ -157,12 +161,13 @@ def _build_member_groups_for_summary(summary_group, activity_days: int, include_
         online_status = getattr(character, "online_status", None)
         last_login = None if online_status is None else online_status.last_login
         last_logout = None if online_status is None else online_status.last_logout
-        last_seen = None
+        last_seen: datetime | None = None
         for ts in (last_login, last_logout):
-            if ts is None:
+            ts_dt = ts if isinstance(ts, datetime) else None
+            if ts_dt is None:
                 continue
-            if last_seen is None or ts > last_seen:
-                last_seen = ts
+            if last_seen is None or ts_dt > last_seen:
+                last_seen = ts_dt
         is_active = include_inactive or (last_seen is not None and last_seen >= cutoff)
 
         group = groups.setdefault(
@@ -227,18 +232,24 @@ def _summary_entity_catalog() -> tuple[list[dict], list[dict]]:
     return corporations, alliances
 
 
-def _progress_for_character(skillset, character, progress_cache: dict):
+def _progress_for_character(skillset, character, progress_cache: dict, progress_context: dict | None = None):
     cache_key = (skillset.id, character.id)
     if cache_key not in progress_cache:
         progress_cache[cache_key] = pilot_progress_service.build_for_character(
             character=character,
             skillset=skillset,
             include_export_lines=False,
+            cache_context=progress_context,
         )
     return progress_cache[cache_key]
 
 
-def _build_fitting_user_rows(fitting_map: FittingSkillsetMap, member_groups: list, progress_cache: dict) -> list:
+def _build_fitting_user_rows(
+    fitting_map: FittingSkillsetMap,
+    member_groups: list,
+    progress_cache: dict,
+    progress_context: dict | None = None,
+) -> list:
     rows = []
     for group in member_groups:
         progress_rows = []
@@ -247,6 +258,7 @@ def _build_fitting_user_rows(fitting_map: FittingSkillsetMap, member_groups: lis
                 skillset=fitting_map.skillset,
                 character=character,
                 progress_cache=progress_cache,
+                progress_context=progress_context,
             )
             progress_rows.append({"character": character, "progress": progress})
 
@@ -311,7 +323,7 @@ def _build_fitting_kpis(user_rows: list, training_days: int = 7) -> dict:
 
         if can_fly:
             flyable_now_users += 1
-        elif required_time is not None and required_time <= one_week:
+        elif isinstance(required_time, timedelta) and required_time <= one_week:
             trainable_under_week += 1
 
         if recommended_pct >= 100:
@@ -377,7 +389,7 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int, training_days: int 
 
         if can_fly:
             flyable_now_users += 1
-        elif required_time is not None and required_time <= one_week:
+        elif isinstance(required_time, timedelta) and required_time <= one_week:
             trainable_under_week += 1
 
         if recommended_pct >= 100:
@@ -414,10 +426,11 @@ def _annotate_member_detail_pilots(user_rows: list, training_days: int = 7) -> l
                 {},
             )
             required_time = required_stats.get("total_missing_time")
-            is_trainable_soon = (
+            required_time_td = required_time if isinstance(required_time, timedelta) else None
+            is_trainable_soon = bool(
                 (not progress.get("can_fly"))
-                and required_time is not None
-                and required_time <= threshold
+                and required_time_td is not None
+                and required_time_td <= threshold
             )
 
             pilot_enriched = {
@@ -452,6 +465,7 @@ def _build_doctrine_summary(
     fitting_maps: dict,
     member_groups: list,
     progress_cache: dict,
+    progress_context: dict | None = None,
     training_days: int = 7,
 ) -> dict:
     fittings = []
@@ -488,9 +502,10 @@ def _build_doctrine_summary(
             continue
 
         user_rows = _build_fitting_user_rows(
-            fitting_map=fitting_map,
+            fitting_map=cast(FittingSkillsetMap, fitting_map),
             member_groups=member_groups,
             progress_cache=progress_cache,
+            progress_context=progress_context,
         )
         for row in user_rows:
             if row["flyable_count"] > 0:

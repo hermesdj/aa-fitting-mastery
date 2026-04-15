@@ -45,6 +45,7 @@ def summary_list_view(request):
         for obj in FittingSkillsetMap.objects.select_related("skillset", "doctrine_map").all()
     }
     progress_cache = {}
+    progress_context = {}
 
     doctrine_summaries = []
     for doctrine in doctrines:
@@ -57,6 +58,7 @@ def summary_list_view(request):
             fitting_maps=fitting_maps,
             member_groups=member_groups,
             progress_cache=progress_cache,
+            progress_context=progress_context,
             training_days=training_days,
         )
         doctrine_summaries += [summary_item]
@@ -101,11 +103,13 @@ def summary_doctrine_detail_view(request, doctrine_id):
         include_inactive=include_inactive,
     )
     progress_cache = {}
+    progress_context = {}
     summary = _build_doctrine_summary(
         doctrine=doctrine,
         fitting_maps=fitting_maps,
         member_groups=member_groups,
         progress_cache=progress_cache,
+        progress_context=progress_context,
         training_days=training_days,
     )
     for fit in summary["fittings"]:
@@ -150,10 +154,12 @@ def summary_fitting_detail_view(request, fitting_id):
     )
 
     progress_cache = {}
+    progress_context = {}
     user_rows = _build_fitting_user_rows(
         fitting_map=fitting_map,
         member_groups=member_groups,
         progress_cache=progress_cache,
+        progress_context=progress_context,
     )
     fitting_kpis = _build_fitting_kpis(user_rows, training_days=training_days)
     user_rows = _annotate_member_detail_pilots(user_rows, training_days=training_days)

@@ -128,6 +128,69 @@ class PilotProgressService:
         return dogma_map
 
     @staticmethod
+    def _get_cache_bucket(cache_context: dict | None, bucket_name: str) -> dict | None:
+        if cache_context is None:
+            return None
+        return cache_context.setdefault(bucket_name, {})
+
+    def _load_skillset_skills(self, skillset, cache_context: dict | None = None) -> list:
+        bucket = self._get_cache_bucket(cache_context, "skillset_skills")
+        cache_key = getattr(skillset, "id", None)
+        if bucket is not None and cache_key in bucket:
+            return bucket[cache_key]
+
+        skills = list(skillset.skills.select_related("eve_type").all())
+        skills.sort(
+            key=lambda obj: (
+                (getattr(getattr(obj, "eve_type", None), "name", None) or "").lower(),
+                obj.eve_type_id,
+            )
+        )
+
+        if bucket is not None:
+            bucket[cache_key] = skills
+
+        return skills
+
+    def _load_character_skill_map(self, character, cache_context: dict | None = None) -> dict[int, object]:
+        if not character:
+            return {}
+
+        bucket = self._get_cache_bucket(cache_context, "character_skills")
+        cache_key = getattr(character, "id", None)
+        if bucket is not None and cache_key in bucket:
+            return bucket[cache_key]
+
+        skill_map = {
+            obj.eve_type_id: obj
+            for obj in character.skills.select_related("eve_type").all()
+        }
+
+        if bucket is not None:
+            bucket[cache_key] = skill_map
+
+        return skill_map
+
+    def _load_skill_dogma_cached(
+        self,
+        skill_type_ids: list[int],
+        cache_context: dict | None = None,
+    ) -> dict[int, dict[str, object | None]]:
+        normalized_ids = tuple(sorted({int(skill_type_id) for skill_type_id in skill_type_ids if skill_type_id}))
+        if not normalized_ids:
+            return {}
+
+        bucket = self._get_cache_bucket(cache_context, "skill_dogma")
+        if bucket is not None and normalized_ids in bucket:
+            return bucket[normalized_ids]
+
+        dogma_map = self._load_skill_dogma(list(normalized_ids))
+        if bucket is not None:
+            bucket[normalized_ids] = dogma_map
+
+        return dogma_map
+
+    @staticmethod
     def _sp_for_level(rank: int, level: int) -> int:
         if level <= 0:
             return 0
@@ -502,22 +565,34 @@ class PilotProgressService:
             for skill_id in skill_type_ids
         }
 
-    @staticmethod
-    def _load_character_skills(character, skill_type_ids: list[int]) -> dict[int, object]:
+    def _load_character_skills(
+        self,
+        character,
+        skill_type_ids: list[int],
+        cache_context: dict | None = None,
+    ) -> dict[int, object]:
         if not character:
             return {}
+        character_skills = self._load_character_skill_map(character, cache_context=cache_context)
         return {
-            obj.eve_type_id: obj
-            for obj in character.skills.filter(eve_type_id__in=skill_type_ids)
+            skill_type_id: character_skills[skill_type_id]
+            for skill_type_id in skill_type_ids
+            if skill_type_id in character_skills
         }
 
-    @staticmethod
-    def _load_current_levels(character, skill_type_ids: list[int]) -> dict[int, int]:
+    def _load_current_levels(
+        self,
+        character,
+        skill_type_ids: list[int],
+        cache_context: dict | None = None,
+    ) -> dict[int, int]:
         if not character:
             return {}
+        character_skills = self._load_character_skill_map(character, cache_context=cache_context)
         levels = {
-            obj.eve_type_id: obj.active_skill_level
-            for obj in character.skills.filter(eve_type_id__in=skill_type_ids)
+            skill_type_id: character_skills[skill_type_id].active_skill_level
+            for skill_type_id in skill_type_ids
+            if skill_type_id in character_skills
         }
         for skill_id in skill_type_ids:
             levels.setdefault(skill_id, 0)
@@ -636,7 +711,10 @@ class PilotProgressService:
         current_skillpoints: dict[int, int],
         character,
     ) -> None:
-        character_skills = self._load_character_skills(character, list(target_by_skill.keys()))
+        character_skills = self._load_character_skills(
+            character=character,
+            skill_type_ids=list(target_by_skill.keys()),
+        )
         for skill_id in target_by_skill:
             current_skill = character_skills.get(skill_id)
             current_levels.setdefault(
@@ -926,16 +1004,23 @@ class PilotProgressService:
             localized.append(row_copy)
         return localized
 
-    def build_for_character(self, character, skillset, include_export_lines: bool = True):
+    def build_for_character(
+        self,
+        character,
+        skillset,
+        include_export_lines: bool = True,
+        cache_context: dict | None = None,
+    ):
         """Build required/recommended progress snapshot for one character and skillset."""
-        skills_qs = skillset.skills.select_related("eve_type").order_by("eve_type__name")
-        skills = list(skills_qs)
+        skills = self._load_skillset_skills(skillset, cache_context=cache_context)
         skill_type_ids = [obj.eve_type_id for obj in skills]
+        skill_dogma_map = self._load_skill_dogma_cached(skill_type_ids, cache_context=cache_context)
 
-        character_skills = {
-            obj.eve_type_id: obj
-            for obj in character.skills.filter(eve_type_id__in=skill_type_ids).select_related("eve_type")
-        }
+        character_skills = self._load_character_skills(
+            character,
+            skill_type_ids,
+            cache_context=cache_context,
+        )
 
         missing_required = []
         missing_recommended = []
@@ -944,8 +1029,8 @@ class PilotProgressService:
 
         for skill in skills:
             current = character_skills.get(skill.eve_type_id)
-            current_level = 0 if current is None else current.active_skill_level
-            current_sp = 0 if current is None else current.skillpoints_in_skill
+            current_level = 0 if current is None else self._as_int(getattr(current, "active_skill_level", 0))
+            current_sp = 0 if current is None else self._as_int(getattr(current, "skillpoints_in_skill", 0))
 
             if skill.required_level:
                 total_required += 1
@@ -977,11 +1062,19 @@ class PilotProgressService:
         recommended_pct = 100 if total_recommended == 0 else round(
             (1 - (len(missing_recommended) / total_recommended)) * 100, 2)
 
-        required_dogma_map = self._load_skill_dogma([obj["skill_type_id"] for obj in missing_required])
+        required_dogma_map = {
+            skill_type_id: skill_dogma_map[skill_type_id]
+            for skill_type_id in [obj["skill_type_id"] for obj in missing_required]
+            if skill_type_id in skill_dogma_map
+        }
         required_missing_sp, required_missing_time = self._estimate_missing(character, missing_required,
                                                                             required_dogma_map)
 
-        recommended_dogma_map = self._load_skill_dogma([obj["skill_type_id"] for obj in missing_recommended])
+        recommended_dogma_map = {
+            skill_type_id: skill_dogma_map[skill_type_id]
+            for skill_type_id in [obj["skill_type_id"] for obj in missing_recommended]
+            if skill_type_id in skill_dogma_map
+        }
         recommended_missing_sp, recommended_missing_time = self._estimate_missing(character, missing_recommended,
                                                                                   recommended_dogma_map)
 
@@ -1018,11 +1111,12 @@ class PilotProgressService:
             "export_mode_choices": self.export_mode_choices(),
         }
         if include_export_lines:
-            progress["export_lines_by_mode"] = {
+            export_lines_by_mode = {
                 mode: self.build_export_lines(progress, mode, character=character, language="en")
                 for mode, _label in self.export_mode_choices()
             }
-            progress["export_lines"] = progress["export_lines_by_mode"][self.EXPORT_MODE_RECOMMENDED]
+            progress["export_lines_by_mode"] = export_lines_by_mode
+            progress["export_lines"] = export_lines_by_mode[self.EXPORT_MODE_RECOMMENDED]
         else:
             progress["export_lines_by_mode"] = {}
             progress["export_lines"] = []
