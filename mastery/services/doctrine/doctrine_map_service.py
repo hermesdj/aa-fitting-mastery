@@ -19,19 +19,19 @@ class DoctrineMapService:
         if doctrine_map:
             return doctrine_map
 
-        group = SkillSetGroup.objects.create(
+        group, _ = SkillSetGroup.objects.get_or_create(
             name=doctrine.name,
-            is_doctrine=True,
-            is_active=True,
-            description=doctrine.description
+            defaults={
+                "is_doctrine": True,
+                "is_active": True,
+                "description": doctrine.description,
+            },
         )
 
-        DoctrineSkillSetGroupMap.objects.update_or_create(
+        doctrine_map, _ = DoctrineSkillSetGroupMap.objects.update_or_create(
             doctrine=doctrine,
-            skillset_group=group
+            defaults={"skillset_group": group},
         )
-
-        doctrine_map = DoctrineSkillSetGroupMap.objects.get(doctrine=doctrine, skillset_group=group)
 
         self.sync(doctrine)
 

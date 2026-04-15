@@ -81,29 +81,62 @@ class TestDoctrineAndFittingMapServices(SimpleTestCase):
 
         self.assertIs(result, existing_map)
 
-    @patch("mastery.services.doctrine.doctrine_map_service.DoctrineSkillSetGroupMap.objects.get")
     @patch("mastery.services.doctrine.doctrine_map_service.DoctrineSkillSetGroupMap.objects.update_or_create")
-    @patch("mastery.services.doctrine.doctrine_map_service.SkillSetGroup.objects.create")
+    @patch("mastery.services.doctrine.doctrine_map_service.SkillSetGroup.objects.get_or_create")
     @patch("mastery.services.doctrine.doctrine_map_service.DoctrineSkillSetGroupMap.objects.filter")
     def test_create_doctrine_map_creates_and_syncs_when_missing(
         self,
         mock_filter,
-        mock_group_create,
-        _mock_update_or_create,
-        mock_get,
+        mock_group_get_or_create,
+        mock_update_or_create,
     ):
         doctrine = Mock(name="Doctrine", description="desc")
         mock_filter.return_value.first.return_value = None
-        mock_group_create.return_value = Mock()
+        group = Mock()
+        mock_group_get_or_create.return_value = (group, True)
         doctrine_map = Mock()
-        mock_get.return_value = doctrine_map
+        mock_update_or_create.return_value = (doctrine_map, True)
 
         service = DoctrineMapService(doctrine_skill_service=Mock())
         with patch.object(service, "sync") as mock_sync:
             result = service.create_doctrine_map(doctrine=doctrine)
 
         self.assertIs(result, doctrine_map)
-        mock_group_create.assert_called_once()
+        mock_group_get_or_create.assert_called_once_with(
+            name=doctrine.name,
+            defaults={
+                "is_doctrine": True,
+                "is_active": True,
+                "description": doctrine.description,
+            },
+        )
+        mock_update_or_create.assert_called_once_with(
+            doctrine=doctrine,
+            defaults={"skillset_group": group},
+        )
+        mock_sync.assert_called_once_with(doctrine)
+
+    @patch("mastery.services.doctrine.doctrine_map_service.DoctrineSkillSetGroupMap.objects.update_or_create")
+    @patch("mastery.services.doctrine.doctrine_map_service.SkillSetGroup.objects.get_or_create")
+    @patch("mastery.services.doctrine.doctrine_map_service.DoctrineSkillSetGroupMap.objects.filter")
+    def test_create_doctrine_map_reuses_existing_group_name(self, mock_filter, mock_group_get_or_create, mock_update_or_create):
+        doctrine = Mock(name="COMBAT FLEET", description="desc")
+        mock_filter.return_value.first.return_value = None
+        existing_group = Mock()
+        mock_group_get_or_create.return_value = (existing_group, False)
+        doctrine_map = Mock()
+        mock_update_or_create.return_value = (doctrine_map, False)
+
+        service = DoctrineMapService(doctrine_skill_service=Mock())
+        with patch.object(service, "sync") as mock_sync:
+            result = service.create_doctrine_map(doctrine=doctrine)
+
+        self.assertIs(result, doctrine_map)
+        mock_group_get_or_create.assert_called_once()
+        mock_update_or_create.assert_called_once_with(
+            doctrine=doctrine,
+            defaults={"skillset_group": existing_group},
+        )
         mock_sync.assert_called_once_with(doctrine)
 
     @patch("mastery.services.fittings.fitting_map_service.FittingSkillsetMap.objects.filter")

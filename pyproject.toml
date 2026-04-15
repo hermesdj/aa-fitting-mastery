@@ -40,8 +40,8 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/hermesdj/aa-fitting-mastery"
 Source = "https://github.com/hermesdj/aa-fitting-mastery"
-Changelog = "https://github.com/hermesdj/aa-fitting-mastery/-/blob/master/CHANGELOG.md"
-Tracker = "https://github.com/hermesdj/aa-fitting-mastery/-/issues"
+Changelog = "https://github.com/hermesdj/aa-fitting-mastery/blob/main/CHANGELOG.md"
+Tracker = "https://github.com/hermesdj/aa-fitting-mastery/issues"
 
 [tool.flit.module]
 name = "mastery"

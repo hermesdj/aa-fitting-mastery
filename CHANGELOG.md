@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Nothing yet.
 
+## [0.1.1] - 2026-04-15
+
+### Fixed
+
+- Avoid `IntegrityError` when generating doctrine maps if a `memberaudit` `SkillSetGroup` with the same name already exists.
+- Restore tooltip behavior on first load in fitting skills pages by hardening tooltip initialization timing.
+
 ## [0.1.0] - 2026-04-15
 
 ### Added

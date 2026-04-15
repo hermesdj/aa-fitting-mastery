@@ -133,7 +133,7 @@
 
         const initTooltips = (root) => {
             if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.tooltip) {
-                return;
+                return false;
             }
 
             const $root = window.jQuery(root || document);
@@ -141,10 +141,31 @@
 
             if ($root.is('[data-bs-tooltip="aa-mastery"]')) {
                 $targets.add($root).tooltip();
-                return;
+                return true;
             }
 
             $targets.tooltip();
+            return true;
+        };
+
+        const initTooltipsWhenReady = (root) => {
+            if (initTooltips(root)) {
+                return;
+            }
+
+            let attempts = 0;
+            const maxAttempts = 20;
+
+            const retry = () => {
+                attempts += 1;
+                if (initTooltips(root) || attempts >= maxAttempts) {
+                    return;
+                }
+
+                window.setTimeout(retry, 100);
+            };
+
+            retry();
         };
 
         const renderFallbackMessage = (message, level = "danger") => {
@@ -267,7 +288,7 @@
 
                 if (payload && typeof payload.html === "string") {
                     editor.innerHTML = payload.html;
-                    initTooltips(editor);
+                    initTooltipsWhenReady(editor);
                     animateGroupCard(groupKey);
                 }
 
@@ -308,7 +329,7 @@
             submitForm(form);
         });
 
-        initTooltips(page);
+        initTooltipsWhenReady(page);
     })();
 </script>
 
