@@ -1,3 +1,5 @@
+"""Celery tasks for Fitting Mastery."""
+
 from celery import shared_task
 
 from mastery.services.sde.importer import SdeMasteryImporter
@@ -5,7 +7,8 @@ from mastery.services.sde.version_service import SdeVersionService
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_backoff=True)
-def update_sde_masteries(self, force=False):
+def update_sde_masteries(self, force=False):  # pylint: disable=unused-argument
+    """Fetch the latest SDE release and import masteries/certificates if outdated."""
     version_service = SdeVersionService()
 
     latest = version_service.fetch_latest()

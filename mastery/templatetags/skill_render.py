@@ -32,3 +32,26 @@ def skill_render(value):
         f"title=\"Skill level {level}/{MAX_SKILL_LEVEL}\">{''.join(pips)}</span>"
     )
     return mark_safe(html)
+
+
+@register.filter
+def group_has_active_skills(skills):
+    """Return True when at least one skill row is not blacklisted."""
+    if not skills:
+        return False
+    for skill in skills:
+        if not skill.get("is_blacklisted"):
+            return True
+    return False
+
+
+@register.filter
+def group_has_blacklisted_skills(skills):
+    """Return True when at least one skill row is blacklisted."""
+    if not skills:
+        return False
+    for skill in skills:
+        if skill.get("is_blacklisted"):
+            return True
+    return False
+

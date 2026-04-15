@@ -6,316 +6,16 @@
 {% load skill_render %}
 
 {% block details %}
-<div class="container mt-4">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
-        <div>
-            <h2 class="mb-1">{{ fitting.name }} - Skills</h2>
-            <p class="text-muted mb-0">Doctrine: <a href="{% url 'mastery:doctrine_detail' doctrine.id %}">{{ doctrine.name }}</a>
-            </p>
-        </div>
-    </div>
-
-    {% if skillset_id %}
-    <div class="alert alert-secondary d-flex align-items-center gap-3 mb-3 py-2" role="status">
-        <span class="text-success fs-5" aria-hidden="true">&#10003;</span>
-        <div>
-            <strong>MemberAudit SkillSet #{{ skillset_id }}</strong>
-            &mdash;
-            {% if skillset_skill_count is not None %}
-            {{ skillset_skill_count }} skill{{ skillset_skill_count|pluralize }} synchronised
-            {% endif %}
-            {% if last_synced_at %}
-            &mdash; last sync: <span data-bs-tooltip="aa-mastery"
-                data-bs-title="{{ last_synced_at|date:'Y-m-d H:i:s' }} UTC">{{ last_synced_at|timesince }} ago</span>
-            {% else %}
-            &mdash; <em class="text-muted">never synced yet</em>
-            {% endif %}
-        </div>
-    </div>
-    {% endif %}
-
-    <div class="row g-3 mb-3">
-        <div class="col-12 col-xl-7">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body py-2 px-3">
-                    <div class="fw-semibold mb-2">Add skill manually</div>
-                    <form method="post" action="{% url 'mastery:add_manual_skill' fitting.id %}"
-                        class="d-flex flex-wrap align-items-center gap-2">
-                        {% csrf_token %}
-                        <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                        <input class="form-control form-control-sm" name="skill_name" list="skillNameOptions"
-                            placeholder="Skill name (e.g. Thermodynamics)" style="width: 320px;" required>
-                        <datalist id="skillNameOptions">
-                            {% for skill_name in skill_name_options %}
-                            <option value="{{ skill_name }}"></option>
-                            {% endfor %}
-                        </datalist>
-                        <select class="form-select form-select-sm" name="recommended_level" style="width: 130px;" required>
-                            {% for level in recommended_choices %}
-                            <option value="{{ level }}" {% if level == 4 %}selected{% endif %}>Level {{ level }}</option>
-                            {% endfor %}
-                        </select>
-                        <button class="btn btn-sm btn-outline-primary" type="submit">Add skill</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-xl-5">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body py-2 px-3">
-                    <div class="fw-semibold mb-2">Apply mastery</div>
-                    <form method="post" action="{% url 'mastery:update_fitting_mastery' fitting.id %}"
-                        class="d-flex flex-wrap align-items-center gap-2">
-                        {% csrf_token %}
-                        <input type="hidden" name="doctrine_id" value="{{ doctrine.id }}">
-                        <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                        <select class="form-select form-select-sm" name="mastery_level" style="width: 220px;">
-                            <option value="" {% if fitting_mastery_override is None %}selected{% endif %}>
-                                Use doctrine default ({{ doctrine_default_mastery_label }})
-                            </option>
-                            {% for value, label in mastery_choices %}
-                            <option value="{{ value }}" {% if fitting_mastery_override == value %}selected{% endif %}>{{ label }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <button type="submit" class="btn btn-sm btn-outline-primary">Apply mastery</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3 mb-3">
-        <div class="col-12 col-md-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="small text-muted mb-1">Skill groups</div>
-                    <div class="display-6 fw-semibold">{{ grouped_skills|length }}</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-md-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="small text-muted mb-1">Suggestions</div>
-                    <div class="display-6 fw-semibold {% if suggestion_count %}text-warning{% endif %}">{{ suggestion_count }}</div>
-                    {% if suggestion_count %}
-                    <button type="button" class="btn btn-sm btn-warning mt-2" data-bs-toggle="modal" data-bs-target="#applySuggestionsModal">
-                        Apply
-                    </button>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-md-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="small text-muted mb-1">SkillSet size</div>
-                    <div class="display-6 fw-semibold">{% if skillset_skill_count is not None %}{{ skillset_skill_count }}{% else %}&mdash;{% endif %}</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-md-3">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="small text-muted mb-1">Effective mastery</div>
-                    <div class="fs-4 fw-semibold">{{ effective_mastery_label }}</div>
-                    <div class="small text-muted mt-1">Current doctrine mastery: {{ doctrine_default_mastery_label }}</div>
-                    {% if fitting_mastery_override is not None %}
-                    <div class="small text-muted">Fitting override active</div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row g-3 mb-3">
-        <div class="col-12 col-lg-6">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="small text-muted mb-1">Required plan from 0</div>
-                    <div class="fw-semibold">{{ required_plan_total_sp|intcomma }} SP</div>
-                    <div class="small text-muted">Estimated training: {{ required_plan_total_time }} @ {{ plan_estimate_sp_per_hour|intcomma }} SP/h</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-lg-6">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <div class="small text-muted mb-1">Recommended plan from 0</div>
-                    <div class="fw-semibold">{{ recommended_plan_total_sp|intcomma }} SP</div>
-                    <div class="small text-muted">Estimated training: {{ recommended_plan_total_time }} @ {{ plan_estimate_sp_per_hour|intcomma }} SP/h</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row row-cols-1 row-cols-xl-2 g-3">
-        {% for group, payload in grouped_skills.items %}
-        {% with skills=payload.skills %}
-        <div class="col">
-            <div class="card border-0 shadow-sm h-100 skill-group-card">
-                <div class="card-header d-flex justify-content-between align-items-center py-2">
-                    <div>
-                        <span class="fw-semibold">{{ group }}</span>
-                        <div class="small text-muted">
-                            Req {{ payload.required_total_sp|default_if_none:0|default:0|intcomma }} SP · Rec {{ payload.recommended_total_sp|default_if_none:0|default:0|intcomma }} SP
-                        </div>
-                    </div>
-                    <span class="badge bg-secondary">{{ skills|length }}</span>
-                </div>
-                <div class="card-body pt-2">
-                    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-                        <form method="post" action="{% url 'mastery:update_skill_group_controls' fitting.id %}" class="d-flex gap-2">
-                            {% csrf_token %}
-                            {% for skill in skills %}
-                            <input type="hidden" name="skill_type_ids" value="{{ skill.skill_type_id|unlocalize }}">
-                            {% endfor %}
-                            <input type="hidden" name="action" value="blacklist_group">
-                            <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                            <button class="btn btn-sm btn-outline-danger" type="submit">Blacklist</button>
-                        </form>
-
-                        <form method="post" action="{% url 'mastery:update_skill_group_controls' fitting.id %}" class="d-flex gap-2">
-                            {% csrf_token %}
-                            {% for skill in skills %}
-                            <input type="hidden" name="skill_type_ids" value="{{ skill.skill_type_id|unlocalize }}">
-                            {% endfor %}
-                            <input type="hidden" name="action" value="unblacklist_group">
-                            <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                            <button class="btn btn-sm btn-outline-success" type="submit">Unblacklist</button>
-                        </form>
-
-                        <form method="post" action="{% url 'mastery:update_skill_group_controls' fitting.id %}" class="d-flex gap-2 align-items-center">
-                            {% csrf_token %}
-                            {% for skill in skills %}
-                            <input type="hidden" name="skill_type_ids" value="{{ skill.skill_type_id|unlocalize }}">
-                            {% endfor %}
-                            <input type="hidden" name="action" value="set_group_recommended">
-                            <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                            <select class="form-select form-select-sm" name="recommended_level" style="width: 120px;">
-                                {% for level in recommended_choices %}
-                                <option value="{{ level }}">Level {{ level }}</option>
-                                {% endfor %}
-                            </select>
-                            <button class="btn btn-sm btn-outline-primary" type="submit">Apply level</button>
-                        </form>
-
-                        {% if payload.suggestion_count %}
-                        <form method="post" action="{% url 'mastery:apply_group_suggestions' fitting.id %}" class="d-flex gap-2">
-                            {% csrf_token %}
-                            {% for skill in skills %}
-                            <input type="hidden" name="skill_type_ids" value="{{ skill.skill_type_id|unlocalize }}">
-                            {% endfor %}
-                            <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                            <button class="btn btn-sm btn-warning" type="submit">Apply {{ payload.suggestion_count }} suggestion{{ payload.suggestion_count|pluralize }}</button>
-                        </form>
-                        {% endif %}
-                    </div>
-
-                    <div class="table-responsive group-table-wrap">
-                        <table class="table table-sm align-middle mb-0 group-skills-table">
-                            <thead class="table-light">
-                            <tr>
-                                <th>Skill</th>
-                                <th>Req</th>
-                                <th>Rec</th>
-                                <th class="edit-rec-col">Edit rec</th>
-                                <th class="text-end">Actions</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {% for skill in skills %}
-                            <tr class="{% if skill.is_blacklisted %}table-danger is-blacklisted-row{% elif skill.is_suggested %}table-warning{% endif %}">
-                                <td>
-                                    <div class="d-flex align-items-center flex-wrap gap-1 mb-1 skill-title-row">
-                                        <span class="fw-semibold skill-name-text">{{ skill.skill_name }}</span>
-                                        {% if skill.skill_description %}
-                                        <button type="button" class="btn btn-link btn-sm p-0" data-bs-tooltip="aa-mastery"
-                                            data-bs-placement="top" data-bs-title="{{ skill.skill_description|striptags }}"
-                                            aria-label="Skill description">
-                                            <span class="badge rounded-pill text-bg-secondary skill-help-badge">?</span>
-                                        </button>
-                                        {% endif %}
-                                    </div>
-                                    <div class="small d-flex flex-wrap gap-1 skill-meta-row">
-                                        {% if skill.is_manual %}<span class="badge text-bg-info skill-meta-badge">Manual</span>{% endif %}
-                                        {% if skill.is_blacklisted %}<span class="badge bg-danger skill-meta-badge">Blacklisted</span>{% endif %}
-                                        {% if skill.is_suggested %}
-                                        <span class="badge bg-warning text-dark skill-meta-badge"
-                                            data-bs-tooltip="aa-mastery"
-                                            data-bs-placement="top"
-                                            data-bs-title="{{ skill.suggestion_reason }}">
-                                            Suggest: {% if skill.suggestion_action == 'remove' %}Remove from plan{% else %}Add back to plan{% endif %}
-                                        </span>
-                                        {% endif %}
-                                    </div>
-                                </td>
-                                <td>{{ skill.required_level|skill_render }}</td>
-                                <td>{{ skill.recommended_level|skill_render }}</td>
-                                <td class="edit-rec-col">
-                                    <form method="post" action="{% url 'mastery:update_skill_recommended' fitting.id %}"
-                                        class="rec-edit-form">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="skill_type_id" value="{{ skill.skill_type_id|unlocalize }}">
-                                        <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                                        <select class="form-select form-select-sm rec-level-select" name="recommended_level">
-                                            <option value="" {% if skill.recommended_level_override is None %}selected{% endif %}>Auto</option>
-                                            {% for level in recommended_choices %}
-                                            <option value="{{ level }}" {% if skill.recommended_level_override == level %}selected{% endif %} {% if level < skill.required_level %}disabled{% endif %}>Level {{ level }}</option>
-                                            {% endfor %}
-                                        </select>
-                                        <button class="btn btn-sm btn-outline-primary rec-set-btn" type="submit">Set</button>
-                                    </form>
-                                </td>
-                                <td class="text-end">
-                                    <div class="d-inline-flex flex-column align-items-end gap-1">
-                                        {% if skill.is_suggested %}
-                                        <form method="post" action="{% url 'mastery:apply_skill_suggestion' fitting.id %}" class="m-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="skill_type_id" value="{{ skill.skill_type_id|unlocalize }}">
-                                            <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                                            <button class="btn btn-sm btn-warning" type="submit" title="Apply suggestion">
-                                                Apply
-                                            </button>
-                                        </form>
-                                        {% endif %}
-                                        <form method="post" action="{% url 'mastery:toggle_skill_blacklist_view' fitting.id %}" class="m-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="skill_type_id" value="{{ skill.skill_type_id|unlocalize }}">
-                                            <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                                            <input type="hidden" name="value" value="{% if skill.is_blacklisted %}false{% else %}true{% endif %}">
-                                            <button class="btn btn-sm btn-icon {% if skill.is_blacklisted %}btn-outline-success{% else %}btn-outline-danger{% endif %}"
-                                                type="submit"
-                                                title="{% if skill.is_blacklisted %}Unblacklist{% else %}Blacklist{% endif %}"
-                                                aria-label="{% if skill.is_blacklisted %}Unblacklist{% else %}Blacklist{% endif %}">
-                                                {% if skill.is_blacklisted %}
-                                                <span class="fas fa-check-circle" aria-hidden="true"></span>
-                                                {% else %}
-                                                <span class="fas fa-ban" aria-hidden="true"></span>
-                                                {% endif %}
-                                            </button>
-                                        </form>
-                                    {% if skill.is_manual %}
-                                        <form method="post" action="{% url 'mastery:remove_manual_skill' fitting.id %}" class="m-0">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="skill_type_id" value="{{ skill.skill_type_id|unlocalize }}">
-                                            <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                                            <button class="btn btn-sm btn-outline-secondary" type="submit">Remove manual</button>
-                                        </form>
-                                    {% endif %}
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endwith %}
-        {% endfor %}
+<div class="container mt-4" id="mastery-skills-page">
+    <div
+        id="mastery-skills-messages"
+        class="position-fixed bottom-0 end-0 p-3 d-flex flex-column gap-2"
+        style="z-index: 1080; width: min(26rem, calc(100vw - 1rem));"
+        aria-live="polite"
+        aria-atomic="true"
+    ></div>
+    <div id="mastery-skills-editor">
+        {% include "mastery/partials/fitting_skills_editor.html" %}
     </div>
 </div>
 
@@ -404,44 +104,212 @@
         padding: 0;
     }
 
+    @keyframes group-card-flash {
+        0% {
+            box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.45);
+            transform: translateY(-1px);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+            transform: translateY(0);
+        }
+    }
+
+    .skill-group-card.is-updated {
+        animation: group-card-flash 0.9s ease-out;
+    }
+
 </style>
 
 <script>
-    $(document).ready(() => {
-        $('[data-bs-tooltip="aa-mastery"]').tooltip();
-    });
-</script>
+    (() => {
+        const page = document.getElementById("mastery-skills-page");
+        const editor = document.getElementById("mastery-skills-editor");
+        const messages = document.getElementById("mastery-skills-messages");
 
-{% if suggestion_count %}
-<div class="modal fade" id="applySuggestionsModal" tabindex="-1" aria-labelledby="applySuggestionsModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="applySuggestionsModalLabel">Apply suggestions</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>This will automatically apply <strong>{{ suggestion_count }} suggestion{{ suggestion_count|pluralize }}</strong>:
-                </p>
-                <ul>
-                    <li>Skills suggested for <strong>removal</strong> will be <span class="text-danger">blacklisted</span> and
-                        excluded from the MemberAudit SkillSet.</li>
-                    <li>Skills suggested to <strong>add back</strong> will be <span class="text-success">unblacklisted</span>.</li>
-                </ul>
-                <p class="mb-0 text-muted small">You can review and undo individual changes afterwards.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form method="post" action="{% url 'mastery:apply_suggestions' fitting.id %}">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
-                    <button type="submit" class="btn btn-warning">Apply {{ suggestion_count }} suggestion{{ suggestion_count|pluralize }}</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
+        if (!page || !editor || !messages) {
+            return;
+        }
+
+        const initTooltips = (root) => {
+            if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.tooltip) {
+                return;
+            }
+
+            const $root = window.jQuery(root || document);
+            const $targets = $root.find('[data-bs-tooltip="aa-mastery"]');
+
+            if ($root.is('[data-bs-tooltip="aa-mastery"]')) {
+                $targets.add($root).tooltip();
+                return;
+            }
+
+            $targets.tooltip();
+        };
+
+        const renderFallbackMessage = (message, level = "danger") => {
+            if (!message) {
+                messages.innerHTML = "";
+                return;
+            }
+
+            messages.innerHTML = `
+                <div class="alert alert-${level} alert-dismissible fade show shadow-sm" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            `;
+        };
+
+        const setFormBusy = (form, isBusy) => {
+            form.classList.toggle("opacity-75", isBusy);
+            form.querySelectorAll("button, select, input, textarea").forEach((element) => {
+                if (element.type === "hidden") {
+                    return;
+                }
+
+                if (isBusy) {
+                    element.dataset.ajaxWasDisabled = element.disabled ? "1" : "0";
+                    element.disabled = true;
+                    return;
+                }
+
+                const wasDisabled = element.dataset.ajaxWasDisabled === "1";
+                if (!wasDisabled) {
+                    element.disabled = false;
+                }
+                delete element.dataset.ajaxWasDisabled;
+            });
+        };
+
+        const closeParentModal = (form) => {
+            const modal = form.closest(".modal");
+            if (!modal) {
+                return;
+            }
+
+            modal.querySelector('[data-bs-dismiss="modal"]')?.click();
+        };
+
+        const dismissAlert = (alertElement) => {
+            if (window.bootstrap && typeof window.bootstrap.Alert === "function") {
+                window.bootstrap.Alert.getOrCreateInstance(alertElement).close();
+                return;
+            }
+            alertElement.querySelector(".btn-close")?.click();
+        };
+
+        const scheduleAlertsDismiss = () => {
+            messages.querySelectorAll(".alert").forEach((alertElement) => {
+                window.setTimeout(() => {
+                    if (messages.contains(alertElement)) {
+                        dismissAlert(alertElement);
+                    }
+                }, 5000);
+            });
+        };
+
+        const animateGroupCard = (groupKey) => {
+            if (!groupKey) {
+                return;
+            }
+
+            const groupContainer = editor.querySelector(`[data-group-key="${groupKey}"]`);
+            const card = groupContainer ? groupContainer.querySelector(".skill-group-card") : null;
+            if (!card) {
+                return;
+            }
+
+            card.classList.remove("is-updated");
+            // Force a reflow so the animation can replay after each refresh.
+            void card.offsetWidth;
+            card.classList.add("is-updated");
+        };
+
+        const submitForm = async (form) => {
+            const formData = new FormData(form);
+            const actionUrl = form.getAttribute("action") || form.action;
+            const method = (form.getAttribute("method") || form.method || "POST").toUpperCase();
+            const groupKey = formData.get("_group_key");
+
+            if (!actionUrl) {
+                renderFallbackMessage("Unable to determine the form action.", "danger");
+                return;
+            }
+
+            setFormBusy(form, true);
+
+            try {
+                const response = await fetch(actionUrl, {
+                    method,
+                    body: formData,
+                    credentials: "same-origin",
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Accept": "application/json",
+                    },
+                });
+
+                const contentType = response.headers.get("content-type") || "";
+                const payload = contentType.includes("application/json")
+                    ? await response.json()
+                    : null;
+
+                if (!response.ok) {
+                    renderFallbackMessage(
+                        payload && payload.message ? payload.message : "Unable to update the fitting skills.",
+                        "danger",
+                    );
+                    return;
+                }
+
+                closeParentModal(form);
+
+                if (payload && typeof payload.html === "string") {
+                    editor.innerHTML = payload.html;
+                    initTooltips(editor);
+                    animateGroupCard(groupKey);
+                }
+
+                if (payload && typeof payload.messages_html === "string") {
+                    messages.innerHTML = payload.messages_html;
+                    scheduleAlertsDismiss();
+                } else if (payload && payload.message) {
+                    renderFallbackMessage(payload.message, payload.message_level || "success");
+                    scheduleAlertsDismiss();
+                } else {
+                    messages.innerHTML = "";
+                }
+            } catch (_error) {
+                renderFallbackMessage("Unable to update the fitting skills.", "danger");
+                scheduleAlertsDismiss();
+            } finally {
+                setFormBusy(form, false);
+            }
+        };
+
+        page.addEventListener("submit", (event) => {
+            const form = event.target;
+
+            if (!(form instanceof HTMLFormElement)) {
+                return;
+            }
+
+            if (!editor.contains(form)) {
+                return;
+            }
+
+            const method = (form.getAttribute("method") || form.method || "GET").toUpperCase();
+            if (method !== "POST") {
+                return;
+            }
+
+            event.preventDefault();
+            submitForm(form);
+        });
+
+        initTooltips(page);
+    })();
+</script>
 
 {% endblock %}
