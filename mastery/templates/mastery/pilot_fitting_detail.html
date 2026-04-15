@@ -2,6 +2,7 @@
 {% load i18n %}
 {% load humanize %}
 {% load evelinks %}
+{% load l10n %}
 
 {% block details %}
 <div class="container mt-4">
@@ -64,13 +65,13 @@
                         <td>
                             <div class="small fw-semibold mb-1">{{ row.progress.required_pct }}%</div>
                             <div class="progress" style="height: 8px;">
-                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ row.progress.required_pct }}%"></div>
+                                <div class="progress-bar bg-success" role="progressbar" style="width: {{ row.progress.required_pct|unlocalize }}%"></div>
                             </div>
                         </td>
                         <td>
                             <div class="small fw-semibold mb-1">{{ row.progress.recommended_pct }}%</div>
                             <div class="progress" style="height: 8px;">
-                                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ row.progress.recommended_pct }}%"></div>
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ row.progress.recommended_pct|unlocalize }}%"></div>
                             </div>
                         </td>
                         <td>

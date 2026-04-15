@@ -1,6 +1,7 @@
 {% extends 'mastery/base.html' %}
 {% load humanize %}
 {% load evelinks %}
+{% load l10n %}
 
 {% block details %}
 <div class="container mt-4">
@@ -58,7 +59,7 @@
                     <div class="small text-muted">Avg recommended</div>
                     <div class="small fw-semibold mb-1">{{ fitting_kpis.recommended_avg_pct }}%</div>
                     <div class="progress" style="height: 8px;">
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ fitting_kpis.recommended_avg_pct }}%"></div>
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ fitting_kpis.recommended_avg_pct|unlocalize }}%"></div>
                     </div>
                 </div>
             </div>
@@ -99,11 +100,11 @@
                                     <div>{{ row.best_character.eve_character.character_name }}</div>
                                     <div class="small text-muted mb-1">Req</div>
                                     <div class="progress mb-1" style="height: 6px; width: 120px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ row.best_progress.required_pct }}% · Missing {{ row.best_progress.mode_stats.required.total_missing_sp|intcomma }} SP">
-                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ row.best_progress.required_pct }}%"></div>
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ row.best_progress.required_pct|unlocalize }}%"></div>
                                     </div>
                                     <div class="small text-muted mb-1">Rec</div>
                                     <div class="progress" style="height: 6px; width: 120px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ row.best_progress.recommended_pct }}% · Missing {{ row.best_progress.mode_stats.recommended.total_missing_sp|intcomma }} SP">
-                                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ row.best_progress.recommended_pct }}%"></div>
+                                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ row.best_progress.recommended_pct|unlocalize }}%"></div>
                                     </div>
                                 </div>
                             </div>
@@ -116,10 +117,10 @@
                                     <div class="small fw-semibold text-truncate" style="max-width: 120px;">{{ pilot.character.eve_character.character_name }}</div>
                                     <div class="pilot-bars">
                                         <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ pilot.progress.required_pct }}% · Missing {{ pilot.required_missing_sp|intcomma }} SP">
-                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ pilot.progress.required_pct }}%"></div>
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ pilot.progress.required_pct|unlocalize }}%"></div>
                                         </div>
                                         <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ pilot.progress.recommended_pct }}% · Missing {{ pilot.recommended_missing_sp|intcomma }} SP">
-                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct }}%"></div>
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct|unlocalize }}%"></div>
                                         </div>
                                     </div>
                                     <a class="btn btn-sm btn-outline-primary btn-icon-sm" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ pilot.character.id }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}" data-bs-tooltip="aa-mastery" data-bs-title="Open pilot focus">
@@ -139,10 +140,10 @@
                                     <div class="small fw-semibold text-truncate" style="max-width: 120px;">{{ pilot.character.eve_character.character_name }}</div>
                                     <div class="pilot-bars">
                                         <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ pilot.progress.required_pct }}% · Missing {{ pilot.required_missing_sp|intcomma }} SP{% if pilot.is_trainable_soon %} · Trainable < {{ training_days|default:7 }}d{% endif %}">
-                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ pilot.progress.required_pct }}%"></div>
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ pilot.progress.required_pct|unlocalize }}%"></div>
                                         </div>
                                         <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ pilot.progress.recommended_pct }}% · Missing {{ pilot.recommended_missing_sp|intcomma }} SP">
-                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct }}%"></div>
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct|unlocalize }}%"></div>
                                         </div>
                                     </div>
                                     <a class="btn btn-sm btn-outline-primary btn-icon-sm" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ pilot.character.id }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}" data-bs-tooltip="aa-mastery" data-bs-title="Open pilot focus">

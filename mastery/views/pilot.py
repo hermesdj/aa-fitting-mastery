@@ -58,25 +58,6 @@ def index(request):
 
             fitting_map = fitting_maps.get(fitting.id)
             if not fitting_map:
-                name_match = (
-                    not search_query
-                    or search_query in doctrine.name.lower()
-                    or search_query in fitting.name.lower()
-                    or search_query in fitting.ship_type.name.lower()
-                )
-                if not name_match:
-                    continue
-                fitting_cards.append(
-                    {
-                        "fitting": fitting,
-                        "is_configured": False,
-                        "characters": [],
-                        "best_required_pct": 0,
-                        "best_recommended_pct": 0,
-                        "can_any_fly": False,
-                        "selected_progress": None,
-                    }
-                )
                 continue
 
             character_rows = []
@@ -84,6 +65,7 @@ def index(request):
                 progress = pilot_progress_service.build_for_character(
                     character=character,
                     skillset=fitting_map.skillset,
+                    include_export_lines=False,
                 )
                 character_rows.append(
                     {
@@ -196,6 +178,7 @@ def pilot_fitting_detail_view(request, fitting_id):
         progress = pilot_progress_service.build_for_character(
             character=character,
             skillset=fitting_map.skillset,
+            include_export_lines=False,
         )
         character_rows.append(
             {
@@ -303,7 +286,11 @@ def pilot_fitting_skillplan_export_view(request, fitting_id):
 
     export_mode = _parse_export_mode(request.GET.get("mode"))
     export_language = _parse_export_language(request.GET.get("language"))
-    progress = pilot_progress_service.build_for_character(character=character, skillset=fitting_map.skillset)
+    progress = pilot_progress_service.build_for_character(
+        character=character,
+        skillset=fitting_map.skillset,
+        include_export_lines=False,
+    )
     lines = pilot_progress_service.build_export_lines(
         progress,
         export_mode,

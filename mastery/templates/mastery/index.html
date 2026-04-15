@@ -3,6 +3,7 @@
 {% load humanize %}
 {% load static %}
 {% load evelinks %}
+{% load l10n %}
 
 {% block details %}
 <div class="container mt-4">
@@ -132,20 +133,20 @@
 							</div>
 							<div class="small text-muted mb-1">Required {{ fit_card.selected_progress.required_pct }}%</div>
 							<div class="progress mb-2" style="height: 8px;">
-								<div class="progress-bar bg-success" role="progressbar" style="width: {{ fit_card.selected_progress.required_pct }}%"></div>
+								<div class="progress-bar bg-success" role="progressbar" style="width: {{ fit_card.selected_progress.required_pct|unlocalize }}%"></div>
 							</div>
 							<div class="small text-muted mb-1">Recommended {{ fit_card.selected_progress.recommended_pct }}%</div>
 							<div class="progress" style="height: 8px;">
-								<div class="progress-bar bg-primary" role="progressbar" style="width: {{ fit_card.selected_progress.recommended_pct }}%"></div>
+								<div class="progress-bar bg-primary" role="progressbar" style="width: {{ fit_card.selected_progress.recommended_pct|unlocalize }}%"></div>
 							</div>
 							{% elif fit_card.is_configured %}
 							<div class="small text-muted mb-1">Best required coverage {{ fit_card.best_required_pct }}%</div>
 							<div class="progress mb-2" style="height: 8px;">
-								<div class="progress-bar bg-success" role="progressbar" style="width: {{ fit_card.best_required_pct }}%"></div>
+								<div class="progress-bar bg-success" role="progressbar" style="width: {{ fit_card.best_required_pct|unlocalize }}%"></div>
 							</div>
 							<div class="small text-muted mb-1">Best recommended coverage {{ fit_card.best_recommended_pct }}%</div>
 							<div class="progress" style="height: 8px;">
-								<div class="progress-bar bg-primary" role="progressbar" style="width: {{ fit_card.best_recommended_pct }}%"></div>
+								<div class="progress-bar bg-primary" role="progressbar" style="width: {{ fit_card.best_recommended_pct|unlocalize }}%"></div>
 							</div>
 							{% else %}
 							<span class="text-muted small">No pilot data available.</span>
@@ -164,22 +165,22 @@
 													<div class="small fw-semibold text-body">{{ character_row.character.eve_character.character_name }}</div>
 													<span class="badge bg-primary">Focused</span>
 												</div>
-																											<div class="character-metrics small">
-																												<div class="d-flex justify-content-between text-muted">
-																													<span>Required</span>
-																													<span class="fw-semibold text-body">{{ character_row.progress.required_pct }}%</span>
-																												</div>
-																												<div class="progress mb-1" style="height: 5px;">
-																													<div class="progress-bar bg-success" role="progressbar" style="width: {{ character_row.progress.required_pct }}%"></div>
-																												</div>
-																												<div class="d-flex justify-content-between text-muted">
-																													<span>Recommended</span>
-																													<span class="fw-semibold text-body">{{ character_row.progress.recommended_pct }}%</span>
-																												</div>
-																												<div class="progress" style="height: 5px;">
-																													<div class="progress-bar bg-primary" role="progressbar" style="width: {{ character_row.progress.recommended_pct }}%"></div>
-																												</div>
-																											</div>
+												<div class="character-metrics small">
+													<div class="d-flex justify-content-between text-muted">
+														<span>Required</span>
+														<span class="fw-semibold text-body">{{ character_row.progress.required_pct }}%</span>
+													</div>
+													<div class="progress mb-1" style="height: 5px;">
+																																																														<div class="progress-bar bg-success" role="progressbar" style="width: {{ character_row.progress.required_pct|unlocalize }}%"></div>
+													</div>
+													<div class="d-flex justify-content-between text-muted">
+														<span>Recommended</span>
+														<span class="fw-semibold text-body">{{ character_row.progress.recommended_pct }}%</span>
+													</div>
+													<div class="progress" style="height: 5px;">
+																																																														<div class="progress-bar bg-primary" role="progressbar" style="width: {{ character_row.progress.recommended_pct|unlocalize }}%"></div>
+													</div>
+												</div>
 												<span class="badge bg-{{ character_row.progress.status_class }}{% if character_row.progress.status_class == 'warning' %} text-dark{% endif %}">{{ character_row.progress.status_label }}</span>
 											</div>
 										</a>
@@ -201,14 +202,14 @@
 												<span class="fw-semibold text-body">{{ character_row.progress.required_pct }}%</span>
 											</div>
 											<div class="progress mb-1" style="height: 5px;">
-												<div class="progress-bar bg-success" role="progressbar" style="width: {{ character_row.progress.required_pct }}%"></div>
+															<div class="progress-bar bg-success" role="progressbar" style="width: {{ character_row.progress.required_pct|unlocalize }}%"></div>
 											</div>
 											<div class="d-flex justify-content-between text-muted">
 												<span>Recommended</span>
 												<span class="fw-semibold text-body">{{ character_row.progress.recommended_pct }}%</span>
 											</div>
 											<div class="progress" style="height: 5px;">
-												<div class="progress-bar bg-primary" role="progressbar" style="width: {{ character_row.progress.recommended_pct }}%"></div>
+															<div class="progress-bar bg-primary" role="progressbar" style="width: {{ character_row.progress.recommended_pct|unlocalize }}%"></div>
 											</div>
 										</div>
 										<span class="badge bg-{{ character_row.progress.status_class }}{% if character_row.progress.status_class == 'warning' %} text-dark{% endif %}">{{ character_row.progress.status_label }}</span>

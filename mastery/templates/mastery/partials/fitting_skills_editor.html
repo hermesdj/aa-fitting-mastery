@@ -8,6 +8,14 @@
         <p class="text-muted mb-0">Doctrine: <a href="{% url 'mastery:doctrine_detail' doctrine.id %}">{{ doctrine.name }}</a>
         </p>
     </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_fit' fitting.id %}" target="_blank" rel="noopener">
+            View fitting
+        </a>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'fittings:view_doctrine' doctrine.id %}" target="_blank" rel="noopener">
+            View doctrine
+        </a>
+    </div>
 </div>
 
 {% if skillset_id %}

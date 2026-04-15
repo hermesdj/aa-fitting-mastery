@@ -233,6 +233,7 @@ def _progress_for_character(skillset, character, progress_cache: dict):
         progress_cache[cache_key] = pilot_progress_service.build_for_character(
             character=character,
             skillset=skillset,
+            include_export_lines=False,
         )
     return progress_cache[cache_key]
 

@@ -926,7 +926,7 @@ class PilotProgressService:
             localized.append(row_copy)
         return localized
 
-    def build_for_character(self, character, skillset):
+    def build_for_character(self, character, skillset, include_export_lines: bool = True):
         """Build required/recommended progress snapshot for one character and skillset."""
         skills_qs = skillset.skills.select_related("eve_type").order_by("eve_type__name")
         skills = list(skills_qs)
@@ -1017,9 +1017,13 @@ class PilotProgressService:
             },
             "export_mode_choices": self.export_mode_choices(),
         }
-        progress["export_lines_by_mode"] = {
-            mode: self.build_export_lines(progress, mode, character=character, language="en")
-            for mode, _label in self.export_mode_choices()
-        }
-        progress["export_lines"] = progress["export_lines_by_mode"][self.EXPORT_MODE_RECOMMENDED]
+        if include_export_lines:
+            progress["export_lines_by_mode"] = {
+                mode: self.build_export_lines(progress, mode, character=character, language="en")
+                for mode, _label in self.export_mode_choices()
+            }
+            progress["export_lines"] = progress["export_lines_by_mode"][self.EXPORT_MODE_RECOMMENDED]
+        else:
+            progress["export_lines_by_mode"] = {}
+            progress["export_lines"] = []
         return progress

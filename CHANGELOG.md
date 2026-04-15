@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Nothing yet.
 
+## [0.1.2] - 2026-04-15
+
+### Fixed
+
+- Fix progress bars rendering as `0%` in non-English locales by forcing unlocalized numeric values in CSS width styles.
+- Improve Skill Mastery filtering by excluding doctrines/fittings that are not yet configured with a generated skill plan.
+
+### Changed
+
+- Improve pilot/summary page load times by avoiding export-line generation in progress computations when not needed.
+- Add quick access buttons in fitting skill plan management to open the related fitting and doctrine pages.
+
 ## [0.1.1] - 2026-04-15
 
 ### Fixed

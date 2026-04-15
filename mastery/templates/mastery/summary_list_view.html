@@ -2,6 +2,7 @@
 {% load i18n %}
 {% load humanize %}
 {% load evelinks %}
+{% load l10n %}
 
 {% block details %}
 <div class="container mt-4">
@@ -103,7 +104,7 @@
                             <div class="small fw-semibold mb-1">{{ item.kpis.recommended_avg_pct }}%</div>
                             <div class="small text-muted mb-1">Recommended avg</div>
                             <div class="progress" style="height: 8px; min-width: 120px;">
-                                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ item.kpis.recommended_avg_pct }}%"></div>
+                                <div class="progress-bar bg-primary" role="progressbar" style="width: {{ item.kpis.recommended_avg_pct|unlocalize }}%"></div>
                             </div>
                         </td>
                         <td>{{ item.configured_fittings }}/{{ item.fittings_total }}</td>
