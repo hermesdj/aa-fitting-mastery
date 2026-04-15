@@ -1,3 +1,4 @@
+"""Provides ship mastery skill lookups from SDE data."""
 from mastery.models import (
     ShipMasteryCertificate,
     CertificateSkill
@@ -13,13 +14,14 @@ MASTERY_TO_FIELD = {
 
 
 class MasteryService:
+    """Expose ship mastery skill requirements from imported SDE tables."""
+
     def __init__(self):
+        """Initialize in-memory cache for `(ship_type_id, mastery_level)` lookups."""
         self._cache = {}
 
     def get_ship_skills(self, ship_type_id: int, mastery_level: int) -> dict:
-        """
-        retourne {skill_type_id: level}
-        """
+        """Return `{skill_type_id: required_level}` for a ship and mastery level."""
         key = (ship_type_id, mastery_level)
 
         if key in self._cache:

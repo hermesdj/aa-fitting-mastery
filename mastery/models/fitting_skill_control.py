@@ -1,9 +1,11 @@
+"""Per-fitting, per-skill control overrides (blacklist, recommended level)."""
 from django.db import models
 from eve_sde.models import ItemType
 from fittings.models import Fitting
 
 
 class FittingSkillControl(models.Model):
+    """FittingSkillControl Django model."""
     fitting = models.ForeignKey(
         Fitting,
         on_delete=models.DO_NOTHING,
@@ -49,6 +51,7 @@ class FittingSkillControl(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        """Model metadata (ordering, indexes and constraints)."""
         unique_together = ('fitting_id', 'skill_type_id')
         indexes = [
             models.Index(fields=["fitting_id"])

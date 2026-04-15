@@ -1,3 +1,4 @@
+"""Service layer for generating per-fitting skill requirements."""
 from django.db import transaction
 from django.utils import timezone
 from fittings.models import Doctrine
@@ -10,6 +11,7 @@ from mastery.services.skills import SkillControlService, SkillSuggestionService
 
 
 class DoctrineSkillService:
+    """Build doctrine/fitting skill targets from fitting data and mastery rules."""
 
     def __init__(
             self,
@@ -19,6 +21,7 @@ class DoctrineSkillService:
             suggestion_service: SkillSuggestionService,
             fitting_map_service: FittingMapService
     ):
+        """Inject collaborating services used to compute and persist skill plans."""
         self._extractor = extractor
         self._mastery_service = mastery_service
         self._control_service = control_service
@@ -27,6 +30,7 @@ class DoctrineSkillService:
 
     @staticmethod
     def _resolve_effective_mastery_level(doctrine_map, fitting_map, mastery_level: int = None) -> int:
+        """Resolve mastery level with override > fitting map > doctrine default priority."""
         if mastery_level is not None:
             return mastery_level
 
@@ -36,6 +40,7 @@ class DoctrineSkillService:
         return doctrine_map.default_mastery_level
 
     def preview_fitting(self, doctrine_map: DoctrineSkillSetGroupMap, fitting, mastery_level: int = None) -> dict:
+        """Return computed skill rows and pending suggestions for one fitting."""
         fitting_map = self._fitting_map_service.create_fitting_map(doctrine_map, fitting)
         effective_mastery_level = self._resolve_effective_mastery_level(
             doctrine_map=doctrine_map,
@@ -66,8 +71,7 @@ class DoctrineSkillService:
             recommended_level = recommended_skills.get(skill_id, 0)
             if recommended_override is not None:
                 recommended_level = recommended_override
-            if recommended_level < required_level:
-                recommended_level = required_level
+            recommended_level = max(recommended_level, required_level)
             is_blacklisted = skill_id in blacklisted
 
             # Une suggestion est consideree comme deja appliquee si l'etat actuel
@@ -118,6 +122,7 @@ class DoctrineSkillService:
         fitting,
         mastery_level: int = None,
     ):
+        """Persist computed skills into the fitting skillset and sync suggestions."""
         preview = self.preview_fitting(
             doctrine_map=doctrine_map,
             fitting=fitting,
@@ -147,9 +152,7 @@ class DoctrineSkillService:
         self._control_service.sync_suggestions(fitting.id, preview["suggestions"])
 
     def generate_for_doctrine(self, doctrine_map: DoctrineSkillSetGroupMap, mastery_level: int = None):
-        """
-        Génère un snapshot de compétences pour une doctrine donnée
-        """
+        """Generate/update all fitting skill snapshots for a doctrine."""
         doctrine_id = doctrine_map.doctrine.id
         doctrine = Doctrine.objects.prefetch_related("fittings__items").get(id=doctrine_id)
 

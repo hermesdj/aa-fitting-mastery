@@ -4,7 +4,7 @@ from django.urls import path
 
 from . import views
 
-app_name = "mastery"
+app_name = "mastery"  # pylint: disable=invalid-name
 
 urlpatterns = [
     # UI

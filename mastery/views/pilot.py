@@ -1,3 +1,5 @@
+"""Pilot-facing views: doctrine/fitting progress for individual users."""
+
 from allianceauth.authentication.decorators import permissions_required
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -19,6 +21,7 @@ from .common import (
 @login_required
 @permissions_required('mastery.basic_access')
 def index(request):
+    """Render pilot overview cards across accessible doctrines and fittings."""
     doctrines = pilot_access_service.accessible_doctrines(request.user)
     member_characters = list(_get_member_characters(request.user))
     selected_character_id = request.GET.get("character_id")
@@ -55,7 +58,13 @@ def index(request):
 
             fitting_map = fitting_maps.get(fitting.id)
             if not fitting_map:
-                if search_query and search_query not in doctrine.name.lower() and search_query not in fitting.name.lower() and search_query not in fitting.ship_type.name.lower():
+                name_match = (
+                    not search_query
+                    or search_query in doctrine.name.lower()
+                    or search_query in fitting.name.lower()
+                    or search_query in fitting.ship_type.name.lower()
+                )
+                if not name_match:
                     continue
                 fitting_cards.append(
                     {
@@ -101,7 +110,11 @@ def index(request):
                     ),
                 )["progress"]
 
-            if search_query and search_query not in doctrine.name.lower() and search_query not in fitting.name.lower() and search_query not in fitting.ship_type.name.lower():
+            if search_query and (
+                search_query not in doctrine.name.lower()
+                and search_query not in fitting.name.lower()
+                and search_query not in fitting.ship_type.name.lower()
+            ):
                 continue
 
             if selected_status == "flyable" and (not progress_for_filter or not progress_for_filter["can_fly"]):
@@ -113,7 +126,7 @@ def index(request):
                 else:
                     if character_rows and all(row["progress"]["can_fly"] for row in character_rows):
                         continue
-                    elif not character_rows and (not progress_for_filter or progress_for_filter["can_fly"]):
+                    if not character_rows and (not progress_for_filter or progress_for_filter["can_fly"]):
                         continue
             if selected_status == "elite" and (
                 not progress_for_filter or progress_for_filter["status_label"] != "Elite ready"
@@ -130,8 +143,12 @@ def index(request):
                     "is_configured": True,
                     "skillset": fitting_map.skillset,
                     "characters": character_rows,
-                    "best_required_pct": max((row["progress"]["required_pct"] for row in character_rows), default=0),
-                    "best_recommended_pct": max((row["progress"]["recommended_pct"] for row in character_rows), default=0),
+                    "best_required_pct": max(
+                        (row["progress"]["required_pct"] for row in character_rows), default=0
+                    ),
+                    "best_recommended_pct": max(
+                        (row["progress"]["recommended_pct"] for row in character_rows), default=0
+                    ),
                     "can_any_fly": any(row["progress"]["can_fly"] for row in character_rows),
                     "selected_progress": selected_progress,
                 }
@@ -162,6 +179,7 @@ def index(request):
 @login_required
 @permissions_required('mastery.basic_access')
 def pilot_fitting_detail_view(request, fitting_id):
+    """Pilot fitting detail view."""
     fitting, fitting_map, doctrine = _get_accessible_fitting_or_404(request.user, fitting_id)
     if not fitting_map:
         return HttpResponseBadRequest("No skillset configured for this fitting yet")
@@ -261,6 +279,7 @@ def pilot_fitting_detail_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.basic_access')
 def pilot_fitting_skillplan_export_view(request, fitting_id):
+    """Pilot fitting skillplan export view."""
     fitting, fitting_map, _ = _get_accessible_fitting_or_404(request.user, fitting_id)
     if not fitting_map:
         return HttpResponseBadRequest("No skillset configured for this fitting yet")
@@ -298,4 +317,3 @@ def pilot_fitting_skillplan_export_view(request, fitting_id):
         "Content-Disposition"
     ] = f'attachment; filename="skillplan-{export_mode}-fit-{fitting.id}-char-{character.id}.txt"'
     return response
-

@@ -1,3 +1,5 @@
+"""Management command to import SDE masteries and certificates."""
+
 import time
 
 from django.core.management import BaseCommand
@@ -7,6 +9,8 @@ from mastery.services.sde.version_service import SdeVersionService
 
 
 class Command(BaseCommand):
+    """Import SDE mastery data into local mastery models."""
+
     def add_arguments(self, parser):
         parser.add_argument(
             "--force",

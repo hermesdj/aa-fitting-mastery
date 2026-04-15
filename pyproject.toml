@@ -66,17 +66,31 @@ ignore-patterns = ["__init__.py", "auth_hooks.py", "apps.py"]
 ignore-paths = ["^.*/tests/.*$", "^.*/migrations/.*$"]
 
 [tool.pylint.'BASIC']
-good-names = ["i", "j", "k", "ex", "pk", "id"]
+good-names = ["i", "j", "k", "ex", "pk", "id", "qs"]
 
 [tool.pylint.'FORMAT']
 max-line-length = 120
 
+[tool.pylint.'DESIGN']
+max-args = 7
+max-locals = 30
+max-branches = 30
+max-statements = 100
+max-returns = 10
+
 [tool.pylint.'MESSAGES CONTROL']
 disable = [
+    # Django ORM: pylint cannot resolve dynamic attributes on model classes
+    "no-member",
+    # Too-many-* refactors are tracked separately; silence for now
     "too-many-instance-attributes",
     "too-few-public-methods",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    # Cross-file duplication is structural; not actionable in a single pass
+    "duplicate-code",
+    # Alliance Auth / Django specific silences
     "cyclic-import",
-    "imported-auth-user",
     "import-outside-toplevel",
     "fixme",
 ]

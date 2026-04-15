@@ -1,3 +1,4 @@
+"""General / miscellaneous mastery models."""
 from django.db import models
 
 
@@ -8,6 +9,7 @@ class General(models.Model):
     """
 
     class Meta:
+        """Model metadata (ordering, indexes and constraints)."""
         managed = False
         default_permissions = ()
         permissions = (
@@ -16,4 +18,3 @@ class General(models.Model):
             ("doctrine_summary", "Can view doctrine summaries"),
             ("manage_summary_groups", "Can manage doctrine summary groups"),
         )
-

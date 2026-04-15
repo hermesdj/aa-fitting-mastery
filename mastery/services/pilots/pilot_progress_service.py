@@ -1,3 +1,5 @@
+"""Builds skill-progress data for pilot characters against skillsets."""
+# pylint: disable=too-many-lines
 import math
 from datetime import timedelta
 import heapq
@@ -9,6 +11,7 @@ from eve_sde.models import TypeDogma
 
 
 class PilotProgressService:
+    """Compute pilot readiness, training plans and export payloads for skillsets."""
     EXPORT_MODE_REQUIRED = "required"
     EXPORT_MODE_RECOMMENDED = "recommended"
     LARGE_SKILL_INJECTOR_TYPE_ID = 40520
@@ -179,6 +182,7 @@ class PilotProgressService:
 
     @classmethod
     def large_skill_injector_gain(cls, total_sp: int) -> int:
+        """Return gained SP for one large injector at a given total SP bracket."""
         total_sp = max(0, int(total_sp or 0))
 
         for cap, gain in cls.LARGE_SKILL_INJECTOR_BREAKPOINTS:
@@ -189,6 +193,7 @@ class PilotProgressService:
 
     @classmethod
     def estimate_large_skill_injectors(cls, required_sp: int, current_total_sp: int | None) -> dict:
+        """Estimate injector count and resulting SP totals for a required SP amount."""
         remaining_sp = max(0, int(required_sp or 0))
         if current_total_sp is None:
             return {
@@ -228,6 +233,7 @@ class PilotProgressService:
         }
 
     def build_optimal_remap(self, plan_rows: list[dict], current_attributes=None, character=None) -> dict | None:
+        """Compute a simple best remap recommendation for the given training plan rows."""
         eligible_rows = [
             row
             for row in plan_rows
@@ -242,7 +248,10 @@ class PilotProgressService:
 
         def _effective_map(base_attribute_map: dict[str, int]) -> dict[str, int]:
             return {
-                attribute_name: int(base_attribute_map.get(attribute_name, 0)) + int(implant_bonus_map.get(attribute_name, 0))
+                attribute_name: (
+                    int(base_attribute_map.get(attribute_name, 0))
+                    + int(implant_bonus_map.get(attribute_name, 0))
+                )
                 for attribute_name in self.ATTRIBUTE_ORDER
             }
 
@@ -351,8 +360,14 @@ class PilotProgressService:
             "has_implant_bonus": any(value > 0 for value in implant_bonus_map.values()),
             "has_implant_data": has_implant_data,
             "estimated_time": timedelta(seconds=best_seconds_int),
-            "current_time": None if current_seconds_int is None else timedelta(seconds=current_seconds_int),
-            "time_saved": None if current_seconds_int is None else timedelta(seconds=max(0, current_seconds_int - best_seconds_int)),
+            "current_time": (
+                None if current_seconds_int is None
+                else timedelta(seconds=current_seconds_int)
+            ),
+            "time_saved": (
+                None if current_seconds_int is None
+                else timedelta(seconds=max(0, current_seconds_int - best_seconds_int))
+            ),
             "current_attributes": current_map,
         }
 
@@ -463,11 +478,21 @@ class PilotProgressService:
         def _cache_key(skill_id: int) -> tuple[str, int]:
             return language, skill_id
 
-        missing_ids = [skill_id for skill_id in skill_type_ids if _cache_key(skill_id) not in self._skill_name_cache]
+        missing_ids = [
+            skill_id
+            for skill_id in skill_type_ids
+            if _cache_key(skill_id) not in self._skill_name_cache
+        ]
         if missing_ids:
             name_field = self._resolve_itemtype_name_field(language)
-            for item_type in ItemType.objects.filter(id__in=missing_ids).only("id", name_field, "name_en", "name"):
-                name_value = getattr(item_type, name_field, None) or getattr(item_type, "name_en", None) or getattr(item_type, "name", None)
+            for item_type in ItemType.objects.filter(id__in=missing_ids).only(
+                "id", name_field, "name_en", "name"
+            ):
+                name_value = (
+                    getattr(item_type, name_field, None)
+                    or getattr(item_type, "name_en", None)
+                    or getattr(item_type, "name", None)
+                )
                 self._skill_name_cache[_cache_key(item_type.id)] = name_value or f"Skill {item_type.id}"
             for skill_id in missing_ids:
                 self._skill_name_cache.setdefault(_cache_key(skill_id), f"Skill {skill_id}")
@@ -500,6 +525,7 @@ class PilotProgressService:
 
     @classmethod
     def export_mode_choices(cls) -> list[tuple[str, str]]:
+        """Return available export modes for plan generation."""
         return [
             (cls.EXPORT_MODE_REQUIRED, "Required"),
             (cls.EXPORT_MODE_RECOMMENDED, "Recommended"),
@@ -507,10 +533,12 @@ class PilotProgressService:
 
     @classmethod
     def export_language_choices(cls) -> list[tuple[str, str]]:
+        """Return supported localization languages for skill-name exports."""
         return list(cls.EXPORT_LANGUAGE_CHOICES)
 
     @classmethod
     def normalize_export_language(cls, raw_language: str) -> str:
+        """Normalize user-provided language code and fallback to English."""
         if not raw_language:
             return "en"
         normalized = raw_language.strip().lower().replace("_", "-").split("-", 1)[0]
@@ -542,16 +570,16 @@ class PilotProgressService:
 
         for candidate in candidates:
             try:
-                ItemType._meta.get_field(candidate)
+                ItemType._meta.get_field(candidate)  # pylint: disable=protected-access
                 return candidate
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught  # FieldDoesNotExist or AttributeError
                 continue
 
         for fallback in ("name_en", "name"):
             try:
-                ItemType._meta.get_field(fallback)
+                ItemType._meta.get_field(fallback)  # pylint: disable=protected-access
                 return fallback
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 continue
 
         return "name"
@@ -566,39 +594,48 @@ class PilotProgressService:
             return "Almost ready", "warning"
         return "Training needed", "danger"
 
-    def _build_training_plan_rows(self, progress: dict, mode: str, character=None, language: str = "en") -> list[dict]:
-        mode = mode or self.EXPORT_MODE_RECOMMENDED
-        language = self.normalize_export_language(language)
-        source = self._source_rows_for_mode(progress, mode)
-
-        if not source:
-            return []
-
+    def _collect_plan_targets(
+        self, source: list[dict]
+    ) -> tuple[dict[int, int], dict[int, int], dict[int, int]]:
         target_by_skill: dict[int, int] = {}
         current_levels: dict[int, int] = {}
         current_skillpoints: dict[int, int] = {}
+
         for row in source:
             skill_id = self._as_int(row["skill_type_id"])
             target_level = self._as_int(row["target_level"])
             current_level = self._as_int(row.get("current_level", 0))
             current_sp = self._as_int(row.get("current_sp", 0))
+
             target_by_skill[skill_id] = max(target_by_skill.get(skill_id, 0), target_level)
             current_levels[skill_id] = max(current_levels.get(skill_id, 0), current_level)
             current_skillpoints[skill_id] = max(current_skillpoints.get(skill_id, 0), current_sp)
 
+        return target_by_skill, current_levels, current_skillpoints
+
+    def _expand_prerequisite_targets(self, target_by_skill: dict[int, int]) -> None:
         queue = list(target_by_skill.keys())
         visited = set()
+
         while queue:
             skill_id = queue.pop()
             if skill_id in visited:
                 continue
             visited.add(skill_id)
+
             prereq_map = self._load_skill_prerequisites([skill_id])
             for prereq_skill_id, prereq_level in prereq_map.get(skill_id, []):
                 if target_by_skill.get(prereq_skill_id, 0) < prereq_level:
                     target_by_skill[prereq_skill_id] = prereq_level
                     queue.append(prereq_skill_id)
 
+    def _merge_character_progress(
+        self,
+        target_by_skill: dict[int, int],
+        current_levels: dict[int, int],
+        current_skillpoints: dict[int, int],
+        character,
+    ) -> None:
         character_skills = self._load_character_skills(character, list(target_by_skill.keys()))
         for skill_id in target_by_skill:
             current_skill = character_skills.get(skill_id)
@@ -611,19 +648,32 @@ class PilotProgressService:
                 0 if current_skill is None else self._as_int(getattr(current_skill, "skillpoints_in_skill", 0)),
             )
 
-        nodes = set()
-        first_missing_level = {}
+    @staticmethod
+    def _build_missing_nodes(
+        target_by_skill: dict[int, int],
+        current_levels: dict[int, int],
+    ) -> tuple[set[tuple[int, int]], dict[int, int]]:
+        nodes: set[tuple[int, int]] = set()
+        first_missing_level: dict[int, int] = {}
+
         for skill_id, target_level in target_by_skill.items():
             current_level = int(current_levels.get(skill_id, 0))
             if current_level >= target_level:
                 continue
+
             first_missing_level[skill_id] = current_level + 1
             for level in range(current_level + 1, target_level + 1):
                 nodes.add((skill_id, level))
 
-        if not nodes:
-            return []
+        return nodes, first_missing_level
 
+    def _build_plan_graph(
+        self,
+        nodes: set[tuple[int, int]],
+        target_by_skill: dict[int, int],
+        current_levels: dict[int, int],
+        first_missing_level: dict[int, int],
+    ) -> tuple[dict[tuple[int, int], set[tuple[int, int]]], dict[tuple[int, int], int]]:
         adjacency: dict[tuple[int, int], set[tuple[int, int]]] = {node: set() for node in nodes}
         indegree: dict[tuple[int, int], int] = {node: 0 for node in nodes}
 
@@ -641,25 +691,36 @@ class PilotProgressService:
             start_level = first_missing_level.get(skill_id)
             if start_level is None:
                 continue
+
             dst = (self._as_int(skill_id), self._as_int(start_level))
             if dst not in adjacency:
                 continue
+
             for prereq_skill_id, prereq_level in prereqs:
                 src = (self._as_int(prereq_skill_id), self._as_int(prereq_level))
                 if src in adjacency and dst not in adjacency[src]:
                     adjacency[src].add(dst)
                     indegree[dst] += 1
 
-        dogma_map = self._load_skill_dogma(list(target_by_skill.keys()))
-        skill_names = self._load_skill_names(list(target_by_skill.keys()), language=language)
+        return adjacency, indegree
 
-        heap = []
+    @staticmethod
+    def _order_plan_nodes(
+        nodes: set[tuple[int, int]],
+        adjacency: dict[tuple[int, int], set[tuple[int, int]]],
+        indegree: dict[tuple[int, int], int],
+        skill_names: dict[int, str],
+    ) -> list[tuple[int, int]]:
+        heap: list[tuple[int, str, int, tuple[int, int]]] = []
         for node, degree in indegree.items():
             if degree == 0:
                 skill_id, level = node
-                heapq.heappush(heap, (level, skill_names.get(skill_id, f"Skill {skill_id}").lower(), skill_id, node))
+                heapq.heappush(
+                    heap,
+                    (level, skill_names.get(skill_id, f"Skill {skill_id}").lower(), skill_id, node),
+                )
 
-        ordered_nodes = []
+        ordered_nodes: list[tuple[int, int]] = []
         while heap:
             _level, _name, _skill_id, node = heapq.heappop(heap)
             ordered_nodes.append(node)
@@ -669,7 +730,12 @@ class PilotProgressService:
                     nxt_skill_id, nxt_level = nxt
                     heapq.heappush(
                         heap,
-                        (nxt_level, skill_names.get(nxt_skill_id, f"Skill {nxt_skill_id}").lower(), nxt_skill_id, nxt),
+                        (
+                            nxt_level,
+                            skill_names.get(nxt_skill_id, f"Skill {nxt_skill_id}").lower(),
+                            nxt_skill_id,
+                            nxt,
+                        ),
                     )
 
         if len(ordered_nodes) != len(nodes):
@@ -677,49 +743,115 @@ class PilotProgressService:
             remaining.sort(key=lambda n: (n[1], skill_names.get(n[0], f"Skill {n[0]}").lower(), n[0]))
             ordered_nodes.extend(remaining)
 
+        return ordered_nodes
+
+    def _build_plan_row(
+        self,
+        skill_id: int,
+        level: int,
+        skill_names: dict[int, str],
+        dogma_map: dict[int, dict[str, object | None]],
+        current_levels: dict[int, int],
+        current_skillpoints: dict[int, int],
+    ) -> dict:
+        dogma = dogma_map.get(
+            skill_id,
+            {"rank": 1, "primary_attribute": None, "secondary_attribute": None},
+        )
+        rank = self._as_int(dogma.get("rank"), default=1)
+        current_level = self._as_int(current_levels.get(skill_id, 0))
+        current_sp = self._as_int(current_skillpoints.get(skill_id, 0))
+        primary_attribute = (
+            None if dogma.get("primary_attribute") is None
+            else str(dogma.get("primary_attribute"))
+        )
+        secondary_attribute = (
+            None if dogma.get("secondary_attribute") is None
+            else str(dogma.get("secondary_attribute"))
+        )
+
+        if level == current_level + 1:
+            previous_level = current_level
+            baseline_current_sp = max(current_sp, self._sp_for_level(rank, previous_level))
+        else:
+            previous_level = level - 1
+            baseline_current_sp = self._sp_for_level(rank, previous_level)
+
+        target_sp = self._sp_for_level(rank, level)
+        missing_sp = max(0, target_sp - baseline_current_sp)
+
+        return {
+            "skill_type_id": skill_id,
+            "skill_name": skill_names.get(skill_id, f"Skill {skill_id}"),
+            "target_level": level,
+            "current_level": previous_level,
+            "current_sp": baseline_current_sp,
+            "target_sp": target_sp,
+            "missing_sp": missing_sp,
+            "rank": rank,
+            "primary_attribute": primary_attribute,
+            "secondary_attribute": secondary_attribute,
+            "primary_label": self._attribute_label(primary_attribute),
+            "secondary_label": self._attribute_label(secondary_attribute),
+            "line": f"{skill_names.get(skill_id, f'Skill {skill_id}')} {self._roman(level)}",
+        }
+
+    def _build_training_plan_rows(
+        self, progress: dict, mode: str, character=None, language: str = "en"
+    ) -> list[dict]:
+        mode = mode or self.EXPORT_MODE_RECOMMENDED
+        language = self.normalize_export_language(language)
+        source = self._source_rows_for_mode(progress, mode)
+
+        if not source:
+            return []
+
+        target_by_skill, current_levels, current_skillpoints = self._collect_plan_targets(source)
+        self._expand_prerequisite_targets(target_by_skill)
+        self._merge_character_progress(
+            target_by_skill=target_by_skill,
+            current_levels=current_levels,
+            current_skillpoints=current_skillpoints,
+            character=character,
+        )
+        nodes, first_missing_level = self._build_missing_nodes(target_by_skill, current_levels)
+
+        if not nodes:
+            return []
+
+        adjacency, indegree = self._build_plan_graph(
+            nodes=nodes,
+            target_by_skill=target_by_skill,
+            current_levels=current_levels,
+            first_missing_level=first_missing_level,
+        )
+
+        dogma_map = self._load_skill_dogma(list(target_by_skill.keys()))
+        skill_names = self._load_skill_names(list(target_by_skill.keys()), language=language)
+        ordered_nodes = self._order_plan_nodes(
+            nodes=nodes,
+            adjacency=adjacency,
+            indegree=indegree,
+            skill_names=skill_names,
+        )
+
         plan_rows = []
         for skill_id, level in ordered_nodes:
-            dogma = dogma_map.get(
-                skill_id,
-                {"rank": 1, "primary_attribute": None, "secondary_attribute": None},
-            )
-            rank = self._as_int(dogma.get("rank"), default=1)
-            current_level = self._as_int(current_levels.get(skill_id, 0))
-            current_sp = self._as_int(current_skillpoints.get(skill_id, 0))
-            primary_attribute = None if dogma.get("primary_attribute") is None else str(dogma.get("primary_attribute"))
-            secondary_attribute = None if dogma.get("secondary_attribute") is None else str(dogma.get("secondary_attribute"))
-
-            if level == current_level + 1:
-                previous_level = current_level
-                baseline_current_sp = max(current_sp, self._sp_for_level(rank, previous_level))
-            else:
-                previous_level = level - 1
-                baseline_current_sp = self._sp_for_level(rank, previous_level)
-
-            target_sp = self._sp_for_level(rank, level)
-            missing_sp = max(0, target_sp - baseline_current_sp)
-
             plan_rows.append(
-                {
-                    "skill_type_id": skill_id,
-                    "skill_name": skill_names.get(skill_id, f"Skill {skill_id}"),
-                    "target_level": level,
-                    "current_level": previous_level,
-                    "current_sp": baseline_current_sp,
-                    "target_sp": target_sp,
-                    "missing_sp": missing_sp,
-                    "rank": rank,
-                    "primary_attribute": primary_attribute,
-                    "secondary_attribute": secondary_attribute,
-                    "primary_label": self._attribute_label(primary_attribute),
-                    "secondary_label": self._attribute_label(secondary_attribute),
-                    "line": f"{skill_names.get(skill_id, f'Skill {skill_id}')} {self._roman(level)}",
-                }
+                self._build_plan_row(
+                    skill_id=skill_id,
+                    level=level,
+                    skill_names=skill_names,
+                    dogma_map=dogma_map,
+                    current_levels=current_levels,
+                    current_skillpoints=current_skillpoints,
+                )
             )
 
         return plan_rows
 
     def build_export_lines(self, progress: dict, mode: str, character=None, language: str = "en") -> list[str]:
+        """Build plain-text training lines for a given export mode."""
         return [
             row["line"]
             for row in self._build_training_plan_rows(
@@ -731,6 +863,7 @@ class PilotProgressService:
         ]
 
     def build_skill_plan_summary(self, progress: dict, mode: str, character=None, language: str = "en") -> dict:
+        """Build aggregate summary metadata for UI/API skill plan display."""
         plan_rows = self._build_training_plan_rows(
             progress=progress,
             mode=mode,
@@ -794,6 +927,7 @@ class PilotProgressService:
         return localized
 
     def build_for_character(self, character, skillset):
+        """Build required/recommended progress snapshot for one character and skillset."""
         skills_qs = skillset.skills.select_related("eve_type").order_by("eve_type__name")
         skills = list(skills_qs)
         skill_type_ids = [obj.eve_type_id for obj in skills]

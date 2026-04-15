@@ -1,3 +1,4 @@
+"""Generates blacklist-addition suggestions for fittings."""
 from collections import defaultdict
 
 from allianceauth.services.hooks import get_extension_logger
@@ -12,6 +13,7 @@ logger = LoggerAddTag(get_extension_logger(__name__), __title__)
 
 class SkillSuggestionService:
     # mapping skill groups to features
+    """Infer removable skills by matching fitting modules to skill feature groups."""
     SKILL_GROUP_FEATURES = {
         # Tank
         1210: "shield",
@@ -72,9 +74,11 @@ class SkillSuggestionService:
     }
 
     def __init__(self):
+        """Initialize in-memory cache for skill type metadata lookups."""
         self._group_cache = {}
 
     def get_group(self, skill_type_id: int):
+        """Return cached ItemType+group data for a skill type ID."""
         if skill_type_id not in self._group_cache:
             try:
                 self._group_cache[skill_type_id] = ItemType.objects.select_related('group__category').get(
@@ -85,6 +89,7 @@ class SkillSuggestionService:
         return self._group_cache[skill_type_id]
 
     def detect_features(self, fitting: Fitting):
+        """Detect feature flags present in fitting modules (shield, armor, missiles, ...)."""
         features = defaultdict(bool)
 
         for item in fitting.items.select_related("type_fk__group__category").all():

@@ -1,9 +1,13 @@
+"""Checks whether a character meets skillset requirements."""
 from memberaudit.models import CharacterSkillSetCheck, SkillSetSkill
 
 
 class SkillCheckService:
+    """Compute summarized completion metrics for one character/skillset pair."""
+
     @staticmethod
     def get_character_progress(character, skillset):
+        """Return required/recommended completion percentages and failure counts."""
         CharacterSkillSetCheck.objects.select_related(
             "character",
             "skill_set"

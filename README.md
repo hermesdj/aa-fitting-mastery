@@ -114,12 +114,14 @@ INSTALLED_APPS += [
 
 ### 4 - Configure the scheduled SDE mastery update task
 
-Add the periodic task to your `CELERYBEAT_SCHEDULE`:
+Add the periodic task to your `CELERYBEAT_SCHEDULE` (every day at midnight):
 
 ```python
+from celery.schedules import crontab
+
 CELERYBEAT_SCHEDULE["update_sde_masteries"] = {
     "task": "mastery.tasks.update_sde_masteries",
-    "schedule": crontab(0, 0, day_of_month="1"),
+    "schedule": crontab(minute="0", hour="0"),
 }
 ```
 

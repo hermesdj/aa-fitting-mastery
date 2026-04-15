@@ -1,9 +1,11 @@
+"""Doctrine to SkillSetGroup mapping model."""
 from django.db import models
 from fittings.models import Doctrine
 from memberaudit.models import SkillSetGroup
 
 
 class DoctrineSkillSetGroupMap(models.Model):
+    """DoctrineSkillSetGroupMap Django model."""
     doctrine = models.ForeignKey(
         Doctrine,
         on_delete=models.DO_NOTHING,
@@ -23,4 +25,5 @@ class DoctrineSkillSetGroupMap(models.Model):
     )
 
     class Meta:
+        """Model metadata (ordering, indexes and constraints)."""
         unique_together = ("doctrine_id", "skillset_group_id")

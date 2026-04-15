@@ -32,4 +32,3 @@ doctrine_skill_service = DoctrineSkillService(
     fitting_map_service=fitting_map_service,
 )
 doctrine_map_service = DoctrineMapService(doctrine_skill_service=doctrine_skill_service)
-

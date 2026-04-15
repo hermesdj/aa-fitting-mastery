@@ -1,3 +1,4 @@
+"""Fitting to SkillSet mapping model."""
 from django.db import models
 from fittings.models import Fitting
 from memberaudit.models import SkillSet
@@ -6,6 +7,7 @@ from mastery.models import DoctrineSkillSetGroupMap
 
 
 class FittingSkillsetMap(models.Model):
+    """FittingSkillsetMap Django model."""
     doctrine_map = models.ForeignKey(
         DoctrineSkillSetGroupMap,
         on_delete=models.CASCADE,
@@ -41,4 +43,5 @@ class FittingSkillsetMap(models.Model):
     )
 
     class Meta:
+        """Model metadata (ordering, indexes and constraints)."""
         unique_together = ("fitting_id", "skillset_id")

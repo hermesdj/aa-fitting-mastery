@@ -1,3 +1,5 @@
+"""Common helpers and re-exported symbols shared across mastery views."""
+
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional
@@ -15,14 +17,33 @@ from .deps import (
     MASTERY_LEVEL_CHOICES,
     MASTERY_LEVEL_LABELS,
     control_service,
-    doctrine_map_service,
+    doctrine_map_service,  # re-exported to fitting.py
     doctrine_skill_service,
-    extractor_service,
-    fitting_map_service,
-    mastery_service,
-    pilot_access_service,
-    pilot_progress_service,
-    suggestion_service,
+    extractor_service,  # re-exported to fitting.py and __init__.py
+    fitting_map_service,  # re-exported to fitting.py
+    mastery_service,  # re-exported (used by downstream views)
+    pilot_access_service,  # re-exported to pilot.py
+    pilot_progress_service,  # re-exported to pilot.py
+    suggestion_service,  # re-exported (used by downstream views)
+)
+# Re-exported helpers originally defined in summary_helpers; imported here so
+# that existing views can continue to import them from .common.
+from .summary_helpers import (  # noqa: E402 – must follow deps import
+    _annotate_member_detail_pilots,  # re-exported
+    _build_doctrine_summary,  # re-exported
+    _build_fitting_kpis,  # re-exported
+    _build_fitting_user_rows,  # re-exported
+    _build_member_groups_for_summary,  # re-exported
+    _get_accessible_fitting_or_404,  # re-exported
+    _get_member_characters,  # re-exported
+    _get_pilot_detail_characters,  # re-exported
+    _get_selected_summary_group,  # re-exported
+    _get_summary_group_by_id,  # re-exported
+    _parse_activity_days,  # re-exported
+    _parse_export_language,  # re-exported
+    _parse_export_mode,  # re-exported
+    _parse_training_days,  # re-exported
+    _summary_entity_catalog,  # re-exported
 )
 
 
@@ -198,8 +219,10 @@ def _group_preview_skills(skill_rows: List[dict]) -> dict:
         required_level, recommended_level = _resolve_row_levels(row_payload)
 
         if required_level > 0:
+            # pylint: disable=protected-access  # intentional: internal SP formula helper
             grouped[group_name]["required_total_sp"] += pilot_progress_service._sp_for_level(rank, required_level)
         if recommended_level > 0:
+            # pylint: disable=protected-access
             grouped[group_name]["recommended_total_sp"] += pilot_progress_service._sp_for_level(rank, recommended_level)
 
     normalized_groups = {}
@@ -445,7 +468,7 @@ def _build_plan_kpis(skill_rows: list[dict]) -> dict:
         total = 0
         for skill_type_id, level in targets.items():
             rank = rank_by_skill.get(skill_type_id, 1)
-            total += pilot_progress_service._sp_for_level(rank, level)
+            total += pilot_progress_service._sp_for_level(rank, level)  # pylint: disable=protected-access
         return int(total)
 
     required_total_sp = _total_sp(required_targets)
@@ -496,21 +519,51 @@ def _apply_preview_suggestions(
     return applied_count
 
 
-from .summary_helpers import (
-    _annotate_member_detail_pilots,
-    _build_doctrine_summary,
-    _build_fitting_kpis,
-    _build_fitting_user_rows,
-    _build_member_groups_for_summary,
-    _get_accessible_fitting_or_404,
-    _get_member_characters,
-    _get_pilot_detail_characters,
-    _get_selected_summary_group,
-    _get_summary_group_by_id,
-    _parse_activity_days,
-    _parse_export_language,
-    _parse_export_mode,
-    _parse_training_days,
-    _summary_entity_catalog,
-)
-
+__all__ = [
+    "Doctrine",
+    "DoctrineSkillSetGroupMap",
+    "Fitting",
+    "FittingSkillsetMap",
+    "ItemType",
+    "MASTERY_LEVEL_CHOICES",
+    "MASTERY_LEVEL_LABELS",
+    "TypeDogma",
+    "_annotate_member_detail_pilots",
+    "_apply_preview_suggestions",
+    "_bad_request_response",
+    "_build_doctrine_summary",
+    "_build_fitting_kpis",
+    "_build_fitting_preview_context",
+    "_build_fitting_skills_ajax_response",
+    "_build_fitting_user_rows",
+    "_build_member_groups_for_summary",
+    "_build_plan_kpis",
+    "_finalize_fitting_skills_action",
+    "_get_accessible_fitting_or_404",
+    "_get_doctrine_and_map_for_fitting",
+    "_get_mastery_label",
+    "_get_member_characters",
+    "_get_pilot_detail_characters",
+    "_get_selected_summary_group",
+    "_get_skill_name_options",
+    "_get_summary_group_by_id",
+    "_group_preview_skills",
+    "_is_ajax_request",
+    "_parse_activity_days",
+    "_parse_export_language",
+    "_parse_export_mode",
+    "_parse_mastery_level",
+    "_parse_posted_int",
+    "_parse_training_days",
+    "_resolve_row_levels",
+    "_summary_entity_catalog",
+    "control_service",
+    "doctrine_map_service",
+    "doctrine_skill_service",
+    "extractor_service",
+    "fitting_map_service",
+    "mastery_service",
+    "pilot_access_service",
+    "pilot_progress_service",
+    "suggestion_service",
+]

@@ -1,3 +1,5 @@
+"""URL routing for the testauth project used by plugin tests."""
+
 # Django
 from django.urls import include, re_path
 

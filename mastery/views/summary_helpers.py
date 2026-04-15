@@ -185,7 +185,9 @@ def _build_member_groups_for_summary(summary_group, activity_days: int, include_
     results = [obj for obj in groups.values() if obj["characters"]]
     return sorted(
         results,
-        key=lambda x: (((x["main_character"].character_name if x["main_character"] else x["user"].username) or "").lower()),
+        key=lambda x: (
+            (x["main_character"].character_name if x["main_character"] else x["user"].username) or ""
+        ).lower(),
     )
 
 
@@ -520,4 +522,3 @@ def _build_doctrine_summary(
             training_days=training_days,
         ),
     }
-

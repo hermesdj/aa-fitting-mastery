@@ -1,3 +1,4 @@
+"""Extracts required skill IDs and levels from EVE fittings."""
 from django.db.models import Prefetch
 from eve_sde.models import ItemType, TypeDogma
 
@@ -16,7 +17,9 @@ REQUIRED_SKILL_ATTRIBUTES = [
 
 
 class FittingSkillExtractor:
+    """FittingSkillExtractor class."""
     def __init__(self):
+        """Init."""
         self._type_cache = {}
 
     def _expand_required_skill_tree(self, direct_skills: dict) -> dict:

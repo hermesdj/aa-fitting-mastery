@@ -1,3 +1,4 @@
+"""Fitting management views (skill editor, preview, suggestions)."""
 from allianceauth.authentication.decorators import permissions_required
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -30,6 +31,7 @@ from .common import (
 @login_required
 @permissions_required('mastery.manage_fittings')
 def fitting_skills_view(request, fitting_id):
+    """Fitting skills view."""
     fitting, doctrine, doctrine_map, fitting_map = _get_doctrine_and_map_for_fitting(fitting_id)
 
     if doctrine is None:
@@ -52,6 +54,7 @@ def fitting_skills_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def update_fitting_mastery(request, fitting_id):
+    """Update fitting mastery."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -94,6 +97,7 @@ def update_fitting_mastery(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def toggle_skill_blacklist_view(request, fitting_id):
+    """Toggle skill blacklist view."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -132,6 +136,7 @@ def toggle_skill_blacklist_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def update_skill_recommended_view(request, fitting_id):
+    """Update skill recommended view."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -183,6 +188,7 @@ def update_skill_recommended_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def update_skill_group_controls_view(request, fitting_id):
+    """Update skill group controls view."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -261,6 +267,7 @@ def update_skill_group_controls_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def add_manual_skill_view(request, fitting_id):
+    """Add manual skill view."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -311,6 +318,7 @@ def add_manual_skill_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def remove_manual_skill_view(request, fitting_id):
+    """Remove manual skill view."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -342,6 +350,7 @@ def remove_manual_skill_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def apply_suggestions_view(request, fitting_id):
+    """Apply suggestions view."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -374,6 +383,7 @@ def apply_suggestions_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def apply_group_suggestions_view(request, fitting_id):
+    """Apply group suggestions view."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -422,6 +432,7 @@ def apply_group_suggestions_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def apply_skill_suggestion_view(request, fitting_id):
+    """Apply skill suggestion view."""
     if request.method != "POST":
         return _bad_request_response(request, "POST required")
 
@@ -463,6 +474,7 @@ def apply_skill_suggestion_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def fitting_skills_preview_view(request, fitting_id):
+    """Fitting skills preview view."""
     fitting, doctrine, doctrine_map, fitting_map = _get_doctrine_and_map_for_fitting(fitting_id)
 
     if doctrine is None:
@@ -485,4 +497,3 @@ def fitting_skills_preview_view(request, fitting_id):
     )
 
     return render(request, "mastery/partials/fitting_skill_preview.html", context)
-

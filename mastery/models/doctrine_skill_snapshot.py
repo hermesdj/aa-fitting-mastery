@@ -1,3 +1,4 @@
+"""Snapshot of skills computed for a doctrine fitting."""
 from django.db import models
 from eve_sde.models import ItemType
 from fittings.models import Doctrine, Fitting
@@ -6,6 +7,7 @@ NAMES_MAX_LENGTH = 255
 
 
 class DoctrineSkillSnapshot(models.Model):
+    """DoctrineSkillSnapshot Django model."""
     doctrine = models.ForeignKey(
         Doctrine,
         on_delete=models.DO_NOTHING,

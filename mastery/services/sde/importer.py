@@ -1,3 +1,4 @@
+"""Imports SDE certificate and mastery data into mastery models."""
 import io
 import zipfile
 
@@ -8,9 +9,11 @@ from mastery.models import CertificateSkill, ShipMastery, ShipMasteryCertificate
 
 
 class SdeMasteryImporter:
+    """Download and import EVE SDE mastery/certificate payloads into DB tables."""
     SDE_URL = "https://developers.eveonline.com/static-data/eve-online-static-data-latest-yaml.zip"
 
     def download(self):
+        """Download the latest SDE zip archive and return it as ZipFile."""
         response = requests.get(self.SDE_URL, timeout=60)
         response.raise_for_status()
 
@@ -18,6 +21,7 @@ class SdeMasteryImporter:
 
     @staticmethod
     def extract_yaml(zip_file, filename):
+        """Extract and parse a YAML file from the downloaded SDE archive."""
         for file in zip_file.namelist():
             if file.endswith(filename):
                 return yaml.safe_load(zip_file.read(file))
@@ -25,6 +29,7 @@ class SdeMasteryImporter:
 
     @staticmethod
     def import_certificates(data):
+        """Replace CertificateSkill table content from SDE certificate payload."""
         objs = []
 
         for cert_id, cert_data in data.items():
@@ -46,6 +51,7 @@ class SdeMasteryImporter:
 
     @staticmethod
     def import_masteries(data):
+        """Replace ship mastery and mastery-certificate relation tables from SDE."""
         mastery_objs = []
         cert_objs = []
 
@@ -81,6 +87,7 @@ class SdeMasteryImporter:
 
     @staticmethod
     def exec_import(latest, masteries, certificates, dry_run=False):
+        """Execute full import and update active SDE version marker."""
         importer = SdeMasteryImporter()
         if not dry_run:
             importer.import_certificates(certificates)

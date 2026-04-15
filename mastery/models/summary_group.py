@@ -1,7 +1,9 @@
+"""Audience group models for summary/reporting views."""
 from django.db import models
 
 
 class SummaryAudienceGroup(models.Model):
+    """SummaryAudienceGroup Django model."""
     name = models.CharField(max_length=120, unique=True)
     description = models.CharField(max_length=255, blank=True)
     is_active = models.BooleanField(default=True)
@@ -9,13 +11,16 @@ class SummaryAudienceGroup(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        """Model metadata (ordering, indexes and constraints)."""
         ordering = ["name"]
 
     def __str__(self) -> str:
-        return self.name
+        """Str."""
+        return str(self.name)
 
 
 class SummaryAudienceEntity(models.Model):
+    """SummaryAudienceEntity Django model."""
     TYPE_CORPORATION = "corporation"
     TYPE_ALLIANCE = "alliance"
     TYPE_CHOICES = (
@@ -33,6 +38,7 @@ class SummaryAudienceEntity(models.Model):
     label = models.CharField(max_length=120, blank=True)
 
     class Meta:
+        """Model metadata (ordering, indexes and constraints)."""
         unique_together = (("group", "entity_type", "entity_id"),)
         ordering = ["entity_type", "entity_id"]
         indexes = [
@@ -40,6 +46,6 @@ class SummaryAudienceEntity(models.Model):
         ]
 
     def __str__(self) -> str:
+        """Str."""
         suffix = f" ({self.label})" if self.label else ""
         return f"{self.group.name}: {self.entity_type} #{self.entity_id}{suffix}"
-

@@ -1,3 +1,4 @@
+"""Service for creating/fetching FittingSkillsetMap entries."""
 from fittings.models import Fitting
 from memberaudit.models import SkillSet
 
@@ -5,8 +6,11 @@ from mastery.models import FittingSkillsetMap, DoctrineSkillSetGroupMap
 
 
 class FittingMapService:
+    """Manage Doctrine->Fitting->SkillSet map records."""
+
     @staticmethod
     def create_fitting_map(doctrine_map: DoctrineSkillSetGroupMap, fitting: Fitting) -> FittingSkillsetMap:
+        """Get or create the fitting map and backing SkillSet for one fitting."""
         fitting_map = FittingSkillsetMap.objects.filter(fitting=fitting).first()
 
         if fitting_map:

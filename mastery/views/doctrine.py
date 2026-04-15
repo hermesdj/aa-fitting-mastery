@@ -1,3 +1,5 @@
+"""Doctrine management views for the mastery app."""
+
 from allianceauth.authentication.decorators import permissions_required
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest
@@ -17,6 +19,7 @@ from .common import (
 @login_required
 @permissions_required('mastery.manage_fittings')
 def doctrine_list_view(request):
+    """Render doctrine overview with initialization/configuration status per doctrine."""
     doctrines = Doctrine.objects.prefetch_related("fittings")
 
     data = []
@@ -27,7 +30,10 @@ def doctrine_list_view(request):
 
         doctrine_map = DoctrineSkillSetGroupMap.objects.filter(doctrine=doctrine).first()
         initialized = doctrine_map is not None
-        configured = 0 if doctrine_map is None else FittingSkillsetMap.objects.filter(doctrine_map=doctrine_map).count()
+        configured = (
+            0 if doctrine_map is None
+            else FittingSkillsetMap.objects.filter(doctrine_map=doctrine_map).count()
+        )
 
         data.append(
             {
@@ -38,7 +44,10 @@ def doctrine_list_view(request):
                 "configured": configured,
                 "icon_url": doctrine.icon_url,
                 "default_mastery_level": None if doctrine_map is None else doctrine_map.default_mastery_level,
-                "default_mastery_label": None if doctrine_map is None else _get_mastery_label(doctrine_map.default_mastery_level),
+                "default_mastery_label": (
+                    None if doctrine_map is None
+                    else _get_mastery_label(doctrine_map.default_mastery_level)
+                ),
             }
         )
 
@@ -54,6 +63,7 @@ def doctrine_list_view(request):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def doctrine_detail_view(request, doctrine_id):
+    """Render one doctrine details and effective mastery level for each fitting."""
     doctrine = Doctrine.objects.prefetch_related("fittings").get(id=doctrine_id)
     doctrine_map = DoctrineSkillSetGroupMap.objects.filter(doctrine=doctrine).first()
     fittings_data = []
@@ -78,14 +88,15 @@ def doctrine_detail_view(request, doctrine_id):
             }
         )
 
+    doctrine_default = 4 if doctrine_map is None else doctrine_map.default_mastery_level
     return render(
         request,
         "mastery/doctrine_detail.html",
         {
             "doctrine": doctrine,
             "doctrine_map": doctrine_map,
-            "doctrine_default_mastery_level": 4 if doctrine_map is None else doctrine_map.default_mastery_level,
-            "doctrine_default_mastery_label": _get_mastery_label(4 if doctrine_map is None else doctrine_map.default_mastery_level),
+            "doctrine_default_mastery_level": doctrine_default,
+            "doctrine_default_mastery_label": _get_mastery_label(doctrine_default),
             "mastery_choices": MASTERY_LEVEL_CHOICES,
             "fittings": fittings_data,
         },
@@ -94,7 +105,8 @@ def doctrine_detail_view(request, doctrine_id):
 
 @login_required
 @permissions_required('mastery.manage_fittings')
-def generate_doctrine(request, doctrine_id):
+def generate_doctrine(_request, doctrine_id):  # pylint: disable=unused-argument
+    """Ensure doctrine mapping exists, then redirect to doctrine details."""
     doctrine = Doctrine.objects.get(id=doctrine_id)
     has_map = DoctrineSkillSetGroupMap.objects.filter(doctrine=doctrine).exists()
 
@@ -106,7 +118,8 @@ def generate_doctrine(request, doctrine_id):
 
 @login_required
 @permissions_required('mastery.manage_fittings')
-def sync_doctrine(request, doctrine_id):
+def sync_doctrine(_request, doctrine_id):  # pylint: disable=unused-argument
+    """Force doctrine skill synchronization, then redirect to details page."""
     doctrine = Doctrine.objects.get(id=doctrine_id)
     doctrine_map_service.sync(doctrine)
 
@@ -116,6 +129,7 @@ def sync_doctrine(request, doctrine_id):
 @login_required
 @permissions_required('mastery.manage_fittings')
 def update_doctrine_mastery(request, doctrine_id):
+    """Update default doctrine mastery level and resync all doctrine fittings."""
     if request.method != "POST":
         return HttpResponseBadRequest("POST required")
 
@@ -134,4 +148,3 @@ def update_doctrine_mastery(request, doctrine_id):
     doctrine_map_service.sync(doctrine)
 
     return redirect('mastery:doctrine_detail', doctrine_id=doctrine_id)
-

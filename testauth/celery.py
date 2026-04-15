@@ -1,3 +1,5 @@
+"""Celery app configuration for the testauth project."""
+
 import os
 
 from celery import Celery
@@ -6,7 +8,7 @@ from celery.app import trace
 # set the default Django settings module for the 'celery' program.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "testauth.settings.local")
 
-from django.conf import settings  # noqa
+from django.conf import settings  # pylint: disable=wrong-import-position
 
 app = Celery("testauth")
 

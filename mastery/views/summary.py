@@ -1,3 +1,4 @@
+"""Summary/reporting views for doctrine readiness."""
 from allianceauth.authentication.decorators import permissions_required
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -25,6 +26,7 @@ from .common import (
 @login_required
 @permissions_required('mastery.doctrine_summary')
 def summary_list_view(request):
+    """Summary list view."""
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
     training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
@@ -76,6 +78,7 @@ def summary_list_view(request):
 @login_required
 @permissions_required('mastery.doctrine_summary')
 def summary_doctrine_detail_view(request, doctrine_id):
+    """Summary doctrine detail view."""
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
     training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
@@ -126,6 +129,7 @@ def summary_doctrine_detail_view(request, doctrine_id):
 @login_required
 @permissions_required('mastery.doctrine_summary')
 def summary_fitting_detail_view(request, fitting_id):
+    """Summary fitting detail view."""
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
     training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
@@ -177,6 +181,7 @@ def summary_fitting_detail_view(request, fitting_id):
 @login_required
 @permissions_required('mastery.manage_summary_groups')
 def summary_settings_view(request):
+    """Summary settings view."""
     selected_group_id = request.GET.get("group_id")
 
     if request.method == "POST":
@@ -270,4 +275,3 @@ def summary_settings_view(request):
             "alliance_options": alliance_options,
         },
     )
-

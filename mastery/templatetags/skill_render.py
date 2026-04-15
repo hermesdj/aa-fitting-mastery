@@ -1,3 +1,4 @@
+"""Template tags and filters for rendering skill progress data."""
 from django import template
 from django.utils.safestring import mark_safe
 
@@ -7,15 +8,21 @@ MAX_SKILL_LEVEL = 5
 
 
 def _render_skill_pip(is_active: bool) -> str:
-    if is_active:
-        style = "display:inline-block;width:10px;height:10px;border-radius:2px;background:#3d8bfd;border:1px solid #3d8bfd;"
-    else:
-        style = "display:inline-block;width:10px;height:10px;border-radius:2px;background:transparent;border:1px solid #6c757d;opacity:.7;"
-
-    return f"<span style=\"{style}\"></span>"
+    """Render a single square pip for a skill-level indicator."""
+    active_style = (
+        "display:inline-block;width:10px;height:10px;"
+        "border-radius:2px;background:#3d8bfd;border:1px solid #3d8bfd;"
+    )
+    inactive_style = (
+        "display:inline-block;width:10px;height:10px;"
+        "border-radius:2px;background:transparent;border:1px solid #6c757d;opacity:.7;"
+    )
+    style = active_style if is_active else inactive_style
+    return f'<span style="{style}"></span>'
 
 @register.filter
 def skill_render(value):
+    """Skill render."""
     try:
         level = int(value)
     except (TypeError, ValueError):
@@ -54,4 +61,3 @@ def group_has_blacklisted_skills(skills):
         if skill.get("is_blacklisted"):
             return True
     return False
-
