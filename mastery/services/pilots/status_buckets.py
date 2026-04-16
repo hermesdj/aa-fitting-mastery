@@ -38,4 +38,3 @@ def bucket_for_progress(progress: dict) -> str:
     if required_pct > almost_fit_threshold:
         return BUCKET_ALMOST_FIT
     return BUCKET_NEEDS_TRAINING
-

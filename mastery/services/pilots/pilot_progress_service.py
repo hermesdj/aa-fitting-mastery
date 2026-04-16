@@ -1006,6 +1006,91 @@ class PilotProgressService:
             localized.append(row_copy)
         return localized
 
+    def _build_skill_progress_rows(self, skills, character_skills: dict, skill_dogma_map: dict) -> dict:
+        """Compute missing skill rows and aggregate coverage percentages."""
+        missing_required = []
+        missing_recommended = []
+        totals = {
+            "required_target_sp": 0,
+            "required_covered_sp": 0,
+            "recommended_target_sp": 0,
+            "recommended_covered_sp": 0,
+        }
+
+        for skill in skills:
+            current = character_skills.get(skill.eve_type_id)
+            current_level = 0 if current is None else self._as_int(getattr(current, "active_skill_level", 0))
+            current_sp = 0 if current is None else self._as_int(getattr(current, "skillpoints_in_skill", 0))
+            dogma = skill_dogma_map.get(
+                skill.eve_type_id,
+                {"rank": 1, "primary_attribute": None, "secondary_attribute": None},
+            )
+            rank = self._as_int(dogma.get("rank"), default=1)
+            current_level_sp = self._sp_for_level(rank, current_level)
+            baseline_current_sp = max(current_sp, current_level_sp)
+
+            if skill.required_level:
+                required_target_sp = self._sp_for_level(rank, self._as_int(skill.required_level))
+                totals["required_target_sp"] += required_target_sp
+                totals["required_covered_sp"] += min(required_target_sp, baseline_current_sp)
+                if current_level < skill.required_level:
+                    missing_required.append(
+                        {
+                            "skill_type_id": skill.eve_type_id,
+                            "skill_name": skill.eve_type.name,
+                            "current_level": current_level,
+                            "target_level": skill.required_level,
+                            "current_sp": current_sp,
+                        }
+                    )
+
+            if skill.recommended_level:
+                recommended_target_sp = self._sp_for_level(rank, self._as_int(skill.recommended_level))
+                totals["recommended_target_sp"] += recommended_target_sp
+                totals["recommended_covered_sp"] += min(recommended_target_sp, baseline_current_sp)
+                if current_level < skill.recommended_level:
+                    missing_recommended.append(
+                        {
+                            "skill_type_id": skill.eve_type_id,
+                            "skill_name": skill.eve_type.name,
+                            "current_level": current_level,
+                            "target_level": skill.recommended_level,
+                            "current_sp": current_sp,
+                        }
+                    )
+
+        required_target_sp = totals["required_target_sp"]
+        recommended_target_sp = totals["recommended_target_sp"]
+        required_pct = 100 if required_target_sp == 0 else round(
+            (totals["required_covered_sp"] / required_target_sp) * 100,
+            2,
+        )
+        recommended_pct = 100 if recommended_target_sp == 0 else round(
+            (totals["recommended_covered_sp"] / recommended_target_sp) * 100,
+            2,
+        )
+
+        return {
+            "missing_required": missing_required,
+            "missing_recommended": missing_recommended,
+            "required_pct": required_pct,
+            "recommended_pct": recommended_pct,
+        }
+
+    def _estimate_missing_for_rows(
+        self,
+        character,
+        rows: list[dict],
+        skill_dogma_map: dict,
+    ) -> tuple[int, timedelta | None]:
+        """Estimate SP/time for a missing-skill row list."""
+        row_dogma_map = {
+            skill_type_id: skill_dogma_map[skill_type_id]
+            for skill_type_id in [obj["skill_type_id"] for obj in rows]
+            if skill_type_id in skill_dogma_map
+        }
+        return self._estimate_missing(character, rows, row_dogma_map)
+
     def build_for_character(
         self,
         character,
@@ -1023,80 +1108,22 @@ class PilotProgressService:
             skill_type_ids,
             cache_context=cache_context,
         )
+        skill_progress = self._build_skill_progress_rows(skills, character_skills, skill_dogma_map)
+        missing_required = skill_progress["missing_required"]
+        missing_recommended = skill_progress["missing_recommended"]
+        required_pct = skill_progress["required_pct"]
+        recommended_pct = skill_progress["recommended_pct"]
 
-        missing_required = []
-        missing_recommended = []
-        total_required_target_sp = 0
-        total_required_covered_sp = 0
-        total_recommended_target_sp = 0
-        total_recommended_covered_sp = 0
-
-        for skill in skills:
-            current = character_skills.get(skill.eve_type_id)
-            current_level = 0 if current is None else self._as_int(getattr(current, "active_skill_level", 0))
-            current_sp = 0 if current is None else self._as_int(getattr(current, "skillpoints_in_skill", 0))
-            dogma = skill_dogma_map.get(
-                skill.eve_type_id,
-                {"rank": 1, "primary_attribute": None, "secondary_attribute": None},
-            )
-            rank = self._as_int(dogma.get("rank"), default=1)
-            current_level_sp = self._sp_for_level(rank, current_level)
-            baseline_current_sp = max(current_sp, current_level_sp)
-
-            if skill.required_level:
-                required_target_sp = self._sp_for_level(rank, self._as_int(skill.required_level))
-                total_required_target_sp += required_target_sp
-                total_required_covered_sp += min(required_target_sp, baseline_current_sp)
-                if current_level < skill.required_level:
-                    missing_required.append(
-                        {
-                            "skill_type_id": skill.eve_type_id,
-                            "skill_name": skill.eve_type.name,
-                            "current_level": current_level,
-                            "target_level": skill.required_level,
-                            "current_sp": current_sp,
-                        }
-                    )
-
-            if skill.recommended_level:
-                recommended_target_sp = self._sp_for_level(rank, self._as_int(skill.recommended_level))
-                total_recommended_target_sp += recommended_target_sp
-                total_recommended_covered_sp += min(recommended_target_sp, baseline_current_sp)
-                if current_level < skill.recommended_level:
-                    missing_recommended.append(
-                        {
-                            "skill_type_id": skill.eve_type_id,
-                            "skill_name": skill.eve_type.name,
-                            "current_level": current_level,
-                            "target_level": skill.recommended_level,
-                            "current_sp": current_sp,
-                        }
-                    )
-
-        required_pct = 100 if total_required_target_sp == 0 else round(
-            (total_required_covered_sp / total_required_target_sp) * 100,
-            2,
+        required_missing_sp, required_missing_time = self._estimate_missing_for_rows(
+            character,
+            missing_required,
+            skill_dogma_map,
         )
-        recommended_pct = 100 if total_recommended_target_sp == 0 else round(
-            (total_recommended_covered_sp / total_recommended_target_sp) * 100,
-            2,
+        recommended_missing_sp, recommended_missing_time = self._estimate_missing_for_rows(
+            character,
+            missing_recommended,
+            skill_dogma_map,
         )
-
-        required_dogma_map = {
-            skill_type_id: skill_dogma_map[skill_type_id]
-            for skill_type_id in [obj["skill_type_id"] for obj in missing_required]
-            if skill_type_id in skill_dogma_map
-        }
-        required_missing_sp, required_missing_time = self._estimate_missing(character, missing_required,
-                                                                            required_dogma_map)
-
-        recommended_dogma_map = {
-            skill_type_id: skill_dogma_map[skill_type_id]
-            for skill_type_id in [obj["skill_type_id"] for obj in missing_recommended]
-            if skill_type_id in skill_dogma_map
-        }
-        recommended_missing_sp, recommended_missing_time = self._estimate_missing(character, missing_recommended,
-                                                                                  recommended_dogma_map)
 
         can_fly = len(missing_required) == 0
         status_label, status_class = self._status_meta(can_fly, recommended_pct, required_pct)

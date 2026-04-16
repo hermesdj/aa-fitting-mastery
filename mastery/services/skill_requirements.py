@@ -8,4 +8,3 @@ REQUIRED_SKILL_ATTRIBUTES = [
     (1289, 1287),
     (1290, 1288),
 ]
-
