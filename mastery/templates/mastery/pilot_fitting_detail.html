@@ -33,9 +33,26 @@
     </div>
 
     <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header">Character readiness</div>
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+                Character readiness
+                <span class="small text-muted ms-2">{{ filtered_character_rows|length }}/{{ character_rows|length }} visible</span>
+            </div>
+            <form method="get" class="d-flex flex-wrap align-items-center gap-2">
+                {% if selected_character %}<input type="hidden" name="character_id" value="{{ selected_character.id }}">{% endif %}
+                <input type="hidden" name="export_mode" value="{{ export_mode }}">
+                <input type="hidden" name="export_language" value="{{ export_language }}">
+                {% if summary_group_id %}<input type="hidden" name="group_id" value="{{ summary_group_id }}">{% endif %}
+                <label class="small text-muted" for="characterFilterSelect">Filter</label>
+                <select id="characterFilterSelect" class="form-select form-select-sm" name="character_filter" onchange="this.form.submit()">
+                    {% for value, label in character_filter_choices %}
+                    <option value="{{ value }}" {% if selected_character_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive character-readiness-table-wrap">
                 <table class="table table-sm align-middle mb-0" style="table-layout: fixed; width: 100%;">
                     <colgroup>
                         <col style="width: 220px;">
@@ -54,7 +71,7 @@
                     </tr>
                     </thead>
                     <tbody>
-                    {% for row in character_rows %}
+                    {% for row in filtered_character_rows %}
                     <tr>
                         <td>
                             <div class="d-flex align-items-center gap-2">
@@ -82,8 +99,8 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a class="btn btn-sm {% if selected_character and selected_character.id == row.character.id %}btn-success{% else %}btn-outline-primary{% endif %}" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ row.character.id }}&export_mode={{ export_mode }}&export_language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">
-                                {% if selected_character and selected_character.id == row.character.id %}
+                            <a class="btn btn-sm {% if row.is_selected %}btn-success{% else %}btn-outline-primary{% endif %}" href="{{ row.action_url }}">
+                                {% if row.is_selected %}
                                 <span class="fas fa-check-circle" aria-hidden="true"></span>
                                 Selected
                                 {% else %}
@@ -95,7 +112,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-muted">No characters available for your account.</td>
+                        <td colspan="5" class="text-muted">No characters match the current filter.</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -114,11 +131,12 @@
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="btn-group" role="group" aria-label="Export mode">
                     {% for value, label in export_mode_choices %}
-                    <a class="btn {% if export_mode == value %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ selected_character.id }}&export_mode={{ value }}&export_language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">{{ label }}</a>
+                    <a class="btn {% if export_mode == value %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ selected_character.id }}&character_filter={{ selected_character_filter }}&export_mode={{ value }}&export_language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">{{ label }}</a>
                     {% endfor %}
                 </div>
                 <form method="get" class="d-flex align-items-center gap-2">
                     <input type="hidden" name="character_id" value="{{ selected_character.id }}">
+                    <input type="hidden" name="character_filter" value="{{ selected_character_filter }}">
                     <input type="hidden" name="export_mode" value="{{ export_mode }}">
                     {% if summary_group_id %}<input type="hidden" name="group_id" value="{{ summary_group_id }}">{% endif %}
                     <label class="small text-muted" for="exportLanguageSelect" title="{{ export_language_scope_label|default:'Affects export' }}">Export language</label>
@@ -468,7 +486,7 @@
                             <span class="fas fa-copy" aria-hidden="true"></span>
                             <span class="copy-btn-label">Copy to clipboard</span>
                         </button>
-                        <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_skillplan_export' fitting.id %}?character_id={{ selected_character.id }}&mode={{ export_mode }}&language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_skillplan_export' fitting.id %}?character_id={{ selected_character.id }}&mode={{ export_mode }}&language={{ export_language }}&character_filter={{ selected_character_filter }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">
                             <span class="fas fa-download" aria-hidden="true"></span>
                             Download .txt
                         </a>
@@ -550,11 +568,6 @@
 </div>
 
 <style>
-    .mastery-table-head th {
-        background-color: var(--bs-tertiary-bg, #f1f3f5);
-        color: var(--bs-emphasis-color, var(--bs-body-color));
-        border-bottom-color: var(--bs-border-color, #dee2e6);
-    }
 
     .mastery-surface-subtle {
         background-color: var(--bs-secondary-bg, #f8f9fa);
@@ -580,6 +593,26 @@
     .mastery-missing-list {
         max-height: 320px;
         overflow: auto;
+    }
+
+    .character-readiness-table-wrap {
+        max-height: 420px;
+        overflow: auto;
+    }
+
+    .character-readiness-table-wrap .mastery-table-head th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background-color: var(--bs-tertiary-bg, #f1f3f5);
+        background-clip: padding-box;
+    }
+
+    html[data-bs-theme="dark"] .character-readiness-table-wrap .mastery-table-head th,
+    body[data-bs-theme="dark"] .character-readiness-table-wrap .mastery-table-head th,
+    html[data-theme*="dark"] .character-readiness-table-wrap .mastery-table-head th,
+    body[data-theme*="dark"] .character-readiness-table-wrap .mastery-table-head th {
+        background-color: #343a40;
     }
 
     .mastery-missing-list-compact {
@@ -628,14 +661,6 @@
         font-weight: 600;
     }
 
-    html[data-bs-theme="dark"] .mastery-table-head th,
-    body[data-bs-theme="dark"] .mastery-table-head th,
-    html[data-theme*="dark"] .mastery-table-head th,
-    body[data-theme*="dark"] .mastery-table-head th {
-        background-color: rgba(255, 255, 255, 0.06);
-        color: #f1f3f5;
-        border-bottom-color: rgba(255, 255, 255, 0.18);
-    }
 
     html[data-bs-theme="dark"] .mastery-surface-subtle,
     body[data-bs-theme="dark"] .mastery-surface-subtle,

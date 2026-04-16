@@ -9,6 +9,9 @@ from django.core.exceptions import ObjectDoesNotExist
 from eve_sde.models import ItemType
 from eve_sde.models import TypeDogma
 
+from mastery import app_settings
+from mastery.services.skill_requirements import REQUIRED_SKILL_ATTRIBUTES as SHARED_REQUIRED_SKILL_ATTRIBUTES
+
 
 class PilotProgressService:
     """Compute pilot readiness, training plans and export payloads for skillsets."""
@@ -53,14 +56,7 @@ class PilotProgressService:
     )
 
     ROMAN_LEVEL = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V"}
-    REQUIRED_SKILL_ATTRIBUTES = [
-        (182, 277),
-        (183, 278),
-        (184, 279),
-        (1285, 1286),
-        (1289, 1287),
-        (1290, 1288),
-    ]
+    REQUIRED_SKILL_ATTRIBUTES = SHARED_REQUIRED_SKILL_ATTRIBUTES
     EXPORT_LANGUAGE_CHOICES = [
         ("en", "English"),
         ("fr", "French"),
@@ -661,13 +657,19 @@ class PilotProgressService:
 
     @staticmethod
     def _status_meta(can_fly: bool, recommended_pct: float, required_pct: float) -> tuple[str, str]:
-        if can_fly and recommended_pct == 100:
-            return "Elite ready", "success"
+        elite_threshold = float(app_settings.MASTERY_STATUS_ELITE_RECOMMENDED_PCT)
+        almost_elite_threshold = float(app_settings.MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT)
+        almost_fit_threshold = float(app_settings.MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT)
+
+        if can_fly and recommended_pct >= elite_threshold:
+            return "Elite", "success"
+        if can_fly and recommended_pct > almost_elite_threshold:
+            return "Almost elite", "primary"
         if can_fly:
-            return "Flyable", "info"
-        if required_pct >= 75:
-            return "Almost ready", "warning"
-        return "Training needed", "danger"
+            return "Can fly", "info"
+        if required_pct > almost_fit_threshold:
+            return "Almost fit", "warning"
+        return "Needs training", "danger"
 
     def _collect_plan_targets(
         self, source: list[dict]
@@ -1024,16 +1026,27 @@ class PilotProgressService:
 
         missing_required = []
         missing_recommended = []
-        total_required = 0
-        total_recommended = 0
+        total_required_target_sp = 0
+        total_required_covered_sp = 0
+        total_recommended_target_sp = 0
+        total_recommended_covered_sp = 0
 
         for skill in skills:
             current = character_skills.get(skill.eve_type_id)
             current_level = 0 if current is None else self._as_int(getattr(current, "active_skill_level", 0))
             current_sp = 0 if current is None else self._as_int(getattr(current, "skillpoints_in_skill", 0))
+            dogma = skill_dogma_map.get(
+                skill.eve_type_id,
+                {"rank": 1, "primary_attribute": None, "secondary_attribute": None},
+            )
+            rank = self._as_int(dogma.get("rank"), default=1)
+            current_level_sp = self._sp_for_level(rank, current_level)
+            baseline_current_sp = max(current_sp, current_level_sp)
 
             if skill.required_level:
-                total_required += 1
+                required_target_sp = self._sp_for_level(rank, self._as_int(skill.required_level))
+                total_required_target_sp += required_target_sp
+                total_required_covered_sp += min(required_target_sp, baseline_current_sp)
                 if current_level < skill.required_level:
                     missing_required.append(
                         {
@@ -1046,7 +1059,9 @@ class PilotProgressService:
                     )
 
             if skill.recommended_level:
-                total_recommended += 1
+                recommended_target_sp = self._sp_for_level(rank, self._as_int(skill.recommended_level))
+                total_recommended_target_sp += recommended_target_sp
+                total_recommended_covered_sp += min(recommended_target_sp, baseline_current_sp)
                 if current_level < skill.recommended_level:
                     missing_recommended.append(
                         {
@@ -1058,9 +1073,14 @@ class PilotProgressService:
                         }
                     )
 
-        required_pct = 100 if total_required == 0 else round((1 - (len(missing_required) / total_required)) * 100, 2)
-        recommended_pct = 100 if total_recommended == 0 else round(
-            (1 - (len(missing_recommended) / total_recommended)) * 100, 2)
+        required_pct = 100 if total_required_target_sp == 0 else round(
+            (total_required_covered_sp / total_required_target_sp) * 100,
+            2,
+        )
+        recommended_pct = 100 if total_recommended_target_sp == 0 else round(
+            (total_recommended_covered_sp / total_recommended_target_sp) * 100,
+            2,
+        )
 
         required_dogma_map = {
             skill_type_id: skill_dogma_map[skill_type_id]

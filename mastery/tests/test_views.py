@@ -1222,6 +1222,193 @@ class TestPilotViews(SimpleTestCase):
         response = views.pilot_fitting_detail_view(req, fitting_id=1)
         self.assertEqual(response.status_code, 200)
 
+    @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.pilot.pilot_progress_service")
+    @patch("mastery.views.pilot._get_pilot_detail_characters")
+    @patch("mastery.views.pilot._get_accessible_fitting_or_404")
+    def test_pilot_fitting_detail_view_filters_rows_and_defaults_to_can_fly_now(
+        self,
+        mock_fitting_404,
+        mock_get_chars,
+        mock_progress_service,
+        mock_render,
+    ):
+        def _progress(can_fly, required_pct, recommended_pct, status_label):
+            return {
+                "can_fly": can_fly,
+                "required_pct": required_pct,
+                "recommended_pct": recommended_pct,
+                "status_label": status_label,
+                "status_class": "success" if can_fly else "warning",
+                "missing_required": [],
+                "missing_recommended": [],
+                "missing_required_count": 0,
+                "missing_recommended_count": 0,
+                "total_missing_sp": 0,
+                "mode_stats": {"recommended": {"coverage_pct": recommended_pct, "total_missing_sp": 0, "total_missing_time": None}},
+            }
+
+        fitting = SimpleNamespace(id=1, name="Fit", ship_type=SimpleNamespace(name="Drake"))
+        fitting_map = SimpleNamespace(skillset=SimpleNamespace(id=10), doctrine_map=None)
+        doctrine = SimpleNamespace(id=2)
+        mock_fitting_404.return_value = (fitting, fitting_map, doctrine)
+        characters = [
+            SimpleNamespace(id=1, eve_character=SimpleNamespace(character_name="Flyable")),
+            SimpleNamespace(id=2, eve_character=SimpleNamespace(character_name="Elite")),
+            SimpleNamespace(id=3, eve_character=SimpleNamespace(character_name="Almost Req")),
+            SimpleNamespace(id=4, eve_character=SimpleNamespace(character_name="Almost Elite")),
+        ]
+        mock_get_chars.return_value = characters
+        mock_progress_service.build_for_character.side_effect = [
+            _progress(True, 100, 60, "Flyable"),
+            _progress(True, 100, 100, "Elite ready"),
+            _progress(False, 95, 50, "Almost ready"),
+            _progress(True, 100, 80, "Flyable"),
+        ]
+        mock_progress_service.export_mode_choices.return_value = [("recommended", "Recommended")]
+        mock_progress_service.EXPORT_MODE_RECOMMENDED = "recommended"
+        mock_progress_service.normalize_export_language.return_value = "en"
+        mock_progress_service.localize_missing_rows.side_effect = lambda rows, language: rows
+        mock_progress_service.build_export_lines.return_value = []
+        mock_progress_service.build_skill_plan_summary.return_value = None
+        mock_progress_service.export_language_choices.return_value = [("en", "English")]
+
+        req = self._req(path="/fitting/1/")
+        response = views.pilot_fitting_detail_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        self.assertEqual(context["selected_character_filter"], "can_fly_now")
+        self.assertEqual([row["character"].id for row in context["filtered_character_rows"]], [1, 2, 4])
+        self.assertEqual(context["selected_character"].id, 1)
+        choice_map = dict(context["character_filter_choices"])
+        self.assertIn("can_fly_now", choice_map)
+        self.assertTrue(choice_map["can_fly_now"].endswith("(3)"))
+        self.assertNotIn("needs_training", choice_map)
+
+    @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.pilot.pilot_progress_service")
+    @patch("mastery.views.pilot._get_pilot_detail_characters")
+    @patch("mastery.views.pilot._get_accessible_fitting_or_404")
+    def test_pilot_fitting_detail_view_switches_to_all_when_can_fly_filter_is_empty(
+        self,
+        mock_fitting_404,
+        mock_get_chars,
+        mock_progress_service,
+        mock_render,
+    ):
+        """Test that when can_fly filter returns no results, it switches to 'all' filter."""
+        def _progress(can_fly, required_pct, recommended_pct, status_label):
+            return {
+                "can_fly": can_fly,
+                "required_pct": required_pct,
+                "recommended_pct": recommended_pct,
+                "status_label": status_label,
+                "status_class": "success" if can_fly else "warning",
+                "missing_required": [],
+                "missing_recommended": [],
+                "missing_required_count": 0,
+                "missing_recommended_count": 0,
+                "total_missing_sp": 0,
+                "mode_stats": {"recommended": {"coverage_pct": recommended_pct, "total_missing_sp": 0, "total_missing_time": None}},
+            }
+
+        fitting = SimpleNamespace(id=1, name="Fit", ship_type=SimpleNamespace(name="Drake"))
+        fitting_map = SimpleNamespace(skillset=SimpleNamespace(id=10), doctrine_map=None)
+        doctrine = SimpleNamespace(id=2)
+        mock_fitting_404.return_value = (fitting, fitting_map, doctrine)
+        characters = [
+            SimpleNamespace(id=1, eve_character=SimpleNamespace(character_name="Training")),
+            SimpleNamespace(id=2, eve_character=SimpleNamespace(character_name="Almost Ready")),
+        ]
+        mock_get_chars.return_value = characters
+        # All characters need training (can_fly=False)
+        mock_progress_service.build_for_character.side_effect = [
+            _progress(False, 50, 60, "Training"),
+            _progress(False, 95, 50, "Almost ready"),
+        ]
+        mock_progress_service.export_mode_choices.return_value = [("recommended", "Recommended")]
+        mock_progress_service.EXPORT_MODE_RECOMMENDED = "recommended"
+        mock_progress_service.normalize_export_language.return_value = "en"
+        mock_progress_service.localize_missing_rows.side_effect = lambda rows, language: rows
+        mock_progress_service.build_export_lines.return_value = []
+        mock_progress_service.build_skill_plan_summary.return_value = None
+        mock_progress_service.export_language_choices.return_value = [("en", "English")]
+
+        req = self._req(path="/fitting/1/")
+        response = views.pilot_fitting_detail_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        # Filter should have switched from "can_fly_now" to "all"
+        self.assertEqual(context["selected_character_filter"], "all")
+        # All characters should be visible
+        self.assertEqual([row["character"].id for row in context["filtered_character_rows"]], [1, 2])
+        # The empty can_fly_now option must not be presented
+        choice_map = dict(context["character_filter_choices"])
+        self.assertNotIn("can_fly_now", choice_map)
+        self.assertIn("all", choice_map)
+        self.assertTrue(choice_map["all"].endswith("(2)"))
+        # First character should be selected
+        self.assertEqual(context["selected_character"].id, 1)
+
+    @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.pilot.pilot_progress_service")
+    @patch("mastery.views.pilot._get_pilot_detail_characters")
+    @patch("mastery.views.pilot._get_accessible_fitting_or_404")
+    def test_pilot_fitting_detail_view_keeps_selected_character_visible_outside_filter(
+        self,
+        mock_fitting_404,
+        mock_get_chars,
+        mock_progress_service,
+        mock_render,
+    ):
+        def _progress(can_fly, required_pct, recommended_pct, status_label):
+            return {
+                "can_fly": can_fly,
+                "required_pct": required_pct,
+                "recommended_pct": recommended_pct,
+                "status_label": status_label,
+                "status_class": "success" if can_fly else "warning",
+                "missing_required": [],
+                "missing_recommended": [],
+                "missing_required_count": 0,
+                "missing_recommended_count": 0,
+                "total_missing_sp": 0,
+                "mode_stats": {"recommended": {"coverage_pct": recommended_pct, "total_missing_sp": 0, "total_missing_time": None}},
+            }
+
+        fitting = SimpleNamespace(id=1, name="Fit", ship_type=SimpleNamespace(name="Drake"))
+        fitting_map = SimpleNamespace(skillset=SimpleNamespace(id=10), doctrine_map=None)
+        doctrine = SimpleNamespace(id=2)
+        mock_fitting_404.return_value = (fitting, fitting_map, doctrine)
+        characters = [
+            SimpleNamespace(id=1, eve_character=SimpleNamespace(character_name="Flyable")),
+            SimpleNamespace(id=3, eve_character=SimpleNamespace(character_name="Almost Req")),
+        ]
+        mock_get_chars.return_value = characters
+        mock_progress_service.build_for_character.side_effect = [
+            _progress(True, 100, 60, "Flyable"),
+            _progress(False, 95, 50, "Almost ready"),
+        ]
+        mock_progress_service.export_mode_choices.return_value = [("recommended", "Recommended")]
+        mock_progress_service.EXPORT_MODE_RECOMMENDED = "recommended"
+        mock_progress_service.normalize_export_language.return_value = "en"
+        mock_progress_service.localize_missing_rows.side_effect = lambda rows, language: rows
+        mock_progress_service.build_export_lines.return_value = []
+        mock_progress_service.build_skill_plan_summary.return_value = None
+        mock_progress_service.export_language_choices.return_value = [("en", "English")]
+
+        req = self._req(path="/fitting/1/?character_id=3&character_filter=can_fly_now")
+        response = views.pilot_fitting_detail_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        # Focused pilot outside can_fly_now should not be shown in filtered rows
+        self.assertEqual(context["selected_character_filter"], "can_fly_now")
+        self.assertEqual([row["character"].id for row in context["filtered_character_rows"]], [1])
+        self.assertEqual(context["selected_character"].id, 1)
+
     # -- pilot_fitting_skillplan_export_view ---------------------------------
 
     @patch("mastery.views.pilot._get_accessible_fitting_or_404")

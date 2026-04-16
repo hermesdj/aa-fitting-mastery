@@ -1,9 +1,12 @@
 """Summary/reporting views for doctrine readiness."""
+import csv
+
 from allianceauth.authentication.decorators import permissions_required
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from mastery import app_settings
 from mastery.models import FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
 
 from .common import (
@@ -16,11 +19,76 @@ from .common import (
     _get_selected_summary_group,
     _parse_activity_days,
     _parse_export_mode,
-    _parse_training_days,
     _summary_entity_catalog,
     pilot_access_service,
     pilot_progress_service,
 )
+
+_MEMBER_COVERAGE_FILTERS = {
+    "all",
+    "elite",
+    "almost_elite",
+    "can_fly",
+    "almost_fit",
+    "needs_training",
+}
+
+
+def _summary_fitting_member_coverage_csv_response(fitting, user_rows):
+    response = HttpResponse(content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = (
+        f'attachment; filename="fitting-{fitting.id}-member-coverage.csv"'
+    )
+
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "member_username",
+            "main_character",
+            "bucket",
+            "character_name",
+            "required_pct",
+            "recommended_pct",
+            "required_missing_sp",
+            "recommended_missing_sp",
+            "can_fly",
+        ]
+    )
+
+    bucket_fields = [
+        ("elite", "elite_pilots"),
+        ("almost_elite", "almost_elite_pilots"),
+        ("can_fly", "can_fly_pilots"),
+        ("almost_fit", "almost_fit_pilots"),
+        ("needs_training", "needs_training_pilots"),
+    ]
+
+    for row in user_rows:
+        username = getattr(row.get("user"), "username", "")
+        main_character = getattr(row.get("main_character"), "character_name", "")
+        for bucket_name, field_name in bucket_fields:
+            for pilot in row.get(field_name, []):
+                progress = pilot.get("progress", {})
+                character_name = getattr(
+                    getattr(pilot.get("character"), "eve_character", None),
+                    "character_name",
+                    "",
+                )
+                writer.writerow(
+                    [
+                        username,
+                        main_character,
+                        bucket_name,
+                        character_name,
+                        float(progress.get("required_pct") or 0),
+                        float(progress.get("recommended_pct") or 0),
+                        int(pilot.get("required_missing_sp") or 0),
+                        int(pilot.get("recommended_missing_sp") or 0),
+                        bool(progress.get("can_fly")),
+                    ]
+                )
+
+    return response
 
 
 @login_required
@@ -28,7 +96,6 @@ from .common import (
 def summary_list_view(request):
     """Summary list view."""
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
-    training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
     search_query = (request.GET.get("q") or "").strip().lower()
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
@@ -59,7 +126,6 @@ def summary_list_view(request):
             member_groups=member_groups,
             progress_cache=progress_cache,
             progress_context=progress_context,
-            training_days=training_days,
         )
         doctrine_summaries += [summary_item]
 
@@ -68,11 +134,15 @@ def summary_list_view(request):
         "summary_groups": summary_groups,
         "selected_group": selected_group,
         "activity_days": activity_days,
-        "training_days": training_days,
         "include_inactive": include_inactive,
         "search_query": request.GET.get("q", ""),
         "member_count": len(member_groups),
         "active_character_count": sum(group["active_count"] for group in member_groups),
+        "status_thresholds": {
+            "elite_recommended": app_settings.MASTERY_STATUS_ELITE_RECOMMENDED_PCT,
+            "almost_elite_recommended": app_settings.MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT,
+            "almost_fit_required": app_settings.MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT,
+        },
     }
     return render(request, "mastery/summary_list_view.html", context)
 
@@ -82,7 +152,6 @@ def summary_list_view(request):
 def summary_doctrine_detail_view(request, doctrine_id):
     """Summary doctrine detail view."""
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
-    training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
 
@@ -110,11 +179,10 @@ def summary_doctrine_detail_view(request, doctrine_id):
         member_groups=member_groups,
         progress_cache=progress_cache,
         progress_context=progress_context,
-        training_days=training_days,
     )
     for fit in summary["fittings"]:
         if fit.get("configured"):
-            fit["kpis"] = _build_fitting_kpis(fit.get("user_rows", []), training_days=training_days)
+            fit["kpis"] = _build_fitting_kpis(fit.get("user_rows", []))
 
     return render(
         request,
@@ -124,7 +192,6 @@ def summary_doctrine_detail_view(request, doctrine_id):
             "summary_groups": summary_groups,
             "selected_group": selected_group,
             "activity_days": activity_days,
-            "training_days": training_days,
             "include_inactive": include_inactive,
         },
     )
@@ -135,9 +202,11 @@ def summary_doctrine_detail_view(request, doctrine_id):
 def summary_fitting_detail_view(request, fitting_id):
     """Summary fitting detail view."""
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
-    training_days = _parse_training_days(request.GET.get("training_days"), default=7)
     include_inactive = request.GET.get("include_inactive") == "1"
     export_mode = _parse_export_mode(request.GET.get("export_mode"))
+    selected_member_filter = (request.GET.get("kpi_filter") or "all").strip().lower()
+    if selected_member_filter not in _MEMBER_COVERAGE_FILTERS:
+        selected_member_filter = "all"
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
 
     if selected_group is None:
@@ -161,8 +230,11 @@ def summary_fitting_detail_view(request, fitting_id):
         progress_cache=progress_cache,
         progress_context=progress_context,
     )
-    fitting_kpis = _build_fitting_kpis(user_rows, training_days=training_days)
-    user_rows = _annotate_member_detail_pilots(user_rows, training_days=training_days)
+    fitting_kpis = _build_fitting_kpis(user_rows)
+    user_rows = _annotate_member_detail_pilots(user_rows)
+
+    if request.GET.get("format") == "csv":
+        return _summary_fitting_member_coverage_csv_response(fitting=fitting, user_rows=user_rows)
 
     return render(
         request,
@@ -176,10 +248,15 @@ def summary_fitting_detail_view(request, fitting_id):
             "summary_groups": summary_groups,
             "selected_group": selected_group,
             "activity_days": activity_days,
-            "training_days": training_days,
             "include_inactive": include_inactive,
             "export_mode": export_mode,
+            "selected_member_filter": selected_member_filter,
             "export_mode_choices": pilot_progress_service.export_mode_choices(),
+            "status_thresholds": {
+                "elite_recommended": app_settings.MASTERY_STATUS_ELITE_RECOMMENDED_PCT,
+                "almost_elite_recommended": app_settings.MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT,
+                "almost_fit_required": app_settings.MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT,
+            },
         },
     )
 

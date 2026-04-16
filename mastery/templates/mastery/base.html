@@ -44,5 +44,53 @@ This block is left empty intentionally to disable defaults.
 {% endblock %}
 
 {% block content %}
-{% block details %}{% endblock %}
+<div class="mastery-page">
+    {% block details %}{% endblock %}
+</div>
 {% endblock %}
+
+<style>
+    .mastery-page .card.border-0.shadow-sm {
+        box-shadow: 0 0.42rem 1.08rem rgba(17, 24, 39, 0.12) !important;
+        border: 1px solid rgba(17, 24, 39, 0.1) !important;
+    }
+
+    /* Unified table header styling */
+    .mastery-page .mastery-table-head th,
+    .mastery-page .mastery-summary-thead th {
+        background-color: var(--bs-tertiary-bg, #f1f3f5);
+        color: var(--bs-emphasis-color, var(--bs-body-color));
+        border-bottom: 2px solid var(--bs-border-color, #dee2e6);
+        font-weight: 600;
+        padding: 0.75rem;
+    }
+
+    html[data-bs-theme="dark"] .mastery-page .card.border-0.shadow-sm,
+    body[data-bs-theme="dark"] .mastery-page .card.border-0.shadow-sm,
+    html[data-theme*="dark"] .mastery-page .card.border-0.shadow-sm,
+    body[data-theme*="dark"] .mastery-page .card.border-0.shadow-sm {
+        border-color: rgba(255, 255, 255, 0.14) !important;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .mastery-page .mastery-table-head th,
+        .mastery-page .mastery-summary-thead th {
+            background-color: #343a40;
+            color: #e9ecef;
+            border-bottom-color: #495057;
+        }
+    }
+
+    html[data-bs-theme="dark"] .mastery-page .mastery-table-head th,
+    body[data-bs-theme="dark"] .mastery-page .mastery-table-head th,
+    html[data-theme*="dark"] .mastery-page .mastery-table-head th,
+    body[data-theme*="dark"] .mastery-page .mastery-table-head th,
+    html[data-bs-theme="dark"] .mastery-page .mastery-summary-thead th,
+    body[data-bs-theme="dark"] .mastery-page .mastery-summary-thead th,
+    html[data-theme*="dark"] .mastery-page .mastery-summary-thead th,
+    body[data-theme*="dark"] .mastery-page .mastery-summary-thead th {
+        background-color: #343a40;
+        color: #e9ecef;
+        border-bottom-color: #495057;
+    }
+</style>

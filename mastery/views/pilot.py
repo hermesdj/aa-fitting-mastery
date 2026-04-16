@@ -1,9 +1,14 @@
 """Pilot-facing views: doctrine/fitting progress for individual users."""
 
+from urllib.parse import urlencode
+
 from allianceauth.authentication.decorators import permissions_required
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
+from django.urls import reverse
+
+from mastery.services.pilots.status_buckets import bucket_for_progress, thresholds
 
 from .common import (
     FittingSkillsetMap,
@@ -18,6 +23,89 @@ from .common import (
 )
 
 
+CHARACTER_FILTER_ALL = "all"
+CHARACTER_FILTER_CAN_FLY = "can_fly_now"
+CHARACTER_FILTER_ELITE = "elite"
+CHARACTER_FILTER_ALMOST_REQUIRED = "almost_required"
+CHARACTER_FILTER_ALMOST_ELITE = "almost_elite"
+CHARACTER_FILTER_NEEDS_TRAINING = "needs_training"
+CHARACTER_FILTER_CHOICES = [
+    (CHARACTER_FILTER_ALL, "All characters"),
+    (CHARACTER_FILTER_CAN_FLY, "Can fly now"),
+    (CHARACTER_FILTER_ELITE, "Elite (recommended 100%)"),
+    (CHARACTER_FILTER_ALMOST_REQUIRED, "Almost fit"),
+    (CHARACTER_FILTER_ALMOST_ELITE, "Almost elite"),
+    (CHARACTER_FILTER_NEEDS_TRAINING, "Needs training"),
+]
+
+INDEX_STATUS_FILTER_CHOICES = [
+    ("all", "All"),
+    ("elite", "Elite"),
+    ("almost_elite", "Almost elite"),
+    ("can_fly", "Can fly"),
+    ("almost_fit", "Almost fit"),
+    ("needs_training", "Needs training"),
+]
+
+
+def _parse_index_status_filter(raw_value: str) -> str:
+    alias_map = {
+        "flyable": "can_fly",
+        "training": "needs_training",
+    }
+    normalized = alias_map.get(raw_value, raw_value)
+    valid_values = {value for value, _label in INDEX_STATUS_FILTER_CHOICES}
+    if normalized in valid_values:
+        return normalized
+    return "all"
+
+
+def _parse_character_filter(raw_value: str) -> str:
+    valid = {value for value, _label in CHARACTER_FILTER_CHOICES}
+    if raw_value in valid:
+        return raw_value
+    return CHARACTER_FILTER_CAN_FLY
+
+
+def _matches_character_filter(progress: dict, character_filter: str) -> bool:
+    can_fly = bool(progress.get("can_fly"))
+    required_pct = float(progress.get("required_pct") or 0)
+    recommended_pct = float(progress.get("recommended_pct") or 0)
+    configured_thresholds = thresholds()
+    elite_threshold = configured_thresholds["elite_recommended"]
+    almost_elite_threshold = configured_thresholds["almost_elite_recommended"]
+    almost_fit_threshold = configured_thresholds["almost_fit_required"]
+
+    if character_filter == CHARACTER_FILTER_ALL:
+        return True
+    if character_filter == CHARACTER_FILTER_ELITE:
+        return can_fly and recommended_pct >= elite_threshold
+    if character_filter == CHARACTER_FILTER_ALMOST_REQUIRED:
+        return (not can_fly) and required_pct > almost_fit_threshold
+    if character_filter == CHARACTER_FILTER_ALMOST_ELITE:
+        return can_fly and almost_elite_threshold < recommended_pct < elite_threshold
+    if character_filter == CHARACTER_FILTER_NEEDS_TRAINING:
+        return (not can_fly) and required_pct <= almost_fit_threshold
+    return can_fly
+
+
+def _status_bucket_for_progress(progress: dict) -> str:
+    return bucket_for_progress(progress)
+
+
+def _build_character_filter_choices_with_counts(character_rows):
+    """Build non-empty character filter choices with matching counts in labels."""
+    filter_counts = {
+        value: sum(1 for row in character_rows if _matches_character_filter(row["progress"], value))
+        for value, _label in CHARACTER_FILTER_CHOICES
+    }
+    return [
+        (value, f"{label} ({filter_counts[value]})")
+        for value, label in CHARACTER_FILTER_CHOICES
+        if filter_counts[value] > 0
+    ]
+
+
 @login_required
 @permissions_required('mastery.basic_access')
 def index(request):
@@ -25,7 +113,7 @@ def index(request):
     doctrines = pilot_access_service.accessible_doctrines(request.user)
     member_characters = list(_get_member_characters(request.user))
     selected_character_id = request.GET.get("character_id")
-    selected_status = (request.GET.get("status") or "all").strip().lower()
+    selected_status = _parse_index_status_filter((request.GET.get("status") or "all").strip().lower())
     search_query = (request.GET.get("q") or "").strip().lower()
 
     try:
@@ -69,10 +157,31 @@ def index(request):
                     include_export_lines=False,
                     cache_context=progress_context,
                 )
+                required_stats = (progress.get("mode_stats") or {}).get(
+                    pilot_progress_service.EXPORT_MODE_REQUIRED,
+                    {},
+                )
+                recommended_stats = (progress.get("mode_stats") or {}).get(
+                    pilot_progress_service.EXPORT_MODE_RECOMMENDED,
+                    {},
+                )
+                action_params = {
+                    "character_id": character.id,
+                    "character_filter": CHARACTER_FILTER_ALL,
+                }
                 character_rows.append(
                     {
                         "character": character,
                         "progress": progress,
+                        "status_bucket": _status_bucket_for_progress(progress),
+                        "required_missing_sp": int(required_stats.get("total_missing_sp") or 0),
+                        "recommended_missing_sp": int(recommended_stats.get("total_missing_sp") or 0),
+                        "action_url": (
+                            f"{reverse('mastery:pilot_fitting_detail', args=[fitting.id])}?"
+                            f"{urlencode(action_params)}"
+                        ),
+                        "popover_id": f"pilotindex-popover-{fitting.id}-{character.id}",
+                        "is_selected": bool(selected_character_id and character.id == selected_character_id),
                     }
                 )
 
@@ -101,25 +210,25 @@ def index(request):
             ):
                 continue
 
-            if selected_status == "flyable" and (not progress_for_filter or not progress_for_filter["can_fly"]):
-                continue
-            if selected_status == "training":
-                if selected_character_id:
-                    if not progress_for_filter or progress_for_filter["can_fly"]:
-                        continue
-                else:
-                    if character_rows and all(row["progress"]["can_fly"] for row in character_rows):
-                        continue
-                    if not character_rows and (not progress_for_filter or progress_for_filter["can_fly"]):
-                        continue
-            if selected_status == "elite" and (
-                not progress_for_filter or progress_for_filter["status_label"] != "Elite ready"
-            ):
-                continue
+            if selected_status != "all":
+                if not progress_for_filter:
+                    continue
+                if _status_bucket_for_progress(progress_for_filter) != selected_status:
+                    continue
 
             configured_fittings_count += 1
             if progress_for_filter and progress_for_filter["can_fly"]:
                 flyable_fittings_count += 1
+
+            bucket_map = {
+                "elite": [],
+                "almost_elite": [],
+                "can_fly": [],
+                "almost_fit": [],
+                "needs_training": [],
+            }
+            for row in character_rows:
+                bucket_map[row["status_bucket"]].append(row)
 
             fitting_cards.append(
                 {
@@ -135,6 +244,11 @@ def index(request):
                     ),
                     "can_any_fly": any(row["progress"]["can_fly"] for row in character_rows),
                     "selected_progress": selected_progress,
+                    "elite_rows": bucket_map["elite"],
+                    "almost_elite_rows": bucket_map["almost_elite"],
+                    "can_fly_rows": bucket_map["can_fly"],
+                    "almost_fit_rows": bucket_map["almost_fit"],
+                    "needs_training_rows": bucket_map["needs_training"],
                 }
             )
 
@@ -153,6 +267,8 @@ def index(request):
         "selected_character": selected_character,
         "selected_character_id": selected_character_id,
         "selected_status": selected_status,
+        "index_status_filter_choices": INDEX_STATUS_FILTER_CHOICES,
+        "status_thresholds": thresholds(),
         "search_query": request.GET.get("q", ""),
         "configured_fittings_count": configured_fittings_count,
         "flyable_fittings_count": flyable_fittings_count,
@@ -170,6 +286,7 @@ def pilot_fitting_detail_view(request, fitting_id):
 
     export_mode = _parse_export_mode(request.GET.get("export_mode"))
     export_language = _parse_export_language(request.GET.get("export_language"))
+    selected_character_filter = _parse_character_filter(request.GET.get("character_filter"))
     raw_group_id = request.GET.get("group_id")
     summary_group = _get_summary_group_by_id(raw_group_id)
     if request.user.has_perm("mastery.doctrine_summary") and raw_group_id and summary_group is None:
@@ -184,10 +301,24 @@ def pilot_fitting_detail_view(request, fitting_id):
             include_export_lines=False,
             cache_context=progress_context,
         )
+        action_params = {
+            "character_id": character.id,
+            "character_filter": selected_character_filter,
+            "export_mode": export_mode,
+            "export_language": export_language,
+        }
+        if summary_group is not None:
+            action_params["group_id"] = summary_group.id
         character_rows.append(
             {
                 "character": character,
                 "progress": progress,
+                "status_bucket": _status_bucket_for_progress(progress),
+                "action_url": (
+                    f"{reverse('mastery:pilot_fitting_detail', args=[fitting.id])}?"
+                    f"{urlencode(action_params)}"
+                ),
+                "popover_id": f"pilotdetail-popover-{character.id}",
             }
         )
 
@@ -207,9 +338,42 @@ def pilot_fitting_detail_view(request, fitting_id):
                 selected_progress = row["progress"]
                 break
 
-    if selected_character is None and character_rows:
-        selected_character = character_rows[0]["character"]
-        selected_progress = character_rows[0]["progress"]
+    character_filter_choices = _build_character_filter_choices_with_counts(character_rows)
+    available_filter_values = [value for value, _label in character_filter_choices]
+    if selected_character_filter not in available_filter_values:
+        if CHARACTER_FILTER_CAN_FLY in available_filter_values:
+            selected_character_filter = CHARACTER_FILTER_CAN_FLY
+        elif available_filter_values:
+            selected_character_filter = available_filter_values[0]
+
+    filtered_character_rows = [
+        row for row in character_rows
+        if _matches_character_filter(row["progress"], selected_character_filter)
+    ]
+
+    # Keep row action links aligned with the active (or normalized) filter.
+    for row in character_rows:
+        action_params = {
+            "character_id": row["character"].id,
+            "character_filter": selected_character_filter,
+            "export_mode": export_mode,
+            "export_language": export_language,
+        }
+        if summary_group is not None:
+            action_params["group_id"] = summary_group.id
+        row["action_url"] = f"{reverse('mastery:pilot_fitting_detail', args=[fitting.id])}?{urlencode(action_params)}"
+
+    # If the selected character has been filtered out, reset to first visible character
+    if selected_character is not None:
+        in_filtered = any(row["character"].id == selected_character.id for row in filtered_character_rows)
+        if not in_filtered:
+            selected_character = None
+            selected_progress = None
+
+    if selected_character is None and filtered_character_rows:
+        selected_character = filtered_character_rows[0]["character"]
+        selected_progress = filtered_character_rows[0]["progress"]
+
 
     if selected_progress is not None:
         selected_progress = {
@@ -223,6 +387,12 @@ def pilot_fitting_detail_view(request, fitting_id):
                 language=export_language,
             ),
         }
+
+    selected_character_pk = None if selected_character is None else selected_character.id
+    for row in character_rows:
+        row["is_selected"] = bool(selected_character_pk and row["character"].id == selected_character_pk)
+    for row in filtered_character_rows:
+        row["is_selected"] = bool(selected_character_pk and row["character"].id == selected_character_pk)
 
     export_lines = [] if not selected_progress else pilot_progress_service.build_export_lines(
         selected_progress,
@@ -247,6 +417,9 @@ def pilot_fitting_detail_view(request, fitting_id):
         "doctrine": doctrine,
         "skillset": fitting_map.skillset,
         "character_rows": character_rows,
+        "filtered_character_rows": filtered_character_rows,
+        "character_filter_choices": character_filter_choices,
+        "selected_character_filter": selected_character_filter,
         "selected_character": selected_character,
         "selected_progress": selected_progress,
         "export_mode": export_mode,

@@ -6,9 +6,13 @@ from types import SimpleNamespace
 from eve_sde.models import ItemType
 
 from mastery.services.pilots.pilot_progress_service import PilotProgressService
+from mastery.services.skill_requirements import REQUIRED_SKILL_ATTRIBUTES
 
 
 class TestPilotProgressService(SimpleTestCase):
+    def test_required_skill_attributes_reuses_shared_constant(self):
+        self.assertIs(PilotProgressService.REQUIRED_SKILL_ATTRIBUTES, REQUIRED_SKILL_ATTRIBUTES)
+
     def test_export_language_choices_include_all_supported_sde_languages(self):
         choices = {code for code, _label in PilotProgressService.export_language_choices()}
 

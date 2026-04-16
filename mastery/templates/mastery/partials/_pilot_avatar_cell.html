@@ -1,0 +1,26 @@
+
+{% load evelinks %}
+
+<div class="pilot-avatar-cluster">
+    {% for pilot in pilots %}
+    <button
+        type="button"
+        class="pilot-avatar-btn js-pilot-popover"
+        data-bs-toggle="popover"
+        data-bs-trigger="manual"
+        data-bs-placement="auto"
+        data-aa-popover-target="pilot-popover-{{ bucket }}-{{ row_user_id }}-{{ pilot.character.id }}"
+        aria-label="{{ pilot.character.eve_character.character_name }}"
+    >
+        <span class="pilot-avatar-ring status-{{ bucket }}">
+            <img src="{{ pilot.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="28" height="28" alt="{{ pilot.character.eve_character.character_name }}">
+        </span>
+    </button>
+
+    <div id="pilot-popover-{{ bucket }}-{{ row_user_id }}-{{ pilot.character.id }}" class="d-none">
+        {% include 'mastery/partials/_pilot_popover_content.html' with pilot=pilot status_label=status_label focus_filter=focus_filter focus_btn=focus_btn fitting=fitting export_mode=export_mode selected_group=selected_group %}
+    </div>
+    {% empty %}
+    <span class="small text-muted">-</span>
+    {% endfor %}
+</div>

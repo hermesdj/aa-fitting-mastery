@@ -10,11 +10,11 @@
             <img src="{{ summary.doctrine.icon_url }}" class="rounded" width="40" height="40" alt="{{ summary.doctrine.name }}">
             <div>
                 <h2 class="mb-0">{{ summary.doctrine.name }}</h2>
-                <div class="text-muted">{{ summary.kpis.flyable_now_users }}/{{ summary.kpis.users_total }} players can fly at least one fit now · {{ summary.kpis.flyable_now_characters }} characters flyable now</div>
+                <div class="text-muted">{{ summary.kpis.flyable_now_users }}/{{ summary.kpis.users_total }} players can fly at least one fit now</div>
             </div>
         </div>
         <div class="d-flex gap-2">
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_list' %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}&training_days={{ training_days|default:7 }}{% if include_inactive %}&include_inactive=1{% endif %}">Back to summary</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_list' %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Back to summary</a>
             <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_doctrine' summary.doctrine.id %}">View doctrine</a>
             {% if perms.mastery.manage_summary_groups %}
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_settings' %}?group_id={{ selected_group.id }}">Summary settings</a>
@@ -27,8 +27,6 @@
             <div class="small text-muted">Audience group: <strong>{{ selected_group.name }}</strong></div>
             <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                 <input type="hidden" name="activity_days" value="{{ activity_days }}">
-                <label class="small text-muted" for="trainingDaysDoctrine">Trainable window</label>
-                <input id="trainingDaysDoctrine" class="form-control form-control-sm" type="number" min="1" max="90" name="training_days" value="{{ training_days|default:7 }}" style="width: 90px;">
                 {% if include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
                 <label class="small text-muted" for="summaryGroupSwitchDoctrine">Switch group</label>
                 <select id="summaryGroupSwitchDoctrine" name="group_id" class="form-select form-select-sm" style="width: 240px;">
@@ -43,51 +41,53 @@
 
     {% for fit in summary.fittings %}
     <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
                 <img src="{{ fit.fitting.ship_type_type_id|type_render_url:32 }}" class="rounded" width="32" height="32" alt="{{ fit.fitting.ship_type.name }}">
                 <div>
+                    {% if fit.configured %}
+                    <a class="fw-semibold text-body text-decoration-none mastery-fitting-link" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">{{ fit.fitting.name }}</a>
+                    {% else %}
                     <div class="fw-semibold">{{ fit.fitting.name }}</div>
+                    {% endif %}
                     <div class="small text-muted">{{ fit.fitting.ship_type.name }}</div>
                 </div>
+                {% if fit.configured %}
+                <div class="ms-3 ps-3 border-start">
+                    <div class="small text-muted">Avg recommended</div>
+                    <div class="small fw-semibold">{{ fit.kpis.recommended_avg_pct }}%</div>
+                    <div class="progress mt-1" style="height: 4px; width: 80px;">
+                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ fit.kpis.recommended_avg_pct|unlocalize }}%"></div>
+                    </div>
+                </div>
+                {% endif %}
             </div>
             <div class="d-flex gap-2 align-items-center">
-                {% if fit.configured %}
-                <span class="badge bg-success">{{ fit.users_with_flyable }}/{{ fit.users_total }} members have a flyable alt</span>
-                <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}&training_days={{ training_days|default:7 }}{% if include_inactive %}&include_inactive=1{% endif %}">Open member detail</a>
-                {% else %}
-                <span class="badge bg-secondary">Not configured</span>
-                {% endif %}
+                {% include 'mastery/partials/_summary_fit_header_actions.html' with fit=fit selected_group=selected_group activity_days=activity_days include_inactive=include_inactive %}
             </div>
         </div>
         {% if fit.configured %}
         <div class="card-body">
-            <div class="row g-3">
-                <div class="col-12 col-md-6 col-lg-3">
-                    <div class="small text-muted">Flyable now (players)</div>
-                    <div class="fw-semibold">{{ fit.kpis.flyable_now_users }}/{{ fit.kpis.users_total }}</div>
-                </div>
-                <div class="col-12 col-md-6 col-lg-3">
-                    <div class="small text-muted">Flyable now (characters)</div>
-                    <div class="fw-semibold">{{ fit.kpis.flyable_now_characters }}</div>
-                </div>
-                <div class="col-12 col-md-6 col-lg-3">
-                    <div class="small text-muted">Trainable &lt; {{ training_days|default:7 }}d (required only, non-flyable)</div>
-                    <div class="fw-semibold">{{ fit.kpis.trainable_under_week }}</div>
-                </div>
-                <div class="col-12 col-md-6 col-lg-3">
-                    <div class="small text-muted">100% recommended</div>
-                    <div class="fw-semibold mb-1">{{ fit.kpis.recommended_ready }}/{{ fit.kpis.users_total }}</div>
-                    <div class="small text-muted">Avg recommended: {{ fit.kpis.recommended_avg_pct }}%</div>
-                    <div class="progress" style="height: 8px;">
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ fit.kpis.recommended_avg_pct|unlocalize }}%"></div>
-                    </div>
-                </div>
-            </div>
+            {% include 'mastery/partials/_summary_status_kpi_nav_cards.html' with fit=fit selected_group=selected_group activity_days=activity_days include_inactive=include_inactive %}
         </div>
         {% endif %}
     </div>
     {% endfor %}
 </div>
 {% endblock %}
+
+<style>
+    .mastery-fitting-link:hover {
+        text-decoration: underline !important;
+    }
+
+    .kpi-nav-btn {
+        border: 1px solid var(--bs-border-color-translucent, rgba(0, 0, 0, 0.14));
+    }
+
+    .kpi-nav-btn:hover {
+        border-color: var(--bs-primary, #0d6efd);
+        background-color: rgba(13, 110, 253, 0.08);
+    }
+</style>
 

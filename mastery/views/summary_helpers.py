@@ -13,6 +13,7 @@ from fittings.models import Doctrine, Fitting
 from memberaudit.models import Character
 
 from mastery.models import FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
+from mastery.services.pilots.status_buckets import bucket_for_progress
 
 from .deps import pilot_access_service, pilot_progress_service
 
@@ -300,52 +301,71 @@ def _build_fitting_user_rows(
     )
 
 
-def _build_fitting_kpis(user_rows: list, training_days: int = 7) -> dict:
-    one_week = timedelta(days=training_days)
+_CHAR_STATUS_RANK = {
+    "elite": 5,
+    "almost_elite": 4,
+    "can_fly": 3,
+    "almost_fit": 2,
+    "needs_training": 1,
+}
+
+
+def _char_status_bucket(progress: dict) -> str:
+    """Return the status bucket for a character's progress (mirrors _status_meta logic)."""
+    return bucket_for_progress(progress)
+
+
+def _build_fitting_kpis(user_rows: list) -> dict:
     users_total = len(user_rows)
     flyable_now_users = 0
-    flyable_now_characters = 0
-    trainable_under_week = 0
-    recommended_ready = 0
     recommended_sum = 0.0
+    elite_characters = 0
+    almost_elite_characters = 0
+    can_fly_characters = 0
+    almost_fit_characters = 0
+    needs_training_characters = 0
 
     for row in user_rows:
         best_progress = row["best_progress"]
-        can_fly = bool(best_progress.get("can_fly"))
-        recommended_pct = float(best_progress.get("recommended_pct") or 0)
-        required_stats = (best_progress.get("mode_stats") or {}).get(
-            pilot_progress_service.EXPORT_MODE_REQUIRED,
-            {},
-        )
-        required_time = required_stats.get("total_missing_time")
-
-        flyable_now_characters += sum(1 for pilot in row.get("character_rows", []) if pilot["progress"].get("can_fly"))
-
-        if can_fly:
+        if bool(best_progress.get("can_fly")):
             flyable_now_users += 1
-        elif isinstance(required_time, timedelta) and required_time <= one_week:
-            trainable_under_week += 1
+        recommended_sum += float(best_progress.get("recommended_pct") or 0)
 
-        if recommended_pct >= 100:
-            recommended_ready += 1
-        recommended_sum += recommended_pct
+        for pilot in row.get("character_rows", []):
+            bucket = _char_status_bucket(pilot["progress"])
+            if bucket == "elite":
+                elite_characters += 1
+            elif bucket == "almost_elite":
+                almost_elite_characters += 1
+            elif bucket == "can_fly":
+                can_fly_characters += 1
+            elif bucket == "almost_fit":
+                almost_fit_characters += 1
+            else:
+                needs_training_characters += 1
 
     recommended_avg = round((recommended_sum / users_total), 1) if users_total else 0.0
 
     return {
         "users_total": users_total,
         "flyable_now_users": flyable_now_users,
-        "flyable_now_characters": flyable_now_characters,
-        "trainable_under_week": trainable_under_week,
-        "recommended_ready": recommended_ready,
+        "elite_characters": elite_characters,
+        "almost_elite_characters": almost_elite_characters,
+        "can_fly_characters": can_fly_characters,
+        "almost_fit_characters": almost_fit_characters,
+        "needs_training_characters": needs_training_characters,
         "recommended_avg_pct": recommended_avg,
     }
 
 
-def _build_doctrine_kpis(fittings: list, users_tracked: int, training_days: int = 7) -> dict:
-    """Aggregate doctrine-level KPIs from configured fitting user rows."""
-    one_week = timedelta(days=training_days)
-    per_user_best = {}
+def _build_doctrine_kpis(fittings: list, users_tracked: int) -> dict:
+    """Aggregate doctrine-level KPIs from configured fitting user rows.
+
+    Character counts reflect each character's *best* status bucket across all
+    configured fittings in this doctrine, so a character only appears in one bucket.
+    """
+    per_user_best: dict = {}
+    per_char_best: dict = {}  # char_id → {"bucket": str, "rank": int}
 
     for fit in fittings:
         if not fit.get("configured"):
@@ -356,45 +376,25 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int, training_days: int 
             existing = per_user_best.get(user_id)
             if existing is None:
                 per_user_best[user_id] = progress
-                continue
-
-            if (
+            elif (
                 (progress.get("can_fly"), progress.get("recommended_pct", 0), progress.get("required_pct", 0))
                 > (existing.get("can_fly"), existing.get("recommended_pct", 0), existing.get("required_pct", 0))
             ):
                 per_user_best[user_id] = progress
 
-    flyable_now_users = 0
-    flyable_now_characters_set = set()
-    trainable_under_week = 0
-    recommended_ready = 0
-    recommended_sum = 0.0
-
-    for fit in fittings:
-        if not fit.get("configured"):
-            continue
-        for row in fit.get("user_rows", []):
             for pilot in row.get("character_rows", []):
-                if pilot["progress"].get("can_fly"):
-                    flyable_now_characters_set.add(pilot["character"].id)
+                char_id = pilot["character"].id
+                bucket = _char_status_bucket(pilot["progress"])
+                rank = _CHAR_STATUS_RANK[bucket]
+                if rank > per_char_best.get(char_id, {}).get("rank", 0):
+                    per_char_best[char_id] = {"bucket": bucket, "rank": rank}
 
-    for progress in per_user_best.values():
-        can_fly = bool(progress.get("can_fly"))
-        recommended_pct = float(progress.get("recommended_pct") or 0)
-        required_stats = (progress.get("mode_stats") or {}).get(
-            pilot_progress_service.EXPORT_MODE_REQUIRED,
-            {},
-        )
-        required_time = required_stats.get("total_missing_time")
+    flyable_now_users = sum(1 for p in per_user_best.values() if p.get("can_fly"))
+    recommended_sum = sum(float(p.get("recommended_pct") or 0) for p in per_user_best.values())
 
-        if can_fly:
-            flyable_now_users += 1
-        elif isinstance(required_time, timedelta) and required_time <= one_week:
-            trainable_under_week += 1
-
-        if recommended_pct >= 100:
-            recommended_ready += 1
-        recommended_sum += recommended_pct
+    bucket_counts: dict[str, int] = {b: 0 for b in _CHAR_STATUS_RANK}
+    for char_data in per_char_best.values():
+        bucket_counts[char_data["bucket"]] += 1
 
     users_total = users_tracked
     recommended_avg = round((recommended_sum / users_total), 1) if users_total else 0.0
@@ -402,60 +402,42 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int, training_days: int 
     return {
         "users_total": users_total,
         "flyable_now_users": flyable_now_users,
-        "flyable_now_characters": len(flyable_now_characters_set),
-        "trainable_under_week": trainable_under_week,
-        "recommended_ready": recommended_ready,
+        "elite_characters": bucket_counts["elite"],
+        "almost_elite_characters": bucket_counts["almost_elite"],
+        "can_fly_characters": bucket_counts["can_fly"],
+        "almost_fit_characters": bucket_counts["almost_fit"],
+        "needs_training_characters": bucket_counts["needs_training"],
         "recommended_avg_pct": recommended_avg,
     }
 
 
-def _annotate_member_detail_pilots(user_rows: list, training_days: int = 7) -> list:
-    threshold = timedelta(days=training_days)
+def _annotate_member_detail_pilots(user_rows: list) -> list:
     annotated_rows = []
     for row in user_rows:
-        req_ready_not_recommended = []
-        near_required = []
+        buckets: dict[str, list] = {k: [] for k in _CHAR_STATUS_RANK}
         for pilot in row.get("character_rows", []):
             progress = pilot["progress"]
             required_stats = (progress.get("mode_stats") or {}).get(
-                pilot_progress_service.EXPORT_MODE_REQUIRED,
-                {},
+                pilot_progress_service.EXPORT_MODE_REQUIRED, {},
             )
             recommended_stats = (progress.get("mode_stats") or {}).get(
-                pilot_progress_service.EXPORT_MODE_RECOMMENDED,
-                {},
+                pilot_progress_service.EXPORT_MODE_RECOMMENDED, {},
             )
-            required_time = required_stats.get("total_missing_time")
-            required_time_td = required_time if isinstance(required_time, timedelta) else None
-            is_trainable_soon = bool(
-                (not progress.get("can_fly"))
-                and required_time_td is not None
-                and required_time_td <= threshold
-            )
-
             pilot_enriched = {
                 **pilot,
                 "required_missing_sp": int(required_stats.get("total_missing_sp") or 0),
                 "recommended_missing_sp": int(recommended_stats.get("total_missing_sp") or 0),
-                "is_trainable_soon": is_trainable_soon,
             }
+            buckets[_char_status_bucket(progress)].append(pilot_enriched)
 
-            if progress.get("can_fly") and float(progress.get("recommended_pct") or 0) < 100:
-                req_ready_not_recommended.append(pilot_enriched)
-            elif ((not progress.get("can_fly")) and float(progress.get("required_pct") or 0) > 90) or is_trainable_soon:
-                near_required.append(pilot_enriched)
-
-        should_keep_row = bool(row.get("flyable_count")) or bool(req_ready_not_recommended) or bool(near_required)
-        if not should_keep_row:
-            continue
-
-        annotated_rows.append(
-            {
-                **row,
-                "req_ready_not_recommended": req_ready_not_recommended,
-                "near_required": near_required,
-            }
-        )
+        annotated_rows.append({
+            **row,
+            "elite_pilots": buckets["elite"],
+            "almost_elite_pilots": buckets["almost_elite"],
+            "can_fly_pilots": buckets["can_fly"],
+            "almost_fit_pilots": buckets["almost_fit"],
+            "needs_training_pilots": buckets["needs_training"],
+        })
 
     return annotated_rows
 
@@ -466,7 +448,6 @@ def _build_doctrine_summary(
     member_groups: list,
     progress_cache: dict,
     progress_context: dict | None = None,
-    training_days: int = 7,
 ) -> dict:
     fittings = []
     users_with_any_flyable = set()
@@ -492,9 +473,12 @@ def _build_doctrine_summary(
                     "user_rows": [],
                     "kpis": {
                         "users_total": 0,
-                        "flyable_now": 0,
-                        "trainable_under_week": 0,
-                        "recommended_ready": 0,
+                        "flyable_now_users": 0,
+                        "elite_characters": 0,
+                        "almost_elite_characters": 0,
+                        "can_fly_characters": 0,
+                        "almost_fit_characters": 0,
+                        "needs_training_characters": 0,
                         "recommended_avg_pct": 0.0,
                     },
                 }
@@ -537,6 +521,5 @@ def _build_doctrine_summary(
         "kpis": _build_doctrine_kpis(
             fittings=fittings,
             users_tracked=len(member_groups),
-            training_days=training_days,
         ),
     }

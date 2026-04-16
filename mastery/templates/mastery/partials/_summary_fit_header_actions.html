@@ -1,0 +1,7 @@
+{% if fit.configured %}
+<span class="badge bg-success">{{ fit.users_with_flyable }}/{{ fit.users_total }} members have a flyable alt</span>
+<a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=all">Open member detail</a>
+{% else %}
+<span class="badge bg-secondary">Not configured</span>
+{% endif %}
+

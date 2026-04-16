@@ -1,0 +1,61 @@
+<div class="row g-2">
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="small text-muted">Flyable now (players)</div>
+        <div class="fw-semibold">{{ flyable_now }}/{{ users_total }}</div>
+    </div>
+
+    {% if interactive %}
+    <div class="col-6 col-md-4 col-lg-2">
+        <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="elite">
+            <span class="d-block small text-success fw-semibold">Elite</span>
+            <span class="d-block fw-semibold text-success">{{ kpis.elite_characters }}</span>
+        </button>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="almost_elite">
+            <span class="d-block small text-primary fw-semibold">Almost elite</span>
+            <span class="d-block fw-semibold text-primary">{{ kpis.almost_elite_characters }}</span>
+        </button>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="can_fly">
+            <span class="d-block small text-info fw-semibold">Can fly</span>
+            <span class="d-block fw-semibold text-info">{{ kpis.can_fly_characters }}</span>
+        </button>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="almost_fit">
+            <span class="d-block small text-warning fw-semibold">Almost fit</span>
+            <span class="d-block fw-semibold text-warning">{{ kpis.almost_fit_characters }}</span>
+        </button>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="needs_training">
+            <span class="d-block small text-danger fw-semibold">Needs training</span>
+            <span class="d-block fw-semibold text-danger">{{ kpis.needs_training_characters }}</span>
+        </button>
+    </div>
+    {% else %}
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="small text-success fw-semibold">Elite</div>
+        <div class="fw-semibold text-success">{{ kpis.elite_characters }}</div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="small text-primary fw-semibold">Almost elite</div>
+        <div class="fw-semibold text-primary">{{ kpis.almost_elite_characters }}</div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="small text-info fw-semibold">Can fly</div>
+        <div class="fw-semibold text-info">{{ kpis.can_fly_characters }}</div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="small text-warning fw-semibold">Almost fit</div>
+        <div class="fw-semibold text-warning">{{ kpis.almost_fit_characters }}</div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+        <div class="small text-danger fw-semibold">Needs training</div>
+        <div class="fw-semibold text-danger">{{ kpis.needs_training_characters }}</div>
+    </div>
+    {% endif %}
+</div>
+

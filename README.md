@@ -29,6 +29,7 @@ It connects your configured doctrines and fittings from the `fittings` plugin wi
 - [Permissions](#permissions)
 - [How it works](#how-it-works)
 - [Settings](#settings)
+- [Contributing](#contributing)
 
 ## Overview
 
@@ -254,12 +255,45 @@ The following setting can be added to your Alliance Auth `local.py`:
 | Name | Description | Default |
 | --- | --- | --- |
 | `MASTERY_PLAN_ESTIMATE_SP_PER_HOUR` | Training speed used to estimate plan duration in fitting previews | `1800` |
+| `MASTERY_STATUS_ELITE_RECOMMENDED_PCT` | Recommended coverage threshold for the **Elite** bucket | `100` |
+| `MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT` | Recommended coverage threshold for the **Almost elite** bucket | `75` |
+| `MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT` | Required coverage threshold for the **Almost fit** bucket | `90` |
 
 Example:
 
 ```python
 MASTERY_PLAN_ESTIMATE_SP_PER_HOUR = 1800
+MASTERY_STATUS_ELITE_RECOMMENDED_PCT = 100
+MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT = 75
+MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT = 90
 ```
+
+## Contributing
+
+Contributions are welcome.
+
+Suggested local workflow:
+
+1. Create a branch from `main`
+2. Run tests and lint locally before opening a PR
+3. Keep changes focused (feature/fix scope) and avoid unrelated refactors
+4. Update `README.md` / `CHANGELOG.md` when behavior or settings change
+
+Typical commands:
+
+```bash
+python -m pip install -e .
+python -m pip install tox
+tox -e py312-django42
+tox -e pylint
+```
+
+Alliance Auth plugin conventions used in this project:
+
+- Keep async/sync boundaries clear (views/services split)
+- Prefer thin views and reusable service helpers
+- Reuse existing partial templates for repeated UI blocks
+- Preserve `fittings` visibility rules in all pilot/summary views
 
 ## Notes
 

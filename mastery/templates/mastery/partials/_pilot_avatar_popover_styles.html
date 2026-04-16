@@ -1,0 +1,58 @@
+.pilot-avatar-cluster {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    min-height: 1.85rem;
+    align-items: center;
+}
+
+.pilot-avatar-btn {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    border-radius: 50%;
+    line-height: 0;
+    transition: transform 0.12s ease;
+}
+
+.pilot-avatar-ring {
+    display: inline-flex;
+    border-radius: 999px;
+    padding: 2px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.pilot-avatar-ring.status-elite { background-color: var(--bs-success, #198754); }
+.pilot-avatar-ring.status-almost_elite { background-color: var(--bs-primary, #0d6efd); }
+.pilot-avatar-ring.status-can_fly { background-color: var(--bs-info, #0dcaf0); }
+.pilot-avatar-ring.status-almost_fit { background-color: var(--bs-warning, #ffc107); }
+.pilot-avatar-ring.status-needs_training { background-color: var(--bs-danger, #dc3545); }
+
+.pilot-avatar-btn:hover,
+.pilot-avatar-btn:focus {
+    transform: translateY(-1px);
+    outline: none;
+}
+
+.pilot-avatar-btn:focus .pilot-avatar-ring,
+.pilot-avatar-btn:hover .pilot-avatar-ring {
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.3);
+}
+
+.pilot-popover-card {
+    min-width: 230px;
+    max-width: 270px;
+}
+
+.popover {
+    max-width: 300px;
+    box-shadow: 0 0.75rem 1.65rem rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+html[data-bs-theme="dark"] .popover,
+body[data-bs-theme="dark"] .popover,
+html[data-theme*="dark"] .popover,
+body[data-theme*="dark"] .popover {
+    box-shadow: 0 0.95rem 2rem rgba(0, 0, 0, 0.58), 0 0 0 1px rgba(255, 255, 255, 0.14);
+}
+

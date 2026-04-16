@@ -15,7 +15,7 @@
         </div>
         <div class="d-flex gap-2 flex-wrap">
             {% if doctrine %}
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_doctrine_detail' doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}&training_days={{ training_days|default:7 }}{% if include_inactive %}&include_inactive=1{% endif %}">Back to doctrine</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_doctrine_detail' doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Back to doctrine</a>
             {% endif %}
             <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_fit' fitting.id %}">View fitting</a>
         </div>
@@ -26,7 +26,6 @@
             <div class="small text-muted">Audience group: <strong>{{ selected_group.name }}</strong></div>
             <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                 <input type="hidden" name="activity_days" value="{{ activity_days }}">
-                <input type="hidden" name="training_days" value="{{ training_days|default:7 }}">
                 {% if include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
                 <input type="hidden" name="export_mode" value="{{ export_mode }}">
                 <label class="small text-muted" for="summaryGroupSwitchFitting">Switch group</label>
@@ -41,125 +40,76 @@
     </div>
 
     <div class="card border-0 shadow-sm mb-3">
-        <div class="card-body">
-            <div class="row g-3">
-                <div class="col-12 col-md-6 col-xl-3">
-                    <div class="small text-muted">Flyable now (players)</div>
-                    <div class="fw-semibold">{{ fitting_kpis.flyable_now_users }}/{{ fitting_kpis.users_total }}</div>
-                </div>
-                <div class="col-12 col-md-6 col-xl-3">
-                    <div class="small text-muted">Flyable now (characters)</div>
-                    <div class="fw-semibold">{{ fitting_kpis.flyable_now_characters }}</div>
-                </div>
-                <div class="col-12 col-md-6 col-xl-3">
-                    <div class="small text-muted">Trainable &lt; {{ training_days|default:7 }}d (required only, non-flyable)</div>
-                    <div class="fw-semibold">{{ fitting_kpis.trainable_under_week }}</div>
-                </div>
-                <div class="col-12 col-md-6 col-xl-3">
-                    <div class="small text-muted">Avg recommended</div>
-                    <div class="small fw-semibold mb-1">{{ fitting_kpis.recommended_avg_pct }}%</div>
-                    <div class="progress" style="height: 8px;">
-                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ fitting_kpis.recommended_avg_pct|unlocalize }}%"></div>
-                    </div>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold">Character readiness</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="small text-muted">Avg recommended</span>
+                <span class="fw-semibold">{{ fitting_kpis.recommended_avg_pct }}%</span>
+                <div class="progress" style="height: 6px; width: 100px;">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: {{ fitting_kpis.recommended_avg_pct|unlocalize }}%"></div>
                 </div>
             </div>
+        </div>
+        <div class="card-body">
+            {% include 'mastery/partials/_summary_status_kpi_cards.html' with kpis=fitting_kpis flyable_now=fitting_kpis.flyable_now_users users_total=fitting_kpis.users_total interactive=1 %}
         </div>
     </div>
 
     <div class="card border-0 shadow-sm">
-        <div class="card-header">Member coverage</div>
+        <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <span>Member coverage</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary kpi-filter-btn show-all-filter-btn" data-filter="all">Show all</button>
+            </div>
+            <a class="btn btn-sm btn-outline-primary" href="?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&export_mode={{ export_mode }}&format=csv">
+                <span class="fas fa-file-csv me-1" aria-hidden="true"></span>Export CSV
+            </a>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead class="table-light">
+                <table class="table table-sm align-middle mb-0 mastery-summary-table">
+                    <thead class="mastery-summary-thead">
                     <tr>
                         <th>Main</th>
-                        <th>Best character</th>
-                        <th>Req-ready</th>
-                        <th>Near-req</th>
-                        <th>Flyable chars</th>
+                        {% include 'mastery/partials/_summary_status_headers.html' with include_tooltips=1 include_chars_suffix=0 status_thresholds=status_thresholds %}
                     </tr>
                     </thead>
                     <tbody>
                     {% for row in user_rows %}
-                    <tr>
+                    <tr class="member-row" data-elite-count="{{ row.elite_pilots|length }}" data-almost-elite-count="{{ row.almost_elite_pilots|length }}" data-can-fly-count="{{ row.can_fly_pilots|length }}" data-almost-fit-count="{{ row.almost_fit_pilots|length }}" data-needs-training-count="{{ row.needs_training_pilots|length }}">
                         <td>
                             {% if row.main_character %}
                             <div class="d-flex align-items-center gap-2">
                                 <img src="{{ row.main_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ row.main_character.character_name }}">
-                                <span>{{ row.main_character.character_name }}</span>
+                                <div>
+                                    <div>{{ row.main_character.character_name }}</div>
+                                    <div class="small text-muted">{{ row.flyable_count }}/{{ row.active_count }} flyable</div>
+                                </div>
                             </div>
                             {% else %}
-                            {{ row.user.username }}
+                            <div>{{ row.user.username }}</div>
+                            <div class="small text-muted">{{ row.flyable_count }}/{{ row.active_count }} flyable</div>
                             {% endif %}
                         </td>
                         <td>
-                            <div class="d-flex align-items-center gap-2">
-                                <img src="{{ row.best_character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ row.best_character.eve_character.character_name }}">
-                                <div>
-                                    <div>{{ row.best_character.eve_character.character_name }}</div>
-                                    <div class="small text-muted mb-1">Req</div>
-                                    <div class="progress mb-1" style="height: 6px; width: 120px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ row.best_progress.required_pct }}% · Missing {{ row.best_progress.mode_stats.required.total_missing_sp|intcomma }} SP">
-                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ row.best_progress.required_pct|unlocalize }}%"></div>
-                                    </div>
-                                    <div class="small text-muted mb-1">Rec</div>
-                                    <div class="progress" style="height: 6px; width: 120px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ row.best_progress.recommended_pct }}% · Missing {{ row.best_progress.mode_stats.recommended.total_missing_sp|intcomma }} SP">
-                                        <div class="progress-bar bg-primary" role="progressbar" style="width: {{ row.best_progress.recommended_pct|unlocalize }}%"></div>
-                                    </div>
-                                </div>
-                            </div>
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.elite_pilots bucket='elite' row_user_id=row.user.id status_label='Elite' focus_filter='elite' focus_btn='success' fitting=fitting export_mode=export_mode selected_group=selected_group %}
                         </td>
                         <td>
-                            <div class="d-flex flex-wrap gap-1">
-                                {% for pilot in row.req_ready_not_recommended %}
-                                <div class="pilot-chip border rounded px-2 py-1 d-flex align-items-center gap-2">
-                                    <img src="{{ pilot.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="28" height="28" alt="{{ pilot.character.eve_character.character_name }}">
-                                    <div class="small fw-semibold text-truncate" style="max-width: 120px;">{{ pilot.character.eve_character.character_name }}</div>
-                                    <div class="pilot-bars">
-                                        <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ pilot.progress.required_pct }}% · Missing {{ pilot.required_missing_sp|intcomma }} SP">
-                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ pilot.progress.required_pct|unlocalize }}%"></div>
-                                        </div>
-                                        <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ pilot.progress.recommended_pct }}% · Missing {{ pilot.recommended_missing_sp|intcomma }} SP">
-                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct|unlocalize }}%"></div>
-                                        </div>
-                                    </div>
-                                    <a class="btn btn-sm btn-outline-primary btn-icon-sm" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ pilot.character.id }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}" data-bs-tooltip="aa-mastery" data-bs-title="Open pilot focus">
-                                        <span class="fas fa-external-link-alt" aria-hidden="true"></span>
-                                    </a>
-                                </div>
-                                {% empty %}
-                                <span class="small text-muted">-</span>
-                                {% endfor %}
-                            </div>
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.almost_elite_pilots bucket='almost_elite' row_user_id=row.user.id status_label='Almost elite' focus_filter='almost_elite' focus_btn='primary' fitting=fitting export_mode=export_mode selected_group=selected_group %}
                         </td>
                         <td>
-                            <div class="d-flex flex-wrap gap-1">
-                                {% for pilot in row.near_required %}
-                                <div class="pilot-chip border rounded px-2 py-1 d-flex align-items-center gap-2">
-                                    <img src="{{ pilot.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="28" height="28" alt="{{ pilot.character.eve_character.character_name }}">
-                                    <div class="small fw-semibold text-truncate" style="max-width: 120px;">{{ pilot.character.eve_character.character_name }}</div>
-                                    <div class="pilot-bars">
-                                        <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Required {{ pilot.progress.required_pct }}% · Missing {{ pilot.required_missing_sp|intcomma }} SP{% if pilot.is_trainable_soon %} · Trainable < {{ training_days|default:7 }}d{% endif %}">
-                                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ pilot.progress.required_pct|unlocalize }}%"></div>
-                                        </div>
-                                        <div class="progress" style="height: 5px;" data-bs-tooltip="aa-mastery" data-bs-title="Recommended {{ pilot.progress.recommended_pct }}% · Missing {{ pilot.recommended_missing_sp|intcomma }} SP">
-                                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct|unlocalize }}%"></div>
-                                        </div>
-                                    </div>
-                                    <a class="btn btn-sm btn-outline-primary btn-icon-sm" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ pilot.character.id }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}" data-bs-tooltip="aa-mastery" data-bs-title="Open pilot focus">
-                                        <span class="fas fa-external-link-alt" aria-hidden="true"></span>
-                                    </a>
-                                </div>
-                                {% empty %}
-                                <span class="small text-muted">-</span>
-                                {% endfor %}
-                            </div>
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.can_fly_pilots bucket='can_fly' row_user_id=row.user.id status_label='Can fly' focus_filter='can_fly_now' focus_btn='info' fitting=fitting export_mode=export_mode selected_group=selected_group %}
                         </td>
-                        <td>{{ row.flyable_count }}/{{ row.active_count }} <span class="text-muted">(of {{ row.total_count }})</span></td>
+                        <td>
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.almost_fit_pilots bucket='almost_fit' row_user_id=row.user.id status_label='Almost fit' focus_filter='almost_required' focus_btn='warning' fitting=fitting export_mode=export_mode selected_group=selected_group %}
+                        </td>
+                        <td>
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.needs_training_pilots bucket='needs_training' row_user_id=row.user.id status_label='Needs training' focus_filter='needs_training' focus_btn='danger' fitting=fitting export_mode=export_mode selected_group=selected_group %}
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-muted">No active characters in the selected activity window.</td>
+                        <td colspan="6" class="text-muted">No active characters in the selected activity window.</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -170,31 +120,88 @@
 </div>
 
 <style>
-    .pilot-chip {
-        min-width: 155px;
+    .mastery-summary-table.table-sm > :not(caption) > * > * {
+        padding-top: 0.32rem;
+        padding-bottom: 0.32rem;
     }
 
-    .pilot-bars {
-        width: 68px;
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
+    .kpi-filter-btn {
+        border-color: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.15));
     }
 
-    .btn-icon-sm {
-        width: 1.75rem;
-        height: 1.75rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0;
+    .kpi-filter-btn.active {
+        box-shadow: inset 0 0 0 1px var(--bs-primary, #0d6efd);
+        background-color: rgba(13, 110, 253, 0.08);
     }
+
+    .show-all-filter-btn {
+        color: var(--bs-body-color, #212529);
+        border-color: rgba(108, 117, 125, 0.55);
+    }
+
+    .show-all-filter-btn.active {
+        color: #212529 !important;
+        border-color: rgba(13, 110, 253, 0.55) !important;
+        background-color: rgba(13, 110, 253, 0.14) !important;
+    }
+
+    html[data-bs-theme="dark"] .show-all-filter-btn,
+    body[data-bs-theme="dark"] .show-all-filter-btn,
+    html[data-theme*="dark"] .show-all-filter-btn,
+    body[data-theme*="dark"] .show-all-filter-btn {
+        color: #f8f9fa;
+        border-color: rgba(255, 255, 255, 0.45);
+        background-color: rgba(255, 255, 255, 0.08);
+    }
+
+    html[data-bs-theme="dark"] .show-all-filter-btn.active,
+    body[data-bs-theme="dark"] .show-all-filter-btn.active,
+    html[data-theme*="dark"] .show-all-filter-btn.active,
+    body[data-theme*="dark"] .show-all-filter-btn.active {
+        color: #ffffff;
+        background-color: rgba(13, 110, 253, 0.28);
+        border-color: rgba(13, 110, 253, 0.7);
+    }
+
+    {% include 'mastery/partials/_pilot_avatar_popover_styles.html' %}
+
 </style>
 
 <script>
     $(document).ready(() => {
         $('[data-bs-tooltip="aa-mastery"]').tooltip();
+        const rowSelector = '.member-row';
+
+        const countAttrByFilter = {
+            elite: 'eliteCount',
+            almost_elite: 'almostEliteCount',
+            can_fly: 'canFlyCount',
+            almost_fit: 'almostFitCount',
+            needs_training: 'needsTrainingCount',
+        };
+
+        const applyMemberCoverageFilter = (filterName) => {
+            document.querySelectorAll(rowSelector).forEach((row) => {
+                if (filterName === 'all') {
+                    row.classList.remove('d-none');
+                    return;
+                }
+                const attrName = countAttrByFilter[filterName];
+                const value = Number(row.dataset[attrName] || 0);
+                row.classList.toggle('d-none', value <= 0);
+            });
+
+            document.querySelectorAll('.kpi-filter-btn[data-filter]').forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.filter === filterName);
+            });
+        };
+
+        $(document).on('click', '.kpi-filter-btn[data-filter]', function () {
+            applyMemberCoverageFilter(this.dataset.filter || 'all');
+        });
+
+        applyMemberCoverageFilter('{{ selected_member_filter|default:"all" }}');
     });
 </script>
+{% include 'mastery/partials/_pilot_popover_init_script.html' %}
 {% endblock %}
-

@@ -33,10 +33,9 @@
 				<div class="col-12 col-md-6 col-lg-2">
 					<label class="form-label small text-muted" for="pilotStatusFilter">Status</label>
 					<select id="pilotStatusFilter" name="status" class="form-select">
-						<option value="all" {% if selected_status == 'all' %}selected{% endif %}>All</option>
-						<option value="elite" {% if selected_status == 'elite' %}selected{% endif %}>Elite ready</option>
-						<option value="flyable" {% if selected_status == 'flyable' %}selected{% endif %}>Flyable</option>
-						<option value="training" {% if selected_status == 'training' %}selected{% endif %}>Needs training</option>
+						{% for value, label in index_status_filter_choices %}
+						<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+						{% endfor %}
 					</select>
 				</div>
 				<div class="col-12 col-lg-2 d-flex gap-2">
@@ -94,26 +93,30 @@
 				<table class="table table-sm align-middle mb-0" style="table-layout: fixed; width: 100%;">
 					<colgroup>
 						<col style="width: 320px;">
-						<col style="width: 280px;">
-						<col>
-						<col style="width: 170px;">
+						<col style="width: 250px;">
+						<col style="width: 120px;">
+						<col style="width: 120px;">
+						<col style="width: 120px;">
+						<col style="width: 120px;">
+						<col style="width: 130px;">
 					</colgroup>
-					<thead class="table-light">
+					<thead class="mastery-table-head">
 					<tr>
 						<th>Fitting</th>
 						<th>Readiness</th>
-						<th>Character overview</th>
-						<th>Actions</th>
+						{% include 'mastery/partials/_summary_status_headers.html' with include_tooltips=1 include_chars_suffix=0 status_thresholds=status_thresholds %}
 					</tr>
 					</thead>
 					<tbody>
 					{% for fit_card in doctrine_card.fittings %}
 					<tr class="pilot-fit-row" data-fit-name="{{ fit_card.fitting.name|lower }} {{ fit_card.fitting.ship_type.name|lower }} {{ doctrine_card.doctrine.name|lower }}">
 						<td>
-							<div class="d-flex align-items-center gap-2 fitting-main-line">
-								<img src="{{ fit_card.fitting.ship_type_type_id|type_render_url:32 }}" class="rounded flex-shrink-0" width="32" height="32" alt="{{ fit_card.fitting.ship_type.name }}">
-								<a class="text-decoration-none text-body fw-semibold fitting-name" href="{% url 'fittings:view_fit' fit_card.fitting.id %}" title="View fitting in Fittings">{{ fit_card.fitting.name }}</a>
-							</div>
+							<a class="text-decoration-none text-body" href="{% url 'mastery:pilot_fitting_detail' fit_card.fitting.id %}{% if selected_character %}?character_id={{ selected_character.id }}{% endif %}">
+								<div class="d-flex align-items-center gap-2 fitting-main-line">
+									<img src="{{ fit_card.fitting.ship_type_type_id|type_render_url:32 }}" class="rounded flex-shrink-0" width="32" height="32" alt="{{ fit_card.fitting.ship_type.name }}">
+									<span class="fw-semibold fitting-name" title="Open fit planner">{{ fit_card.fitting.name }}</span>
+								</div>
+							</a>
 							<div class="small text-muted text-truncate">{{ fit_card.fitting.ship_type.name }}</div>
 							{% if fit_card.is_configured %}
 							<div class="small mt-2">
@@ -154,81 +157,49 @@
 						</td>
 						<td>
 							{% if fit_card.is_configured %}
-							<div class="character-overview-list d-flex flex-wrap gap-2">
-								{% if selected_character %}
-									{% for character_row in fit_card.characters %}
-										{% if character_row.character.id == selected_character.id %}
-										<a class="text-decoration-none character-focus-link" href="{% url 'mastery:pilot_fitting_detail' fit_card.fitting.id %}?character_id={{ character_row.character.id }}">
-											<div class="border rounded-3 px-2 py-2 bg-body character-focus-card is-focused">
-												<div class="d-flex align-items-center gap-2 mb-1">
-													<img src="{{ character_row.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ character_row.character.eve_character.character_name }}">
-													<div class="small fw-semibold text-body">{{ character_row.character.eve_character.character_name }}</div>
-													<span class="badge bg-primary">Focused</span>
-												</div>
-												<div class="character-metrics small">
-													<div class="d-flex justify-content-between text-muted">
-														<span>Required</span>
-														<span class="fw-semibold text-body">{{ character_row.progress.required_pct }}%</span>
-													</div>
-													<div class="progress mb-1" style="height: 5px;">
-																																																														<div class="progress-bar bg-success" role="progressbar" style="width: {{ character_row.progress.required_pct|unlocalize }}%"></div>
-													</div>
-													<div class="d-flex justify-content-between text-muted">
-														<span>Recommended</span>
-														<span class="fw-semibold text-body">{{ character_row.progress.recommended_pct }}%</span>
-													</div>
-													<div class="progress" style="height: 5px;">
-																																																														<div class="progress-bar bg-primary" role="progressbar" style="width: {{ character_row.progress.recommended_pct|unlocalize }}%"></div>
-													</div>
-												</div>
-												<span class="badge bg-{{ character_row.progress.status_class }}{% if character_row.progress.status_class == 'warning' %} text-dark{% endif %}">{{ character_row.progress.status_label }}</span>
-											</div>
-										</a>
-										{% endif %}
-									{% endfor %}
-								{% endif %}
-
-								{% for character_row in fit_card.characters %}
-								{% if not selected_character or character_row.character.id != selected_character.id %}
-								<a class="text-decoration-none character-focus-link" href="{% url 'mastery:pilot_fitting_detail' fit_card.fitting.id %}?character_id={{ character_row.character.id }}">
-									<div class="border rounded-3 px-2 py-2 bg-body character-focus-card">
-										<div class="d-flex align-items-center gap-2 mb-1">
-											<img src="{{ character_row.character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ character_row.character.eve_character.character_name }}">
-											<div class="small fw-semibold text-body">{{ character_row.character.eve_character.character_name }}</div>
-										</div>
-										<div class="character-metrics small">
-											<div class="d-flex justify-content-between text-muted">
-												<span>Required</span>
-												<span class="fw-semibold text-body">{{ character_row.progress.required_pct }}%</span>
-											</div>
-											<div class="progress mb-1" style="height: 5px;">
-															<div class="progress-bar bg-success" role="progressbar" style="width: {{ character_row.progress.required_pct|unlocalize }}%"></div>
-											</div>
-											<div class="d-flex justify-content-between text-muted">
-												<span>Recommended</span>
-												<span class="fw-semibold text-body">{{ character_row.progress.recommended_pct }}%</span>
-											</div>
-											<div class="progress" style="height: 5px;">
-															<div class="progress-bar bg-primary" role="progressbar" style="width: {{ character_row.progress.recommended_pct|unlocalize }}%"></div>
-											</div>
-										</div>
-										<span class="badge bg-{{ character_row.progress.status_class }}{% if character_row.progress.status_class == 'warning' %} text-dark{% endif %}">{{ character_row.progress.status_label }}</span>
-									</div>
-								</a>
-								{% endif %}
-								{% empty %}
-								<span class="text-muted small">No characters found for your account.</span>
-								{% endfor %}
+							<div class="character-overview-list pilot-avatar-cluster">
+								{% for character_row in fit_card.elite_rows %}
+								{% include 'mastery/partials/_pilot_avatar_button.html' with popover_id=character_row.popover_id character=character_row.character status_bucket=character_row.status_bucket status_label=character_row.progress.status_label progress=character_row.progress required_missing_sp=character_row.required_missing_sp recommended_missing_sp=character_row.recommended_missing_sp action_url=character_row.action_url action_btn='primary' action_label='Open pilot focus' is_selected=character_row.is_selected %}
+								{% empty %}<span class="text-muted small">-</span>{% endfor %}
 							</div>
-							{% else %}
-							<span class="text-muted small">Unavailable until a skill plan is generated.</span>
-							{% endif %}
+							{% else %}<span class="text-muted small">-</span>{% endif %}
 						</td>
 						<td>
 							{% if fit_card.is_configured %}
-							<a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_detail' fit_card.fitting.id %}{% if selected_character %}?character_id={{ selected_character.id }}{% endif %}">Open fit planner</a>
+							<div class="character-overview-list pilot-avatar-cluster">
+								{% for character_row in fit_card.almost_elite_rows %}
+								{% include 'mastery/partials/_pilot_avatar_button.html' with popover_id=character_row.popover_id character=character_row.character status_bucket=character_row.status_bucket status_label=character_row.progress.status_label progress=character_row.progress required_missing_sp=character_row.required_missing_sp recommended_missing_sp=character_row.recommended_missing_sp action_url=character_row.action_url action_btn='primary' action_label='Open pilot focus' is_selected=character_row.is_selected %}
+								{% empty %}<span class="text-muted small">-</span>{% endfor %}
+							</div>
+							{% else %}<span class="text-muted small">-</span>{% endif %}
+						</td>
+						<td>
+							{% if fit_card.is_configured %}
+							<div class="character-overview-list pilot-avatar-cluster">
+								{% for character_row in fit_card.can_fly_rows %}
+								{% include 'mastery/partials/_pilot_avatar_button.html' with popover_id=character_row.popover_id character=character_row.character status_bucket=character_row.status_bucket status_label=character_row.progress.status_label progress=character_row.progress required_missing_sp=character_row.required_missing_sp recommended_missing_sp=character_row.recommended_missing_sp action_url=character_row.action_url action_btn='primary' action_label='Open pilot focus' is_selected=character_row.is_selected %}
+								{% empty %}<span class="text-muted small">-</span>{% endfor %}
+							</div>
+							{% else %}<span class="text-muted small">-</span>{% endif %}
+						</td>
+						<td>
+							{% if fit_card.is_configured %}
+							<div class="character-overview-list pilot-avatar-cluster">
+								{% for character_row in fit_card.almost_fit_rows %}
+								{% include 'mastery/partials/_pilot_avatar_button.html' with popover_id=character_row.popover_id character=character_row.character status_bucket=character_row.status_bucket status_label=character_row.progress.status_label progress=character_row.progress required_missing_sp=character_row.required_missing_sp recommended_missing_sp=character_row.recommended_missing_sp action_url=character_row.action_url action_btn='primary' action_label='Open pilot focus' is_selected=character_row.is_selected %}
+								{% empty %}<span class="text-muted small">-</span>{% endfor %}
+							</div>
+							{% else %}<span class="text-muted small">-</span>{% endif %}
+						</td>
+						<td>
+							{% if fit_card.is_configured %}
+							<div class="character-overview-list pilot-avatar-cluster">
+								{% for character_row in fit_card.needs_training_rows %}
+								{% include 'mastery/partials/_pilot_avatar_button.html' with popover_id=character_row.popover_id character=character_row.character status_bucket=character_row.status_bucket status_label=character_row.progress.status_label progress=character_row.progress required_missing_sp=character_row.required_missing_sp recommended_missing_sp=character_row.recommended_missing_sp action_url=character_row.action_url action_btn='primary' action_label='Open pilot focus' is_selected=character_row.is_selected %}
+								{% empty %}<span class="text-muted small">-</span>{% endfor %}
+							</div>
 							{% else %}
-							<span class="text-muted small">Unavailable</span>
+							<span class="text-muted small">-</span>
 							{% endif %}
 						</td>
 					</tr>
@@ -245,9 +216,10 @@
 </div>
 
 <style>
-	.character-focus-link {
-		display: block;
-		color: inherit;
+	{% include 'mastery/partials/_pilot_avatar_popover_styles.html' %}
+
+	.pilot-avatar-btn.is-selected .pilot-avatar-ring {
+		box-shadow: 0 0 0 2px rgba(25, 135, 84, 0.55), 0 0 0 4px rgba(25, 135, 84, 0.16);
 	}
 
 	.fitting-main-line {
@@ -262,36 +234,17 @@
 		white-space: nowrap;
 	}
 
-	.character-focus-card {
-		transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
-	}
-
-	.character-metrics {
-		margin: 0.15rem 0 0.4rem;
-	}
-
 	.character-overview-list {
-		max-height: 190px;
+		max-height: 165px;
 		overflow-y: auto;
 		padding-right: 2px;
-	}
-
-	.character-focus-card.is-focused {
-		border-color: var(--bs-primary);
-		box-shadow: inset 0 0 0 1px rgba(var(--bs-primary-rgb), 0.25);
-		background-color: rgba(var(--bs-primary-rgb), 0.08) !important;
-	}
-
-	.character-focus-link:hover .character-focus-card,
-	.character-focus-link:focus-visible .character-focus-card {
-		transform: translateY(-1px);
-		box-shadow: var(--bs-box-shadow-sm);
-		border-color: var(--bs-primary);
 	}
 </style>
 
 <script>
     $(document).ready(() => {
+        $('[data-bs-tooltip="aa-mastery"]').tooltip();
+
         const searchInput = document.getElementById('pilotSearchInput');
         if (!searchInput) {
             return;
@@ -311,4 +264,5 @@
         });
     });
 </script>
+{% include 'mastery/partials/_pilot_popover_init_script.html' %}
 {% endblock %}

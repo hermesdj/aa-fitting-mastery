@@ -2,18 +2,12 @@
 from django.db.models import Prefetch
 from eve_sde.models import ItemType, TypeDogma
 
+from mastery.services.skill_requirements import REQUIRED_SKILL_ATTRIBUTES
+
 TypeDogma.objects.prefetch_related(
     Prefetch("dogmaAttributes")
 )
 
-REQUIRED_SKILL_ATTRIBUTES = [
-    (182, 277),
-    (183, 278),
-    (184, 279),
-    (1285, 1286),
-    (1289, 1287),
-    (1290, 1288),
-]
 
 
 class FittingSkillExtractor:

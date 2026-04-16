@@ -1,0 +1,31 @@
+<th class="text-success">
+    Elite{% if include_chars_suffix %} (chars){% endif %}
+    {% if include_tooltips %}
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Can fly and recommended >= {{ status_thresholds.elite_recommended }}%"></span>
+    {% endif %}
+</th>
+<th class="text-primary">
+    Almost elite{% if include_chars_suffix %} (chars){% endif %}
+    {% if include_tooltips %}
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Can fly and recommended > {{ status_thresholds.almost_elite_recommended }}%"></span>
+    {% endif %}
+</th>
+<th class="text-info">
+    Can fly{% if include_chars_suffix %} (chars){% endif %}
+    {% if include_tooltips %}
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Meets all required skills"></span>
+    {% endif %}
+</th>
+<th class="text-warning">
+    Almost fit{% if include_chars_suffix %} (chars){% endif %}
+    {% if include_tooltips %}
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Not flyable and required > {{ status_thresholds.almost_fit_required }}%"></span>
+    {% endif %}
+</th>
+<th class="text-danger">
+    Needs training{% if include_chars_suffix %} (chars){% endif %}
+    {% if include_tooltips %}
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Not flyable and required <= {{ status_thresholds.almost_fit_required }}%"></span>
+    {% endif %}
+</th>
+

@@ -1,0 +1,94 @@
+<script>
+    $(document).ready(() => {
+        const triggerSelector = '.js-pilot-popover';
+        const triggers = Array.from(document.querySelectorAll(triggerSelector));
+
+        if (!triggers.length) {
+            return;
+        }
+
+        const bsApi = window.bootstrap && window.bootstrap.Popover ? window.bootstrap.Popover : null;
+        const hasJQueryPopover = typeof $.fn.popover === 'function';
+
+        const hideAll = (exceptEl) => {
+            triggers.forEach((el) => {
+                if (exceptEl && el === exceptEl) {
+                    return;
+                }
+                if (bsApi) {
+                    const instance = bsApi.getInstance(el);
+                    if (instance) {
+                        instance.hide();
+                    }
+                } else if (hasJQueryPopover) {
+                    $(el).popover('hide');
+                }
+            });
+        };
+
+        if (bsApi) {
+            triggers.forEach((el) => {
+                bsApi.getOrCreateInstance(el, {
+                    html: true,
+                    trigger: 'manual',
+                    container: 'body',
+                    sanitize: false,
+                    placement: 'auto',
+                    content: () => {
+                        const templateId = el.getAttribute('data-aa-popover-target');
+                        const template = templateId ? document.getElementById(templateId) : null;
+                        return template ? template.innerHTML : '';
+                    },
+                });
+            });
+
+            $(document).on('click', triggerSelector, function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                const current = this;
+                const instance = bsApi.getOrCreateInstance(current);
+                const isOpen = Boolean(current.getAttribute('aria-describedby'));
+                hideAll(current);
+                if (isOpen) {
+                    instance.hide();
+                } else {
+                    instance.show();
+                }
+            });
+        } else if (hasJQueryPopover) {
+            const $triggers = $(triggerSelector);
+            $triggers.popover({
+                html: true,
+                trigger: 'manual',
+                container: 'body',
+                sanitize: false,
+                placement: 'auto',
+                content() {
+                    const templateId = $(this).attr('data-aa-popover-target');
+                    const template = templateId ? document.getElementById(templateId) : null;
+                    return template ? template.innerHTML : '';
+                },
+            });
+
+            $(document).on('click', triggerSelector, function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                const $current = $(this);
+                const isOpen = Boolean($current.attr('aria-describedby'));
+                $triggers.not($current).popover('hide');
+                if (isOpen) {
+                    $current.popover('hide');
+                } else {
+                    $current.popover('show');
+                }
+            });
+        }
+
+        $(document).on('click', (event) => {
+            if (!$(event.target).closest('.popover, .js-pilot-popover').length) {
+                hideAll();
+            }
+        });
+    });
+</script>
+

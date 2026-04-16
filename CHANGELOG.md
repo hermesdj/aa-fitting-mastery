@@ -11,6 +11,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Nothing yet.
 
+## [0.1.4] - 2026-04-16
+
+### Added
+
+- Add reusable pilot status bucket helpers and shared template partials for status headers, KPI cards, fit header actions and pilot popovers.
+- Add common skill requirement constants/helper module used by progression and extraction flows.
+
+### Changed
+
+- Rework Skill Mastery and Doctrine Summary templates with richer KPI/readiness presentation and unified table-header styling across pages (including dark mode consistency).
+- Improve pilot and summary view composition by centralizing status bucket usage in both backend view code and frontend components.
+- Refresh README and plugin settings documentation to cover the expanded UI and behavior.
+- Update pilot detail filter labels to include matching character counts and only expose non-empty filter options.
+
+### Fixed
+
+- Fix `pilot_fitting_detail` character filtering by automatically falling back from `can_fly_now` to `all` when no pilot matches the default filter.
+- Stop forcing focused pilots into filtered results when they are not eligible for the active filter.
+- Fix sticky `Character readiness` table header transparency on scroll and align its appearance with the shared table-header styling.
+
+### Tests
+
+- Extend pilot and summary view test coverage for filter fallback behavior, selected-pilot visibility, and updated KPI/status rendering paths.
+- Add/adjust regression tests for pilot progress service updates and new status-bucket based logic.
+
 ## [0.1.3] - 2026-04-15
 
 ### Changed
@@ -52,4 +77,3 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Summary/audience views to review readiness across selected member scopes.
 - Skill control tooling: blacklist, manual skill overrides, and recommendation overrides.
 - SDE import tooling with management command (`import_sde_masteries`) and Celery update task (`update_sde_masteries`).
-
