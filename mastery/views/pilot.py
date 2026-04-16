@@ -8,7 +8,17 @@ from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.urls import reverse
 
-from mastery.services.pilots.status_buckets import bucket_for_progress, thresholds
+from mastery.services.pilots.status_buckets import (
+    BUCKET_ALMOST_ELITE,
+    BUCKET_ALMOST_FIT,
+    BUCKET_CAN_FLY,
+    BUCKET_ELITE,
+    BUCKET_NEEDS_TRAINING,
+    bucket_choice_list,
+    bucket_for_progress,
+    matches_bucket_filter,
+    thresholds,
+)
 
 from .common import (
     FittingSkillsetMap,
@@ -38,14 +48,7 @@ CHARACTER_FILTER_CHOICES = [
     (CHARACTER_FILTER_NEEDS_TRAINING, "Needs training"),
 ]
 
-INDEX_STATUS_FILTER_CHOICES = [
-    ("all", "All"),
-    ("elite", "Elite"),
-    ("almost_elite", "Almost elite"),
-    ("can_fly", "Can fly"),
-    ("almost_fit", "Almost fit"),
-    ("needs_training", "Needs training"),
-]
+INDEX_STATUS_FILTER_CHOICES = bucket_choice_list(include_all=True, all_label="All")
 
 
 def _parse_index_status_filter(raw_value: str) -> str:
@@ -68,29 +71,7 @@ def _parse_character_filter(raw_value: str) -> str:
 
 
 def _matches_character_filter(progress: dict, character_filter: str) -> bool:
-    can_fly = bool(progress.get("can_fly"))
-    required_pct = float(progress.get("required_pct") or 0)
-    recommended_pct = float(progress.get("recommended_pct") or 0)
-    configured_thresholds = thresholds()
-    elite_threshold = configured_thresholds["elite_recommended"]
-    almost_elite_threshold = configured_thresholds["almost_elite_recommended"]
-    almost_fit_threshold = configured_thresholds["almost_fit_required"]
-
-    if character_filter == CHARACTER_FILTER_ALL:
-        return True
-    if character_filter == CHARACTER_FILTER_ELITE:
-        return can_fly and recommended_pct >= elite_threshold
-    if character_filter == CHARACTER_FILTER_ALMOST_REQUIRED:
-        return (not can_fly) and required_pct > almost_fit_threshold
-    if character_filter == CHARACTER_FILTER_ALMOST_ELITE:
-        return can_fly and almost_elite_threshold < recommended_pct < elite_threshold
-    if character_filter == CHARACTER_FILTER_NEEDS_TRAINING:
-        return (not can_fly) and required_pct <= almost_fit_threshold
-    return can_fly
-
-
-def _status_bucket_for_progress(progress: dict) -> str:
-    return bucket_for_progress(progress)
+    return matches_bucket_filter(progress, character_filter)
 
 
 def _build_character_filter_choices_with_counts(character_rows):
@@ -173,7 +154,7 @@ def index(request):
                     {
                         "character": character,
                         "progress": progress,
-                        "status_bucket": _status_bucket_for_progress(progress),
+                        "status_bucket": bucket_for_progress(progress),
                         "required_missing_sp": int(required_stats.get("total_missing_sp") or 0),
                         "recommended_missing_sp": int(recommended_stats.get("total_missing_sp") or 0),
                         "action_url": (
@@ -213,7 +194,7 @@ def index(request):
             if selected_status != "all":
                 if not progress_for_filter:
                     continue
-                if _status_bucket_for_progress(progress_for_filter) != selected_status:
+                if bucket_for_progress(progress_for_filter) != selected_status:
                     continue
 
             configured_fittings_count += 1
@@ -221,11 +202,11 @@ def index(request):
                 flyable_fittings_count += 1
 
             bucket_map = {
-                "elite": [],
-                "almost_elite": [],
-                "can_fly": [],
-                "almost_fit": [],
-                "needs_training": [],
+                BUCKET_ELITE: [],
+                BUCKET_ALMOST_ELITE: [],
+                BUCKET_CAN_FLY: [],
+                BUCKET_ALMOST_FIT: [],
+                BUCKET_NEEDS_TRAINING: [],
             }
             for row in character_rows:
                 bucket_map[row["status_bucket"]].append(row)
@@ -244,11 +225,11 @@ def index(request):
                     ),
                     "can_any_fly": any(row["progress"]["can_fly"] for row in character_rows),
                     "selected_progress": selected_progress,
-                    "elite_rows": bucket_map["elite"],
-                    "almost_elite_rows": bucket_map["almost_elite"],
-                    "can_fly_rows": bucket_map["can_fly"],
-                    "almost_fit_rows": bucket_map["almost_fit"],
-                    "needs_training_rows": bucket_map["needs_training"],
+                    "elite_rows": bucket_map[BUCKET_ELITE],
+                    "almost_elite_rows": bucket_map[BUCKET_ALMOST_ELITE],
+                    "can_fly_rows": bucket_map[BUCKET_CAN_FLY],
+                    "almost_fit_rows": bucket_map[BUCKET_ALMOST_FIT],
+                    "needs_training_rows": bucket_map[BUCKET_NEEDS_TRAINING],
                 }
             )
 
@@ -313,7 +294,7 @@ def pilot_fitting_detail_view(request, fitting_id):
             {
                 "character": character,
                 "progress": progress,
-                "status_bucket": _status_bucket_for_progress(progress),
+                "status_bucket": bucket_for_progress(progress),
                 "action_url": (
                     f"{reverse('mastery:pilot_fitting_detail', args=[fitting.id])}?"
                     f"{urlencode(action_params)}"

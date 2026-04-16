@@ -6,8 +6,16 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
-from mastery import app_settings
 from mastery.models import FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
+from mastery.services.pilots.status_buckets import (
+    BUCKET_ALMOST_ELITE,
+    BUCKET_ALMOST_FIT,
+    BUCKET_CAN_FLY,
+    BUCKET_ELITE,
+    BUCKET_NEEDS_TRAINING,
+    bucket_choice_list,
+    thresholds,
+)
 
 from .common import (
     _annotate_member_detail_pilots,
@@ -24,14 +32,7 @@ from .common import (
     pilot_progress_service,
 )
 
-_MEMBER_COVERAGE_FILTERS = {
-    "all",
-    "elite",
-    "almost_elite",
-    "can_fly",
-    "almost_fit",
-    "needs_training",
-}
+_MEMBER_COVERAGE_FILTERS = {value for value, _label in bucket_choice_list(include_all=True)}
 
 
 def _summary_fitting_member_coverage_csv_response(fitting, user_rows):
@@ -56,11 +57,11 @@ def _summary_fitting_member_coverage_csv_response(fitting, user_rows):
     )
 
     bucket_fields = [
-        ("elite", "elite_pilots"),
-        ("almost_elite", "almost_elite_pilots"),
-        ("can_fly", "can_fly_pilots"),
-        ("almost_fit", "almost_fit_pilots"),
-        ("needs_training", "needs_training_pilots"),
+        (BUCKET_ELITE, "elite_pilots"),
+        (BUCKET_ALMOST_ELITE, "almost_elite_pilots"),
+        (BUCKET_CAN_FLY, "can_fly_pilots"),
+        (BUCKET_ALMOST_FIT, "almost_fit_pilots"),
+        (BUCKET_NEEDS_TRAINING, "needs_training_pilots"),
     ]
 
     for row in user_rows:
@@ -138,11 +139,7 @@ def summary_list_view(request):
         "search_query": request.GET.get("q", ""),
         "member_count": len(member_groups),
         "active_character_count": sum(group["active_count"] for group in member_groups),
-        "status_thresholds": {
-            "elite_recommended": app_settings.MASTERY_STATUS_ELITE_RECOMMENDED_PCT,
-            "almost_elite_recommended": app_settings.MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT,
-            "almost_fit_required": app_settings.MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT,
-        },
+        "status_thresholds": thresholds(),
     }
     return render(request, "mastery/summary_list_view.html", context)
 
@@ -252,11 +249,7 @@ def summary_fitting_detail_view(request, fitting_id):
             "export_mode": export_mode,
             "selected_member_filter": selected_member_filter,
             "export_mode_choices": pilot_progress_service.export_mode_choices(),
-            "status_thresholds": {
-                "elite_recommended": app_settings.MASTERY_STATUS_ELITE_RECOMMENDED_PCT,
-                "almost_elite_recommended": app_settings.MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT,
-                "almost_fit_required": app_settings.MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT,
-            },
+            "status_thresholds": thresholds(),
         },
     )
 

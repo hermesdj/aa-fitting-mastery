@@ -13,7 +13,15 @@ from fittings.models import Doctrine, Fitting
 from memberaudit.models import Character
 
 from mastery.models import FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
-from mastery.services.pilots.status_buckets import bucket_for_progress
+from mastery.services.pilots.status_buckets import (
+    BUCKET_ALMOST_ELITE,
+    BUCKET_ALMOST_FIT,
+    BUCKET_CAN_FLY,
+    BUCKET_ELITE,
+    BUCKET_NEEDS_TRAINING,
+    BUCKET_RANK,
+    bucket_for_progress,
+)
 
 from .deps import pilot_access_service, pilot_progress_service
 
@@ -301,15 +309,6 @@ def _build_fitting_user_rows(
     )
 
 
-_CHAR_STATUS_RANK = {
-    "elite": 5,
-    "almost_elite": 4,
-    "can_fly": 3,
-    "almost_fit": 2,
-    "needs_training": 1,
-}
-
-
 def _char_status_bucket(progress: dict) -> str:
     """Return the status bucket for a character's progress (mirrors _status_meta logic)."""
     return bucket_for_progress(progress)
@@ -333,13 +332,13 @@ def _build_fitting_kpis(user_rows: list) -> dict:
 
         for pilot in row.get("character_rows", []):
             bucket = _char_status_bucket(pilot["progress"])
-            if bucket == "elite":
+            if bucket == BUCKET_ELITE:
                 elite_characters += 1
-            elif bucket == "almost_elite":
+            elif bucket == BUCKET_ALMOST_ELITE:
                 almost_elite_characters += 1
-            elif bucket == "can_fly":
+            elif bucket == BUCKET_CAN_FLY:
                 can_fly_characters += 1
-            elif bucket == "almost_fit":
+            elif bucket == BUCKET_ALMOST_FIT:
                 almost_fit_characters += 1
             else:
                 needs_training_characters += 1
@@ -385,14 +384,14 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int) -> dict:
             for pilot in row.get("character_rows", []):
                 char_id = pilot["character"].id
                 bucket = _char_status_bucket(pilot["progress"])
-                rank = _CHAR_STATUS_RANK[bucket]
+                rank = BUCKET_RANK[bucket]
                 if rank > per_char_best.get(char_id, {}).get("rank", 0):
                     per_char_best[char_id] = {"bucket": bucket, "rank": rank}
 
     flyable_now_users = sum(1 for p in per_user_best.values() if p.get("can_fly"))
     recommended_sum = sum(float(p.get("recommended_pct") or 0) for p in per_user_best.values())
 
-    bucket_counts: dict[str, int] = {b: 0 for b in _CHAR_STATUS_RANK}
+    bucket_counts: dict[str, int] = {b: 0 for b in BUCKET_RANK}
     for char_data in per_char_best.values():
         bucket_counts[char_data["bucket"]] += 1
 
@@ -402,11 +401,11 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int) -> dict:
     return {
         "users_total": users_total,
         "flyable_now_users": flyable_now_users,
-        "elite_characters": bucket_counts["elite"],
-        "almost_elite_characters": bucket_counts["almost_elite"],
-        "can_fly_characters": bucket_counts["can_fly"],
-        "almost_fit_characters": bucket_counts["almost_fit"],
-        "needs_training_characters": bucket_counts["needs_training"],
+        "elite_characters": bucket_counts[BUCKET_ELITE],
+        "almost_elite_characters": bucket_counts[BUCKET_ALMOST_ELITE],
+        "can_fly_characters": bucket_counts[BUCKET_CAN_FLY],
+        "almost_fit_characters": bucket_counts[BUCKET_ALMOST_FIT],
+        "needs_training_characters": bucket_counts[BUCKET_NEEDS_TRAINING],
         "recommended_avg_pct": recommended_avg,
     }
 
@@ -414,7 +413,7 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int) -> dict:
 def _annotate_member_detail_pilots(user_rows: list) -> list:
     annotated_rows = []
     for row in user_rows:
-        buckets: dict[str, list] = {k: [] for k in _CHAR_STATUS_RANK}
+        buckets: dict[str, list] = {k: [] for k in BUCKET_RANK}
         for pilot in row.get("character_rows", []):
             progress = pilot["progress"]
             required_stats = (progress.get("mode_stats") or {}).get(
@@ -432,11 +431,11 @@ def _annotate_member_detail_pilots(user_rows: list) -> list:
 
         annotated_rows.append({
             **row,
-            "elite_pilots": buckets["elite"],
-            "almost_elite_pilots": buckets["almost_elite"],
-            "can_fly_pilots": buckets["can_fly"],
-            "almost_fit_pilots": buckets["almost_fit"],
-            "needs_training_pilots": buckets["needs_training"],
+            "elite_pilots": buckets[BUCKET_ELITE],
+            "almost_elite_pilots": buckets[BUCKET_ALMOST_ELITE],
+            "can_fly_pilots": buckets[BUCKET_CAN_FLY],
+            "almost_fit_pilots": buckets[BUCKET_ALMOST_FIT],
+            "needs_training_pilots": buckets[BUCKET_NEEDS_TRAINING],
         })
 
     return annotated_rows
