@@ -317,6 +317,8 @@ def _char_status_bucket(progress: dict) -> str:
 def _build_fitting_kpis(user_rows: list) -> dict:
     users_total = len(user_rows)
     flyable_now_users = 0
+    flyable_now_characters = 0
+    recommended_ready = 0
     recommended_sum = 0.0
     elite_characters = 0
     almost_elite_characters = 0
@@ -326,8 +328,19 @@ def _build_fitting_kpis(user_rows: list) -> dict:
 
     for row in user_rows:
         best_progress = row["best_progress"]
-        if bool(best_progress.get("can_fly")):
+        can_fly = bool(best_progress.get("can_fly"))
+
+        flyable_now_characters += sum(
+            1 for pilot in row.get("character_rows", []) if pilot["progress"].get("can_fly")
+        )
+
+        if can_fly:
             flyable_now_users += 1
+        # Keep reading required stats for other KPI compatibility.
+
+        recommended_pct = float(best_progress.get("recommended_pct") or 0)
+        if recommended_pct >= 100:
+            recommended_ready += 1
         recommended_sum += float(best_progress.get("recommended_pct") or 0)
 
         for pilot in row.get("character_rows", []):
@@ -348,6 +361,8 @@ def _build_fitting_kpis(user_rows: list) -> dict:
     return {
         "users_total": users_total,
         "flyable_now_users": flyable_now_users,
+        "flyable_now_characters": flyable_now_characters,
+        "recommended_ready": recommended_ready,
         "elite_characters": elite_characters,
         "almost_elite_characters": almost_elite_characters,
         "can_fly_characters": can_fly_characters,
@@ -388,12 +403,25 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int) -> dict:
                 if rank > per_char_best.get(char_id, {}).get("rank", 0):
                     per_char_best[char_id] = {"bucket": bucket, "rank": rank}
 
-    flyable_now_users = sum(1 for p in per_user_best.values() if p.get("can_fly"))
-    recommended_sum = sum(float(p.get("recommended_pct") or 0) for p in per_user_best.values())
+    flyable_now_users = 0
+    recommended_ready = 0
+    recommended_sum = 0.0
 
     bucket_counts: dict[str, int] = {b: 0 for b in BUCKET_RANK}
     for char_data in per_char_best.values():
         bucket_counts[char_data["bucket"]] += 1
+
+    for progress in per_user_best.values():
+        can_fly = bool(progress.get("can_fly"))
+        recommended_pct = float(progress.get("recommended_pct") or 0)
+
+        if can_fly:
+            flyable_now_users += 1
+        # Required-time data is intentionally not exposed as KPI anymore.
+
+        if recommended_pct >= 100:
+            recommended_ready += 1
+        recommended_sum += recommended_pct
 
     users_total = users_tracked
     recommended_avg = round((recommended_sum / users_total), 1) if users_total else 0.0
@@ -401,6 +429,8 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int) -> dict:
     return {
         "users_total": users_total,
         "flyable_now_users": flyable_now_users,
+        "flyable_now_characters": sum(bucket_counts.values()),
+        "recommended_ready": recommended_ready,
         "elite_characters": bucket_counts[BUCKET_ELITE],
         "almost_elite_characters": bucket_counts[BUCKET_ALMOST_ELITE],
         "can_fly_characters": bucket_counts[BUCKET_CAN_FLY],
@@ -410,9 +440,12 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int) -> dict:
     }
 
 
-def _annotate_member_detail_pilots(user_rows: list) -> list:
+def _annotate_member_detail_pilots(user_rows: list, training_days: int = 7) -> list:
+    threshold = timedelta(days=training_days)
     annotated_rows = []
     for row in user_rows:
+        req_ready_not_recommended = []
+        near_required = []
         buckets: dict[str, list] = {k: [] for k in BUCKET_RANK}
         for pilot in row.get("character_rows", []):
             progress = pilot["progress"]
@@ -422,21 +455,43 @@ def _annotate_member_detail_pilots(user_rows: list) -> list:
             recommended_stats = (progress.get("mode_stats") or {}).get(
                 pilot_progress_service.EXPORT_MODE_RECOMMENDED, {},
             )
+            required_time = required_stats.get("total_missing_time")
+            required_time_td = required_time if isinstance(required_time, timedelta) else None
+            is_trainable_soon = bool(
+                (not progress.get("can_fly"))
+                and required_time_td is not None
+                and required_time_td <= threshold
+            )
             pilot_enriched = {
                 **pilot,
                 "required_missing_sp": int(required_stats.get("total_missing_sp") or 0),
                 "recommended_missing_sp": int(recommended_stats.get("total_missing_sp") or 0),
+                "is_trainable_soon": is_trainable_soon,
             }
+
+            if progress.get("can_fly") and float(progress.get("recommended_pct") or 0) < 100:
+                req_ready_not_recommended.append(pilot_enriched)
+            elif ((not progress.get("can_fly")) and float(progress.get("required_pct") or 0) > 90) or is_trainable_soon:
+                near_required.append(pilot_enriched)
+
             buckets[_char_status_bucket(progress)].append(pilot_enriched)
 
-        annotated_rows.append({
-            **row,
-            "elite_pilots": buckets[BUCKET_ELITE],
-            "almost_elite_pilots": buckets[BUCKET_ALMOST_ELITE],
-            "can_fly_pilots": buckets[BUCKET_CAN_FLY],
-            "almost_fit_pilots": buckets[BUCKET_ALMOST_FIT],
-            "needs_training_pilots": buckets[BUCKET_NEEDS_TRAINING],
-        })
+        should_keep_row = bool(row.get("flyable_count")) or bool(req_ready_not_recommended) or bool(near_required)
+        if not should_keep_row:
+            continue
+
+        annotated_rows.append(
+            {
+                **row,
+                "elite_pilots": buckets[BUCKET_ELITE],
+                "almost_elite_pilots": buckets[BUCKET_ALMOST_ELITE],
+                "can_fly_pilots": buckets[BUCKET_CAN_FLY],
+                "almost_fit_pilots": buckets[BUCKET_ALMOST_FIT],
+                "needs_training_pilots": buckets[BUCKET_NEEDS_TRAINING],
+                "req_ready_not_recommended": req_ready_not_recommended,
+                "near_required": near_required,
+            }
+        )
 
     return annotated_rows
 

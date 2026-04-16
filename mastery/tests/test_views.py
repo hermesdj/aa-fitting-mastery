@@ -728,23 +728,13 @@ class TestSummaryHelpers(SimpleTestCase):
 
     def test_build_fitting_kpis_all_flyable_and_recommended(self):
         rows = [self._make_user_row(can_fly=True, recommended_pct=100.0)]
-        kpis = _build_fitting_kpis(rows, training_days=7)
+        kpis = _build_fitting_kpis(rows)
         self.assertEqual(kpis["users_total"], 1)
         self.assertEqual(kpis["flyable_now_users"], 1)
         self.assertEqual(kpis["flyable_now_characters"], 1)
         self.assertEqual(kpis["recommended_ready"], 1)
         self.assertEqual(kpis["recommended_avg_pct"], 100.0)
 
-    def test_build_fitting_kpis_trainable_under_week(self):
-        rows = [self._make_user_row(can_fly=False, recommended_pct=90.0, required_time=timedelta(days=3))]
-        kpis = _build_fitting_kpis(rows, training_days=7)
-        self.assertEqual(kpis["flyable_now_users"], 0)
-        self.assertEqual(kpis["trainable_under_week"], 1)
-
-    def test_build_fitting_kpis_not_trainable_when_time_exceeds_threshold(self):
-        rows = [self._make_user_row(can_fly=False, required_time=timedelta(days=30))]
-        kpis = _build_fitting_kpis(rows, training_days=7)
-        self.assertEqual(kpis["trainable_under_week"], 0)
 
     # -- _build_doctrine_kpis ------------------------------------------------
 
