@@ -2,7 +2,7 @@
 from django.db import transaction
 from django.utils import timezone
 from fittings.models import Doctrine
-from memberaudit.models import SkillSetSkill
+from memberaudit.models import CharacterSkillSetCheck, SkillSetSkill
 
 from mastery import app_settings
 from mastery.models import DoctrineSkillSetGroupMap
@@ -140,8 +140,6 @@ class DoctrineSkillService:
         )
         fitting_map = preview["fitting_map"]
 
-        fitting_map.skillset.skills.all().delete()
-
         entries = [
             SkillSetSkill(
                 skill_set=fitting_map.skillset,
@@ -154,6 +152,21 @@ class DoctrineSkillService:
         ]
 
         with transaction.atomic():
+            # Remove M2M references in CharacterSkillSetCheck before deleting
+            # SkillSetSkill rows to avoid FK constraint violations on both
+            # memberaudit_characterskillsetcheck_failed_required_skills and
+            # memberaudit_characterskillsetcheck_failed_recommended_skills.
+            existing_skill_ids = list(
+                fitting_map.skillset.skills.values_list("pk", flat=True)
+            )
+            if existing_skill_ids:
+                CharacterSkillSetCheck.failed_required_skills.through.objects.filter(
+                    skillsetskill_id__in=existing_skill_ids
+                ).delete()
+                CharacterSkillSetCheck.failed_recommended_skills.through.objects.filter(
+                    skillsetskill_id__in=existing_skill_ids
+                ).delete()
+            fitting_map.skillset.skills.all().delete()
             SkillSetSkill.objects.bulk_create(entries)
 
         fitting_map.last_synced_at = timezone.now()

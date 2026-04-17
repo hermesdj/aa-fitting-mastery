@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.1.7] - 2026-04-17
+
+### Fixed
+
+- Fix intermittent `IntegrityError` (MySQL FK constraint) when regenerating a fitting skill plan that has already been evaluated by `memberaudit`. Before deleting the old `SkillSetSkill` rows the service now removes the corresponding M2M rows in both `CharacterSkillSetCheck.failed_required_skills` and `CharacterSkillSetCheck.failed_recommended_skills` within the same atomic transaction.
+
+### Tests
+
+- Refactor `test_generate_for_fitting_creates_only_non_blacklisted_entries_and_syncs` to mock `CharacterSkillSetCheck` and use the new shared `_make_generate_service` / `_make_preview` helpers.
+- Add `test_generate_for_fitting_clears_m2m_fk_refs_before_deleting_skills`: verifies that both M2M through-table deletions are issued (in order) before the skillset `delete()` call.
+- Add `test_generate_for_fitting_skips_m2m_cleanup_when_no_existing_skills`: verifies no M2M query is issued when the skillset is already empty.
+
+### Upgrade Notes
+
+- Update package:
+  - `pip install -U aa-fitting-mastery==0.1.7`
+- No database migration, no new settings, no Celery schedule changes required.
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+
 ## [0.1.6] - 2026-04-17
 
 ### Added

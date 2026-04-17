@@ -620,29 +620,19 @@ class TestSkillRequirementsHelpers(SimpleTestCase):
             {1: 3, 2: 4, 3: 2},
         )
 
-    @patch("mastery.services.doctrine.doctrine_skill_service.timezone.now", return_value="now")
-    @patch("mastery.services.doctrine.doctrine_skill_service.transaction.atomic", return_value=nullcontext())
-    def test_generate_for_fitting_creates_only_non_blacklisted_entries_and_syncs(
-        self,
-        _mock_atomic,
-        mock_now,
-    ):
-        control_service = Mock()
-        approval_service = Mock()
-        service = DoctrineSkillService(
+    def _make_generate_service(self):
+        """Return a DoctrineSkillService with all collaborators mocked."""
+        return DoctrineSkillService(
             extractor=Mock(),
             mastery_service=Mock(),
-            control_service=control_service,
+            control_service=Mock(),
             suggestion_service=Mock(),
             fitting_map_service=Mock(),
-            approval_service=approval_service,
+            approval_service=Mock(),
         )
-        fitting = SimpleNamespace(id=77)
-        skillset = SimpleNamespace(skills=Mock())
-        skillset.skills.all.return_value.delete = Mock()
-        fitting_map = Mock(skillset=skillset)
 
-        preview = {
+    def _make_preview(self, fitting_map):
+        return {
             "fitting_map": fitting_map,
             "skill_rows": [
                 {"skill_type_id": 1, "required_level": 2, "recommended_level": 4, "is_blacklisted": False},
@@ -651,12 +641,36 @@ class TestSkillRequirementsHelpers(SimpleTestCase):
             "suggestions": {3: {"reason": "unused"}},
         }
 
+    @patch("mastery.services.doctrine.doctrine_skill_service.timezone.now", return_value="now")
+    @patch("mastery.services.doctrine.doctrine_skill_service.transaction.atomic", return_value=nullcontext())
+    def test_generate_for_fitting_creates_only_non_blacklisted_entries_and_syncs(
+        self,
+        _mock_atomic,
+        mock_now,
+    ):
+        service = self._make_generate_service()
+        control_service = service._control_service
+        approval_service = service._approval_service
+        fitting = SimpleNamespace(id=77)
+        skillset = Mock()
+        skillset.skills.values_list.return_value = [10, 11]
+        skillset.skills.all.return_value.delete = Mock()
+        fitting_map = Mock(skillset=skillset)
+
+        preview = self._make_preview(fitting_map)
+
         fake_skillsetskill = Mock(side_effect=lambda **kwargs: SimpleNamespace(**kwargs))
         fake_skillsetskill.objects.bulk_create = Mock()
+        mock_char_check = Mock()
+        mock_char_check.failed_required_skills.through.objects.filter.return_value.delete = Mock()
+        mock_char_check.failed_recommended_skills.through.objects.filter.return_value.delete = Mock()
 
         with patch.object(service, "preview_fitting", return_value=preview), patch(
             "mastery.services.doctrine.doctrine_skill_service.SkillSetSkill",
             fake_skillsetskill,
+        ), patch(
+            "mastery.services.doctrine.doctrine_skill_service.CharacterSkillSetCheck",
+            mock_char_check,
         ):
             service.generate_for_fitting(doctrine_map=Mock(), fitting=fitting)
 
@@ -674,6 +688,96 @@ class TestSkillRequirementsHelpers(SimpleTestCase):
             status=None,
         )
         control_service.sync_suggestions.assert_called_once_with(77, {3: {"reason": "unused"}})
+
+    @patch("mastery.services.doctrine.doctrine_skill_service.timezone.now", return_value="now")
+    @patch("mastery.services.doctrine.doctrine_skill_service.transaction.atomic", return_value=nullcontext())
+    def test_generate_for_fitting_clears_m2m_fk_refs_before_deleting_skills(
+        self,
+        _mock_atomic,
+        _mock_now,
+    ):
+        """Regression: CharacterSkillSetCheck M2M rows must be removed before
+        deleting SkillSetSkill rows to avoid FK constraint violations on MySQL."""
+        service = self._make_generate_service()
+        fitting = SimpleNamespace(id=42)
+        existing_ids = [5, 6, 7]
+        skillset = Mock()
+        skillset.skills.values_list.return_value = existing_ids
+        skillset.skills.all.return_value.delete = Mock()
+        fitting_map = Mock(skillset=skillset)
+
+        preview = self._make_preview(fitting_map)
+
+        fake_skillsetskill = Mock(side_effect=lambda **kwargs: SimpleNamespace(**kwargs))
+        fake_skillsetskill.objects.bulk_create = Mock()
+
+        mock_req_through_qs = Mock()
+        mock_rec_through_qs = Mock()
+        mock_char_check = Mock()
+        mock_char_check.failed_required_skills.through.objects.filter.return_value = mock_req_through_qs
+        mock_char_check.failed_recommended_skills.through.objects.filter.return_value = mock_rec_through_qs
+
+        call_order = []
+        mock_req_through_qs.delete.side_effect = lambda: call_order.append("del_required")
+        mock_rec_through_qs.delete.side_effect = lambda: call_order.append("del_recommended")
+        skillset.skills.all.return_value.delete.side_effect = lambda: call_order.append("del_skills")
+
+        with patch.object(service, "preview_fitting", return_value=preview), patch(
+            "mastery.services.doctrine.doctrine_skill_service.SkillSetSkill",
+            fake_skillsetskill,
+        ), patch(
+            "mastery.services.doctrine.doctrine_skill_service.CharacterSkillSetCheck",
+            mock_char_check,
+        ):
+            service.generate_for_fitting(doctrine_map=Mock(), fitting=fitting)
+
+        # Both M2M through-table deletes must happen before the skillset delete.
+        self.assertIn("del_required", call_order)
+        self.assertIn("del_recommended", call_order)
+        self.assertIn("del_skills", call_order)
+        self.assertLess(call_order.index("del_required"), call_order.index("del_skills"))
+        self.assertLess(call_order.index("del_recommended"), call_order.index("del_skills"))
+
+        mock_char_check.failed_required_skills.through.objects.filter.assert_called_once_with(
+            skillsetskill_id__in=existing_ids
+        )
+        mock_char_check.failed_recommended_skills.through.objects.filter.assert_called_once_with(
+            skillsetskill_id__in=existing_ids
+        )
+
+    @patch("mastery.services.doctrine.doctrine_skill_service.timezone.now", return_value="now")
+    @patch("mastery.services.doctrine.doctrine_skill_service.transaction.atomic", return_value=nullcontext())
+    def test_generate_for_fitting_skips_m2m_cleanup_when_no_existing_skills(
+        self,
+        _mock_atomic,
+        _mock_now,
+    ):
+        """When the skillset is empty, no M2M cleanup query should be issued."""
+        service = self._make_generate_service()
+        fitting = SimpleNamespace(id=99)
+        skillset = Mock()
+        skillset.skills.values_list.return_value = []  # no pre-existing skills
+        skillset.skills.all.return_value.delete = Mock()
+        fitting_map = Mock(skillset=skillset)
+
+        preview = self._make_preview(fitting_map)
+
+        fake_skillsetskill = Mock(side_effect=lambda **kwargs: SimpleNamespace(**kwargs))
+        fake_skillsetskill.objects.bulk_create = Mock()
+        mock_char_check = Mock()
+
+        with patch.object(service, "preview_fitting", return_value=preview), patch(
+            "mastery.services.doctrine.doctrine_skill_service.SkillSetSkill",
+            fake_skillsetskill,
+        ), patch(
+            "mastery.services.doctrine.doctrine_skill_service.CharacterSkillSetCheck",
+            mock_char_check,
+        ):
+            service.generate_for_fitting(doctrine_map=Mock(), fitting=fitting)
+
+        mock_char_check.failed_required_skills.through.objects.filter.assert_not_called()
+        mock_char_check.failed_recommended_skills.through.objects.filter.assert_not_called()
+        skillset.skills.all.return_value.delete.assert_called_once_with()
 
     @patch("mastery.services.doctrine.doctrine_skill_service.Doctrine.objects.prefetch_related")
     def test_generate_for_doctrine_calls_generate_for_each_fitting(self, mock_prefetch_related):
