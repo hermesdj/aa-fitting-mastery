@@ -282,6 +282,105 @@
             retry();
         };
 
+        const ACTIVE_GROUP_QUERY_PARAM = "active_group";
+
+        const asString = (value) => (typeof value === "string" ? value : "");
+
+        const escapeCssValue = (value) => {
+            if (window.CSS && typeof window.CSS.escape === "function") {
+                return window.CSS.escape(value);
+            }
+
+            return String(value).replace(/(["'`.\[\]():,#=\s>+~\\])/g, "\\$1");
+        };
+
+        const getRequestedGroupKeyFromUrl = () => {
+            try {
+                const url = new URL(window.location.href);
+                return (url.searchParams.get(ACTIVE_GROUP_QUERY_PARAM) || "").trim();
+            } catch (_error) {
+                return "";
+            }
+        };
+
+        const getActiveGroupKey = () => {
+            const activeButton = editor.querySelector(".mastery-group-pill.active");
+            return (activeButton && activeButton.dataset ? activeButton.dataset.groupKey : "") || "";
+        };
+
+        const updateActiveGroupInUrl = (groupKey) => {
+            try {
+                const url = new URL(window.location.href);
+                if (groupKey) {
+                    url.searchParams.set(ACTIVE_GROUP_QUERY_PARAM, groupKey);
+                } else {
+                    url.searchParams.delete(ACTIVE_GROUP_QUERY_PARAM);
+                }
+                window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+            } catch (_error) {
+                // Ignore URL API edge cases and keep current URL untouched.
+            }
+        };
+
+        const editorUrlWithGroup = (groupKey) => {
+            try {
+                const url = new URL(window.location.href);
+                if (groupKey) {
+                    url.searchParams.set(ACTIVE_GROUP_QUERY_PARAM, groupKey);
+                }
+                return `${url.pathname}${url.search}`;
+            } catch (_error) {
+                return window.location.pathname + window.location.search;
+            }
+        };
+
+        const syncFormTabState = (form, groupKey) => {
+            if (!groupKey || !(form instanceof HTMLFormElement)) {
+                return;
+            }
+
+            let activeGroupInput = form.querySelector('input[name="active_group"]');
+            if (!activeGroupInput) {
+                activeGroupInput = document.createElement("input");
+                activeGroupInput.type = "hidden";
+                activeGroupInput.name = "active_group";
+                form.appendChild(activeGroupInput);
+            }
+            activeGroupInput.value = groupKey;
+
+            const nextInput = form.querySelector('input[name="next"]');
+            if (nextInput) {
+                nextInput.value = editorUrlWithGroup(groupKey);
+            }
+        };
+
+        const syncEditorFormsTabState = (groupKey) => {
+            if (!groupKey) {
+                return;
+            }
+
+            editor.querySelectorAll("form").forEach((form) => syncFormTabState(form, groupKey));
+        };
+
+        const activateGroupTab = (groupKey) => {
+            if (!groupKey) {
+                return false;
+            }
+
+            const selector = `.mastery-group-pill[data-group-key="${escapeCssValue(groupKey)}"]`;
+            const button = editor.querySelector(selector);
+            if (!button) {
+                return false;
+            }
+
+            if (window.bootstrap && typeof window.bootstrap.Tab === "function") {
+                window.bootstrap.Tab.getOrCreateInstance(button).show();
+            } else {
+                button.click();
+            }
+            return true;
+        };
+
         const renderFallbackMessage = (message, level = "danger") => {
             if (!message) {
                 messages.innerHTML = "";
@@ -365,7 +464,12 @@
             const formData = new FormData(form);
             const actionUrl = form.getAttribute("action") || form.action;
             const method = (form.getAttribute("method") || form.method || "POST").toUpperCase();
-            const groupKey = formData.get("_group_key");
+            const activeGroupKey = getActiveGroupKey();
+            if (activeGroupKey) {
+                formData.set("active_group", activeGroupKey);
+                syncFormTabState(form, activeGroupKey);
+            }
+            const groupKey = asString(formData.get("_group_key")) || activeGroupKey;
 
             if (!actionUrl) {
                 renderFallbackMessage("Unable to determine the form action.", "danger");
@@ -402,8 +506,18 @@
 
                 if (payload && typeof payload.html === "string") {
                     editor.innerHTML = payload.html;
+                    const requestedGroupKey = getRequestedGroupKeyFromUrl();
+                    const targetGroupKey = groupKey || requestedGroupKey;
+                    if (targetGroupKey) {
+                        activateGroupTab(targetGroupKey);
+                    }
+                    const resolvedGroupKey = getActiveGroupKey() || targetGroupKey;
+                    if (resolvedGroupKey) {
+                        updateActiveGroupInUrl(resolvedGroupKey);
+                        syncEditorFormsTabState(resolvedGroupKey);
+                    }
                     initTooltipsWhenReady(editor);
-                    animateGroupCard(groupKey);
+                    animateGroupCard(resolvedGroupKey || groupKey);
                 }
 
                 if (payload && typeof payload.messages_html === "string") {
@@ -465,6 +579,33 @@
                 scheduleAlertsDismiss();
             }
         });
+
+        page.addEventListener("shown.bs.tab", (event) => {
+            const tabButton = event.target instanceof HTMLElement
+                ? event.target.closest(".mastery-group-pill")
+                : null;
+            if (!tabButton || !editor.contains(tabButton)) {
+                return;
+            }
+
+            const groupKey = (tabButton.dataset.groupKey || "").trim();
+            if (!groupKey) {
+                return;
+            }
+
+            updateActiveGroupInUrl(groupKey);
+            syncEditorFormsTabState(groupKey);
+        });
+
+        const requestedGroupKey = getRequestedGroupKeyFromUrl();
+        if (requestedGroupKey) {
+            activateGroupTab(requestedGroupKey);
+        }
+        const initialGroupKey = getActiveGroupKey();
+        if (initialGroupKey) {
+            updateActiveGroupInUrl(initialGroupKey);
+            syncEditorFormsTabState(initialGroupKey);
+        }
 
         initTooltipsWhenReady(page);
     })();

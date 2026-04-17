@@ -126,6 +126,8 @@ def summary_list_view(request):
             progress_cache=progress_cache,
             progress_context=progress_context,
         )
+        if int(summary_item.get("configured_fittings", 0)) <= 0:
+            continue
         doctrine_summaries += [summary_item]
 
     context = {

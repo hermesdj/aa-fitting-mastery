@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.1.6] - 2026-04-17
+
+### Added
+
+- Add active-group tab persistence in the fitting skills editor: the currently open skill group is stored in the URL as `?active_group=<key>` and restored on page load, surviving POST-redirect cycles.
+- Add `active_group` hidden input injection into every editor form so that POST actions (blacklist, recommend, manual add/remove, apply suggestion, …) carry the active tab back through the redirect via `_finalize_fitting_skills_action()` in `mastery/views/common.py`.
+
+### Changed
+
+- Remove `FittingSkillOverride` model (`mastery/models/fitting_skill_override.py`): blacklisted override rows are preserved by migration `0010` (see **Upgrade Notes**), which copies them into the existing `FittingSkillControl` table before dropping the old model. All references to `FittingSkillOverride` have been removed from `models/__init__.py`.
+- Filter out doctrines with no configured fittings from the Doctrine Summary list view (`summary_list_view`) so that only actionable entries are shown to the user.
+
+### Fixed
+
+- Fix active group tab being lost after every form action in the fitting skills editor.
+- Fix summary list showing unconfigured / skeleton doctrine entries that have zero fitted doctrines.
+
+### Tests
+
+- Extend `test_common_helpers_extra.py` with coverage for `active_group` injection and URL rewrite in `_finalize_fitting_skills_action`.
+- Extend `test_views.py` with summary list filtering and active-group redirect preservation.
+
+### Upgrade Notes
+
+> ⚠️ **A database migration must be run for this release.**
+
+- Update package:
+  - `pip install -U aa-fitting-mastery==0.1.6`
+- Apply database changes (removes legacy `FittingSkillOverride` table after migrating blacklisted rows to `FittingSkillControl`):
+  - `python manage.py migrate`
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services so Django code and Celery tasks reload:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+- No new permissions, settings, or Celery schedule entries are required for this release.
+
 ## [0.1.5] - 2026-04-17
 
 ### Added

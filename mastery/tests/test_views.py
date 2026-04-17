@@ -1364,6 +1364,46 @@ class TestSummaryViews(SimpleTestCase):
         context = mock_render.call_args[0][2]
         self.assertIn("doctrine_summaries", context)
 
+    @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
+    @patch("mastery.views.summary._approved_fitting_maps")
+    @patch("mastery.views.summary.pilot_access_service")
+    @patch("mastery.views.summary._get_selected_summary_group")
+    def test_summary_list_view_keeps_only_doctrines_with_configured_fittings(
+        self,
+        mock_get_group,
+        mock_pilot_access,
+        mock_approved_fitting_maps,
+        _mock_member_groups,
+        mock_render,
+    ):
+        selected_group = SimpleNamespace(id=1, name="Group", entries=Mock())
+        mock_get_group.return_value = ([selected_group], selected_group)
+        doctrine_with_plan = SimpleNamespace(id=1, name="Alpha", fittings=Mock())
+        doctrine_without_plan = SimpleNamespace(id=2, name="Beta", fittings=Mock())
+        fitting_with_plan = SimpleNamespace(id=101)
+        fitting_without_plan = SimpleNamespace(id=202)
+        doctrine_with_plan.fittings.all.return_value = [fitting_with_plan]
+        doctrine_without_plan.fittings.all.return_value = [fitting_without_plan]
+        mock_pilot_access.accessible_doctrines.return_value.prefetch_related.return_value = [
+            doctrine_with_plan,
+            doctrine_without_plan,
+        ]
+        mock_approved_fitting_maps.return_value = {
+            fitting_with_plan.id: SimpleNamespace(
+                skillset=SimpleNamespace(id=1),
+                status=FittingSkillsetMap.ApprovalStatus.APPROVED,
+            )
+        }
+
+        req = self._req(path="/summary/")
+        response = views.summary_list_view(req)
+
+        self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        self.assertEqual(len(context["doctrine_summaries"]), 1)
+        self.assertEqual(context["doctrine_summaries"][0]["doctrine"], doctrine_with_plan)
+
     # -- summary_settings_view GET -------------------------------------------
 
     @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))

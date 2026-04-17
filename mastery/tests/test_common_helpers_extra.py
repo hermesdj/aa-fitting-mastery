@@ -1,6 +1,8 @@
 from unittest.mock import patch
 
+from django.template import Context, Template
 from django.test import RequestFactory, SimpleTestCase
+from django.test import override_settings
 
 from mastery.views import common
 
@@ -85,6 +87,55 @@ class TestCommonHelpersExtra(SimpleTestCase):
         self.assertEqual(response.status_code, 400)
         mock_feedback.assert_called_once()
         mock_redirect.assert_called_once_with("/return")
+
+    @patch("mastery.views.common.redirect")
+    @patch("mastery.views.common._add_feedback_message")
+    def test_finalize_action_redirects_to_next_with_active_group(self, mock_feedback, mock_redirect):
+        request = self.factory.post("/", data={"next": "/return?x=1", "active_group": "217"})
+        mock_redirect.return_value = common.HttpResponseBadRequest("redirected")
+
+        response = common._finalize_fitting_skills_action(
+            request,
+            fitting=type("F", (), {"id": 1})(),
+            doctrine=object(),
+            doctrine_map=object(),
+            message="Saved",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        mock_feedback.assert_called_once()
+        mock_redirect.assert_called_once_with("/return?x=1&active_group=217")
+
+    @patch("mastery.views.common.redirect")
+    @patch("mastery.views.common._add_feedback_message")
+    def test_finalize_action_normalizes_localized_active_group(self, mock_feedback, mock_redirect):
+        request = self.factory.post("/", data={"next": "/return", "active_group": "1,217"})
+        mock_redirect.return_value = common.HttpResponseBadRequest("redirected")
+
+        response = common._finalize_fitting_skills_action(
+            request,
+            fitting=type("F", (), {"id": 1})(),
+            doctrine=object(),
+            doctrine_map=object(),
+            message="Saved",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        mock_feedback.assert_called_once()
+        mock_redirect.assert_called_once_with("/return?active_group=1217")
+
+    @override_settings(USE_THOUSAND_SEPARATOR=True)
+    def test_group_key_template_fragment_uses_unlocalize(self):
+        template = Template(
+            "{% load l10n %}{% localize on %}"
+            "<button data-group-key=\"{{ value|default:'other'|unlocalize }}\"></button>"
+            "<input type=\"hidden\" name=\"_group_key\" value=\"{{ value|default:'other'|unlocalize }}\">"
+            "{% endlocalize %}"
+        )
+        rendered = template.render(Context({"value": 1217}))
+
+        self.assertIn('data-group-key="1217"', rendered)
+        self.assertIn('name="_group_key" value="1217"', rendered)
 
     @patch("mastery.views.common.doctrine_skill_service.generate_for_fitting")
     @patch("mastery.views.common.control_service.set_blacklist")

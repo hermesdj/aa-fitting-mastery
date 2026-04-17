@@ -254,6 +254,7 @@
                 <button
                     class="nav-link mastery-group-pill {% if forloop.first %}active{% endif %}"
                     id="mastery-group-tab-{{ forloop.counter }}"
+                    data-group-key="{{ payload.group_id|default:'other'|unlocalize }}"
                     data-bs-toggle="tab"
                     data-bs-target="#mastery-group-pane-{{ forloop.counter }}"
                     type="button"
@@ -262,7 +263,7 @@
                     aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
                 >
                     <span class="mastery-group-pill-label">{{ group }}</span>
-                    <span class="badge bg-secondary">{{ payload.skills|length }}</span>
+                    <span class="badge bg-secondary">{{ payload.active_skill_count|default:0 }}</span>
                 </button>
                 {% endfor %}
             </div>
@@ -277,7 +278,7 @@
         id="mastery-group-pane-{{ forloop.counter }}"
         role="tabpanel"
         aria-labelledby="mastery-group-tab-{{ forloop.counter }}"
-        data-group-key="{{ payload.group_id|default:'other' }}"
+        data-group-key="{{ payload.group_id|default:'other'|unlocalize }}"
     >
         <div class="card border-0 shadow-sm skill-group-card mb-3">
             <div class="card-body pt-2">
@@ -293,7 +294,7 @@
                         {% for skill in skills %}
                         <input type="hidden" name="skill_type_ids" value="{{ skill.skill_type_id|unlocalize }}">
                         {% endfor %}
-                        <input type="hidden" name="_group_key" value="{{ payload.group_id|default:'other' }}">
+                        <input type="hidden" name="_group_key" value="{{ payload.group_id|default:'other'|unlocalize }}">
                         <input type="hidden" name="action" value="blacklist_group">
                         <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
                         <button class="btn btn-sm btn-outline-danger" type="submit">Blacklist</button>
@@ -306,7 +307,7 @@
                         {% for skill in skills %}
                         <input type="hidden" name="skill_type_ids" value="{{ skill.skill_type_id|unlocalize }}">
                         {% endfor %}
-                        <input type="hidden" name="_group_key" value="{{ payload.group_id|default:'other' }}">
+                        <input type="hidden" name="_group_key" value="{{ payload.group_id|default:'other'|unlocalize }}">
                         <input type="hidden" name="action" value="unblacklist_group">
                         <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
                         <button class="btn btn-sm btn-outline-success" type="submit">Unblacklist</button>
@@ -319,7 +320,7 @@
                         <input type="hidden" name="skill_type_ids" value="{{ skill.skill_type_id|unlocalize }}">
                         {% endfor %}
                         <input type="hidden" name="action" value="set_group_recommended">
-                        <input type="hidden" name="_group_key" value="{{ payload.group_id|default:'other' }}">
+                        <input type="hidden" name="_group_key" value="{{ payload.group_id|default:'other'|unlocalize }}">
                         <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
                         <select class="form-select form-select-sm" name="recommended_level" style="width: 120px;" {% if not skills|group_has_active_skills %}disabled{% endif %}>
                             <option value="">Auto</option>
@@ -336,7 +337,7 @@
                         {% for skill in skills %}
                         <input type="hidden" name="skill_type_ids" value="{{ skill.skill_type_id|unlocalize }}">
                         {% endfor %}
-                        <input type="hidden" name="_group_key" value="{{ payload.group_id|default:'other' }}">
+                        <input type="hidden" name="_group_key" value="{{ payload.group_id|default:'other'|unlocalize }}">
                         <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
                         <button class="btn btn-sm btn-warning" type="submit">Apply {{ payload.suggestion_count }} suggestion{{ payload.suggestion_count|pluralize }}</button>
                     </form>

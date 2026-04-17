@@ -3,6 +3,7 @@
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.contrib import messages
 from django.http import HttpResponseBadRequest, JsonResponse
@@ -533,7 +534,32 @@ def _finalize_fitting_skills_action(
     _add_feedback_message(request, message=message, level=message_level)
 
     next_url = request.POST.get("next")
+    raw_active_group = (request.POST.get("active_group") or "").strip()
+    active_group = None
+    if raw_active_group:
+        normalized_digits = raw_active_group.replace(" ", "").replace(",", "")
+        if normalized_digits.isdigit():
+            active_group = str(int(normalized_digits))
+        else:
+            active_group = raw_active_group
     if next_url:
+        if active_group:
+            parsed_url = urlsplit(next_url)
+            query_items = [
+                (key, value)
+                for key, value in parse_qsl(parsed_url.query, keep_blank_values=True)
+                if key != "active_group"
+            ]
+            query_items.append(("active_group", active_group))
+            next_url = urlunsplit(
+                (
+                    parsed_url.scheme,
+                    parsed_url.netloc,
+                    parsed_url.path,
+                    urlencode(query_items),
+                    parsed_url.fragment,
+                )
+            )
         return redirect(next_url)
 
     return redirect("mastery:fitting_skills", fitting_id=fitting.id)

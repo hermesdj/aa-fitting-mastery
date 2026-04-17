@@ -1,5 +1,4 @@
 from .doctrine_skill_snapshot import *
-from .fitting_skill_override import *
 from .fitting_skill_control import *
 from .general import *
 from .sde_version import *
