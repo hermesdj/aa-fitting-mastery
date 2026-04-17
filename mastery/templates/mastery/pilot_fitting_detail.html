@@ -29,6 +29,23 @@
                 View doctrine
             </a>
             {% endif %}
+            <button
+                type="button"
+                class="btn btn-sm btn-outline-info preview-fittings-btn"
+                data-bs-toggle="modal"
+                data-bs-target="#fittingPreviewModal"
+                data-preview-url="{% url 'mastery:fitting_skills_preview' fitting.id %}"
+                data-fitting-name="{{ fitting.name|escape }}"
+            >
+                <span class="fas fa-list-ul" aria-hidden="true"></span>
+                Preview skill plan
+            </button>
+            {% if perms.mastery.manage_fittings %}
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:fitting_skills' fitting.id %}">
+                <span class="fas fa-sliders-h" aria-hidden="true"></span>
+                Edit skill plan
+            </a>
+            {% endif %}
         </div>
     </div>
 
@@ -38,17 +55,27 @@
                 Character readiness
                 <span class="small text-muted ms-2">{{ filtered_character_rows|length }}/{{ character_rows|length }} visible</span>
             </div>
-            <form method="get" class="d-flex flex-wrap align-items-center gap-2">
+            <form method="get" class="d-flex flex-wrap align-items-end gap-2">
                 {% if selected_character %}<input type="hidden" name="character_id" value="{{ selected_character.id }}">{% endif %}
                 <input type="hidden" name="export_mode" value="{{ export_mode }}">
                 <input type="hidden" name="export_language" value="{{ export_language }}">
                 {% if summary_group_id %}<input type="hidden" name="group_id" value="{{ summary_group_id }}">{% endif %}
-                <label class="small text-muted" for="characterFilterSelect">Filter</label>
-                <select id="characterFilterSelect" class="form-select form-select-sm" name="character_filter" onchange="this.form.submit()">
-                    {% for value, label in character_filter_choices %}
-                    <option value="{{ value }}" {% if selected_character_filter == value %}selected{% endif %}>{{ label }}</option>
-                    {% endfor %}
-                </select>
+                {% if summary_group_id and include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <label class="small text-muted mb-0" for="characterFilterSelect">Filter</label>
+                    <select id="characterFilterSelect" class="form-select form-select-sm" name="character_filter" onchange="this.form.submit()" style="width: 220px;">
+                        {% for value, label in character_filter_choices %}
+                        <option value="{{ value }}" {% if selected_character_filter == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% if summary_group_id %}
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <label class="small text-muted mb-0" for="pilotActivityDaysSelect">Activity days</label>
+                    <input id="pilotActivityDaysSelect" class="form-control form-control-sm" type="number" min="1" max="90" name="activity_days" value="{{ activity_days }}" style="width: 96px;">
+                    <button class="btn btn-sm btn-outline-primary" type="submit">Apply</button>
+                </div>
+                {% endif %}
             </form>
         </div>
         <div class="card-body p-0">
@@ -131,7 +158,7 @@
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="btn-group" role="group" aria-label="Export mode">
                     {% for value, label in export_mode_choices %}
-                    <a class="btn {% if export_mode == value %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ selected_character.id }}&character_filter={{ selected_character_filter }}&export_mode={{ value }}&export_language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">{{ label }}</a>
+                    <a class="btn {% if export_mode == value %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ selected_character.id }}&character_filter={{ selected_character_filter }}&export_mode={{ value }}&export_language={{ export_language }}{% if summary_group_id %}&group_id={{ summary_group_id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}{% endif %}">{{ label }}</a>
                     {% endfor %}
                 </div>
                 <form method="get" class="d-flex align-items-center gap-2">
@@ -139,6 +166,8 @@
                     <input type="hidden" name="character_filter" value="{{ selected_character_filter }}">
                     <input type="hidden" name="export_mode" value="{{ export_mode }}">
                     {% if summary_group_id %}<input type="hidden" name="group_id" value="{{ summary_group_id }}">{% endif %}
+                    {% if summary_group_id %}<input type="hidden" name="activity_days" value="{{ activity_days }}">{% endif %}
+                    {% if summary_group_id and include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
                     <label class="small text-muted" for="exportLanguageSelect" title="{{ export_language_scope_label|default:'Affects export' }}">Export language</label>
                     <select id="exportLanguageSelect" class="form-select form-select-sm" name="export_language" onchange="this.form.submit()">
                         {% for value, label in export_language_choices %}
@@ -486,7 +515,7 @@
                             <span class="fas fa-copy" aria-hidden="true"></span>
                             <span class="copy-btn-label">Copy to clipboard</span>
                         </button>
-                        <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_skillplan_export' fitting.id %}?character_id={{ selected_character.id }}&mode={{ export_mode }}&language={{ export_language }}&character_filter={{ selected_character_filter }}{% if summary_group_id %}&group_id={{ summary_group_id }}{% endif %}">
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_skillplan_export' fitting.id %}?character_id={{ selected_character.id }}&mode={{ export_mode }}&language={{ export_language }}&character_filter={{ selected_character_filter }}{% if summary_group_id %}&group_id={{ summary_group_id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}{% endif %}">
                             <span class="fas fa-download" aria-hidden="true"></span>
                             Download .txt
                         </a>
@@ -769,5 +798,6 @@
         });
     });
 </script>
+{% include 'mastery/partials/_fitting_preview_modal.html' %}
 {% endblock %}
 

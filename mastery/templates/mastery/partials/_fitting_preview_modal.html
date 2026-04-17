@@ -1,0 +1,54 @@
+<div class="modal fade" id="fittingPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Fitting skill preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="fittingPreviewModalBody">
+                <div class="text-muted">Loading preview...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (() => {
+        const modalElement = document.getElementById('fittingPreviewModal');
+        if (!modalElement) {
+            return;
+        }
+        const modalBody = document.getElementById('fittingPreviewModalBody');
+        const modalTitle = modalElement.querySelector('.modal-title');
+
+        modalElement.addEventListener('show.bs.modal', async (event) => {
+            const button = event.relatedTarget;
+            if (!button) {
+                return;
+            }
+
+            let previewUrl = button.dataset.previewUrl;
+            if (button.dataset.selectId) {
+                const select = document.getElementById(button.dataset.selectId);
+                const masteryLevel = select ? select.value : '';
+                const separator = previewUrl.includes('?') ? '&' : '?';
+                previewUrl = `${previewUrl}${separator}mastery_level=${encodeURIComponent(masteryLevel)}`;
+            }
+
+            modalTitle.textContent = `Fitting skill preview — ${button.dataset.fittingName}`;
+            modalBody.innerHTML = '<div class="text-muted">Loading preview...</div>';
+
+            try {
+                const response = await fetch(previewUrl, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                modalBody.innerHTML = await response.text();
+            } catch (err) {
+                modalBody.innerHTML = '<div class="text-danger">Failed to load preview.</div>';
+            }
+        });
+    })();
+</script>
+
+
+

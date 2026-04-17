@@ -10,7 +10,11 @@ from .common import (
     DoctrineSkillSetGroupMap,
     FittingSkillsetMap,
     MASTERY_LEVEL_CHOICES,
+    _build_actor_display,
+    _get_approval_status_badge_class,
+    _get_approval_status_label,
     _get_mastery_label,
+    _get_user_display,
     _parse_mastery_level,
     doctrine_map_service,
 )
@@ -69,11 +73,17 @@ def doctrine_detail_view(request, doctrine_id):
     fittings_data = []
 
     for fitting in doctrine.fittings.all():
-        fitting_map = FittingSkillsetMap.objects.filter(fitting=fitting).first()
+        fitting_map = FittingSkillsetMap.objects.select_related(
+            "approved_by", "modified_by"
+        ).filter(fitting=fitting).first()
         override_level = None if fitting_map is None else fitting_map.mastery_level
         doctrine_default_level = doctrine_map.default_mastery_level if doctrine_map else 4
         effective_level = override_level if override_level is not None else doctrine_default_level
         effective_level = int(effective_level or 4)
+        approval_status = (
+            fitting_map.status if fitting_map and fitting_map.status
+            else FittingSkillsetMap.ApprovalStatus.NOT_APPROVED
+        )
 
         fittings_data.append(
             {
@@ -85,6 +95,15 @@ def doctrine_detail_view(request, doctrine_id):
                 "mastery_override": override_level,
                 "effective_mastery_level": effective_level,
                 "effective_mastery_label": _get_mastery_label(effective_level),
+                "approval_status": approval_status,
+                "approval_status_label": _get_approval_status_label(approval_status),
+                "approval_status_badge_class": _get_approval_status_badge_class(approval_status),
+                "approved_by_display": _get_user_display(None if fitting_map is None else fitting_map.approved_by),
+                "approved_by_actor": _build_actor_display(None if fitting_map is None else fitting_map.approved_by),
+                "approved_at": None if fitting_map is None else fitting_map.approved_at,
+                "modified_by_display": _get_user_display(None if fitting_map is None else fitting_map.modified_by),
+                "modified_by_actor": _build_actor_display(None if fitting_map is None else fitting_map.modified_by),
+                "modified_at": None if fitting_map is None else fitting_map.modified_at,
             }
         )
 
@@ -118,10 +137,14 @@ def generate_doctrine(_request, doctrine_id):  # pylint: disable=unused-argument
 
 @login_required
 @permissions_required('mastery.manage_fittings')
-def sync_doctrine(_request, doctrine_id):  # pylint: disable=unused-argument
+def sync_doctrine(request, doctrine_id):
     """Force doctrine skill synchronization, then redirect to details page."""
     doctrine = Doctrine.objects.get(id=doctrine_id)
-    doctrine_map_service.sync(doctrine)
+    doctrine_map_service.sync(
+        doctrine,
+        modified_by=request.user,
+        status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS,
+    )
 
     return redirect('mastery:doctrine_detail', doctrine_id=doctrine_id)
 
@@ -145,6 +168,10 @@ def update_doctrine_mastery(request, doctrine_id):
         return HttpResponseBadRequest(str(ex))
     doctrine_map.save(update_fields=["default_mastery_level"])
 
-    doctrine_map_service.sync(doctrine)
+    doctrine_map_service.sync(
+        doctrine,
+        modified_by=request.user,
+        status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS,
+    )
 
     return redirect('mastery:doctrine_detail', doctrine_id=doctrine_id)

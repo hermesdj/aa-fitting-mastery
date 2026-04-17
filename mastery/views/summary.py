@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
-from mastery.models import FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
+from mastery.models import SummaryAudienceEntity, SummaryAudienceGroup
 from mastery.services.pilots.status_buckets import (
     BUCKET_ALMOST_ELITE,
     BUCKET_ALMOST_FIT,
@@ -18,6 +18,7 @@ from mastery.services.pilots.status_buckets import (
 )
 
 from .common import (
+    _approved_fitting_maps,
     _annotate_member_detail_pilots,
     _build_doctrine_summary,
     _build_fitting_kpis,
@@ -28,12 +29,12 @@ from .common import (
     _parse_activity_days,
     _parse_export_mode,
     _summary_entity_catalog,
+    _missing_skillset_error,
     pilot_access_service,
     pilot_progress_service,
 )
 
 _MEMBER_COVERAGE_FILTERS = {value for value, _label in bucket_choice_list(include_all=True)}
-
 
 def _summary_fitting_member_coverage_csv_response(fitting, user_rows):
     response = HttpResponse(content_type="text/csv; charset=utf-8")
@@ -108,10 +109,7 @@ def summary_list_view(request):
     )
 
     doctrines = pilot_access_service.accessible_doctrines(request.user).prefetch_related("fittings__ship_type")
-    fitting_maps = {
-        obj.fitting_id: obj
-        for obj in FittingSkillsetMap.objects.select_related("skillset", "doctrine_map").all()
-    }
+    fitting_maps = _approved_fitting_maps()
     progress_cache = {}
     progress_context = {}
 
@@ -159,10 +157,7 @@ def summary_doctrine_detail_view(request, doctrine_id):
         pilot_access_service.accessible_doctrines(request.user).prefetch_related("fittings__ship_type"),
         id=doctrine_id,
     )
-    fitting_maps = {
-        obj.fitting_id: obj
-        for obj in FittingSkillsetMap.objects.select_related("skillset", "doctrine_map").all()
-    }
+    fitting_maps = _approved_fitting_maps()
     member_groups = _build_member_groups_for_summary(
         summary_group=selected_group,
         activity_days=activity_days,
@@ -210,8 +205,9 @@ def summary_fitting_detail_view(request, fitting_id):
         return HttpResponseBadRequest("No summary group configured")
 
     fitting, fitting_map, doctrine = _get_accessible_fitting_or_404(request.user, fitting_id)
-    if not fitting_map or not fitting_map.skillset:
-        return HttpResponseBadRequest("No skillset configured for this fitting yet")
+    missing_error = _missing_skillset_error(fitting_map)
+    if missing_error:
+        return HttpResponseBadRequest(missing_error)
 
     member_groups = _build_member_groups_for_summary(
         summary_group=selected_group,

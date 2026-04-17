@@ -29,7 +29,10 @@ from .deps import (
 # Re-exported helpers originally defined in summary_helpers; imported here so
 # that existing views can continue to import them from .common.
 from .summary_helpers import (  # noqa: E402 – must follow deps import
+    _approved_fitting_maps,  # re-exported
     _annotate_member_detail_pilots,  # re-exported
+    _is_approved_fitting_map,  # re-exported
+    _missing_skillset_error,  # re-exported
     _build_doctrine_summary,  # re-exported
     _build_fitting_kpis,  # re-exported
     _build_fitting_user_rows,  # re-exported
@@ -46,9 +49,100 @@ from .summary_helpers import (  # noqa: E402 – must follow deps import
     _summary_entity_catalog,  # re-exported
 )
 
+APPROVAL_STATUS_LABELS = {
+    FittingSkillsetMap.ApprovalStatus.IN_PROGRESS: "In progress",
+    FittingSkillsetMap.ApprovalStatus.NOT_APPROVED: "Not approved",
+    FittingSkillsetMap.ApprovalStatus.APPROVED: "Approved",
+}
+
+APPROVAL_STATUS_BADGE_CLASSES = {
+    FittingSkillsetMap.ApprovalStatus.IN_PROGRESS: "bg-warning text-dark",
+    FittingSkillsetMap.ApprovalStatus.NOT_APPROVED: "bg-secondary",
+    FittingSkillsetMap.ApprovalStatus.APPROVED: "bg-success",
+}
+
 
 def _get_mastery_label(level: int) -> str:
     return MASTERY_LEVEL_LABELS.get(level, str(level))
+
+
+def _get_approval_status_label(status: str | None) -> str:
+    return APPROVAL_STATUS_LABELS.get(
+        status,
+        APPROVAL_STATUS_LABELS[FittingSkillsetMap.ApprovalStatus.NOT_APPROVED],
+    )
+
+
+def _get_approval_status_badge_class(status: str | None) -> str:
+    return APPROVAL_STATUS_BADGE_CLASSES.get(
+        status,
+        APPROVAL_STATUS_BADGE_CLASSES[FittingSkillsetMap.ApprovalStatus.NOT_APPROVED],
+    )
+
+
+def _get_user_display(user) -> Optional[str]:
+    if not user:
+        return None
+
+    get_full_name = getattr(user, "get_full_name", None)
+    if callable(get_full_name):
+        full_name = (get_full_name() or "").strip()
+        if full_name:
+            return full_name
+
+    for attr_name in ("username", "name"):
+        value = getattr(user, attr_name, None)
+        if value:
+            return str(value)
+
+    return str(user)
+
+
+def _build_actor_display(user) -> Optional[dict]:
+    """Return actor display payload with optional main character for avatar rendering."""
+    if not user:
+        return None
+
+    profile = getattr(user, "profile", None)
+    main_character = None if profile is None else getattr(profile, "main_character", None)
+    return {
+        "user": user,
+        "display_name": _get_user_display(user),
+        "main_character": main_character,
+    }
+
+
+def _build_recommended_export_text(rows: list[dict]) -> str:
+    """Build a full recommended export plan from active rows (no pilot filter)."""
+    source_rows = []
+    for row in rows:
+        required_level, recommended_level = _resolve_row_levels(row)
+        target_level = max(required_level, recommended_level)
+        skill_type_id = _to_int(row.get("skill_type_id"), default=0)
+        if skill_type_id <= 0 or target_level <= 0:
+            continue
+        source_rows.append(
+            {
+                "skill_type_id": skill_type_id,
+                "target_level": target_level,
+                "current_level": 0,
+                "current_sp": 0,
+            }
+        )
+
+    if not source_rows:
+        return ""
+
+    export_lines = pilot_progress_service.build_export_lines(
+        {
+            "missing_required": source_rows,
+            "missing_recommended": source_rows,
+        },
+        mode=pilot_progress_service.EXPORT_MODE_RECOMMENDED,
+        character=None,
+        language="en",
+    )
+    return "\n".join(export_lines)
 
 
 def _parse_mastery_level(raw_value: str):
@@ -262,9 +356,17 @@ def _build_fitting_preview_context(
         fitting=fitting,
         mastery_level=mastery_level,
     )
+    fitting_map = preview.get("fitting_map", fitting_map) if fitting_map is None else fitting_map
     effective_mastery_level = preview["effective_mastery_level"]
     all_rows = list(preview["skills"])
     active_rows = [row for row in all_rows if not row.get("is_blacklisted")]
+    recommended_export_text = _build_recommended_export_text(active_rows)
+    approval_status = (
+                          getattr(fitting_map, "status", None)
+                          if fitting_map is not None
+                          else FittingSkillsetMap.ApprovalStatus.NOT_APPROVED
+                      ) or FittingSkillsetMap.ApprovalStatus.NOT_APPROVED
+    last_synced_at = getattr(fitting_map, "last_synced_at", None) if fitting_map else None
 
     return {
         "fitting": fitting,
@@ -283,11 +385,23 @@ def _build_fitting_preview_context(
         "skillset_skill_count": (
             fitting_map.skillset.skills.count() if fitting_map and fitting_map.skillset else None
         ),
-        "last_synced_at": (
-            fitting_map.last_synced_at if fitting_map else None
-        ),
+        "last_synced_at": last_synced_at,
         "skillset_id": (
             fitting_map.skillset.pk if fitting_map and fitting_map.skillset else None
+        ),
+        "approval_status": approval_status,
+        "approval_status_label": _get_approval_status_label(approval_status),
+        "approval_status_badge_class": _get_approval_status_badge_class(approval_status),
+        "approved_by_display": _get_user_display(getattr(fitting_map, "approved_by", None) if fitting_map else None),
+        "approved_by_actor": _build_actor_display(getattr(fitting_map, "approved_by", None) if fitting_map else None),
+        "approved_at": getattr(fitting_map, "approved_at", None) if fitting_map else None,
+        "modified_by_display": _get_user_display(getattr(fitting_map, "modified_by", None) if fitting_map else None),
+        "modified_by_actor": _build_actor_display(getattr(fitting_map, "modified_by", None) if fitting_map else None),
+        "modified_at": getattr(fitting_map, "modified_at", None) if fitting_map else None,
+        "can_approve_plan": bool(fitting_map and last_synced_at and getattr(fitting_map, "skillset", None)),
+        "recommended_plan_copy_text": recommended_export_text,
+        "recommended_plan_copy_line_count": (
+            0 if not recommended_export_text else len(recommended_export_text.splitlines())
         ),
         **_build_plan_kpis(active_rows),
         "plan_estimate_sp_per_hour": app_settings.MASTERY_PLAN_ESTIMATE_SP_PER_HOUR,
@@ -346,7 +460,9 @@ def _render_fitting_skills_editor_html(
         fitting_map: FittingSkillsetMap = None,
 ) -> str:
     if fitting_map is None:
-        fitting_map = FittingSkillsetMap.objects.select_related("skillset", "doctrine_map").filter(
+        fitting_map = FittingSkillsetMap.objects.select_related(
+            "skillset", "doctrine_map", "approved_by", "modified_by"
+        ).filter(
             fitting_id=fitting.id
         ).first()
 
@@ -492,6 +608,7 @@ def _apply_preview_suggestions(
         doctrine_map,
         *,
         allowed_skill_ids=None,
+        modified_by=None,
 ) -> int:
     """Apply pending suggestion actions and return how many were applied."""
     preview = doctrine_skill_service.preview_fitting(doctrine_map=doctrine_map, fitting=fitting)
@@ -514,12 +631,20 @@ def _apply_preview_suggestions(
             applied_count += 1
 
     if applied_count:
-        doctrine_skill_service.generate_for_fitting(doctrine_map, fitting)
+        doctrine_skill_service.generate_for_fitting(
+            doctrine_map,
+            fitting,
+            modified_by=modified_by,
+            status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS,
+        )
 
     return applied_count
 
 
 __all__ = [
+    "_approved_fitting_maps",
+    "_is_approved_fitting_map",
+    "_missing_skillset_error",
     "Doctrine",
     "DoctrineSkillSetGroupMap",
     "Fitting",
@@ -539,6 +664,8 @@ __all__ = [
     "_build_member_groups_for_summary",
     "_build_plan_kpis",
     "_finalize_fitting_skills_action",
+    "_get_approval_status_badge_class",
+    "_get_approval_status_label",
     "_get_accessible_fitting_or_404",
     "_get_doctrine_and_map_for_fitting",
     "_get_mastery_label",
@@ -547,6 +674,7 @@ __all__ = [
     "_get_selected_summary_group",
     "_get_skill_name_options",
     "_get_summary_group_by_id",
+    "_get_user_display",
     "_group_preview_skills",
     "_is_ajax_request",
     "_parse_activity_days",

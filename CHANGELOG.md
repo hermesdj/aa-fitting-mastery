@@ -7,9 +7,71 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.1.5] - 2026-04-17
+
 ### Added
 
-- Nothing yet.
+- Add `MASTERY_DEFAULT_SKILLS` setting (`app_settings.py`) to inject a global list of baseline required skills (e.g. Thermodynamics I) into every generated fitting plan. Each entry is a `{"type_id": …, "required_level": …}` dict; invalid or out-of-range entries are silently skipped with a warning log.
+- Add per-fitting approval workflow on `FittingSkillsetMap`: new `status` field (`in_progress` / `not_approved` / `approved`), `approved_by`, `approved_at`, `modified_by`, `modified_at` (migration `0009`).
+- Add `FittingApprovalService` (`mastery/services/fittings/approval_service.py`) with `approve()`, `mark_modified()` and `mark_status()` helpers. The service is wired into `deps.py` and injected into `DoctrineSkillService`.
+- Add `update_fitting_approval_status_view` view and URL (`fitting/<id>/skills/approval/`) to change the approval state of a fitting skill plan.
+- Add approval workflow controls to the fitting skills editor template (approve / in-progress / not-approved buttons) with actor/timestamp audit display.
+- Add `normalize_default_skill_map()` and `merge_skill_maps()` helpers to `mastery/services/skill_requirements.py` to validate and merge default skill injections.
+- Add `_require_post_and_resolve()` helper in `mastery/views/fitting.py` to centralise POST validation and context resolution, eliminating repeated boilerplate across view handlers.
+- Add `_get_user_display()` and `_build_actor_display()` helpers in `mastery/views/common.py` for consistent actor rendering across templates.
+- Add approval metadata fields (`approval_status`, `approval_status_label`, `approval_status_badge_class`, `approved_by_actor`, `modified_by_actor`, …) to the fitting preview context built by `_build_fitting_preview_context()`.
+- Add `_fitting_preview_modal.html` partial for the copy-plan modal dialog.
+- Add `active_skills` and `grouped_has_active_skills` template filters in `mastery/templatetags/skill_render.py`.
+- Add `test_refactor_helpers.py` covering fitting context resolution, POST validation, group-controls unsupported action, manual skill not-found/removal, and approval guard paths.
+- Add `test_common_helpers_extra.py` covering `_get_user_display`, `_build_actor_display`, empty AJAX messages, bad-request helpers, finalize flow, duration formatting, and filtered suggestion application.
+- Add `test_sde_importer_and_command.py` covering `SdeMasteryImporter` (YAML extraction, certificate import, mastery rebuild, dry-run) and the `import_sde_masteries` management command.
+- Add lot 3 test file `test_pilot_progress_service_lot3.py` covering all major uncovered paths in `PilotProgressService` (see Tests section).
+
+### Changed
+
+- Every fitting plan regeneration or mutation (blacklist toggle, recommended-level change, group-controls, manual skill add/remove, suggestion apply, mastery update, doctrine sync) now calls `FittingApprovalService.mark_modified()` to record `modified_by` / `modified_at` and reset the status to `in_progress`.
+- `DoctrineSkillService.generate_for_fitting()` and `generate_for_doctrine()` now accept optional `modified_by` and `status` parameters that are forwarded to the approval service after plan generation.
+- `DoctrineMapService.sync()` now accepts `modified_by` and `status` parameters and forwards them to `generate_for_doctrine()`.
+- `sync_doctrine` and `update_doctrine_mastery` views now pass `request.user` and `IN_PROGRESS` to the sync call.
+- Improve grouped summary scope propagation across Summary → Fitting → Pilot → Export flows for `group_id`, `activity_days`, and `include_inactive`.
+- Update grouped pilot detail layout to display `activity_days` next to the character filter.
+- Make `activity_days` configurable directly from the Doctrine Summary detail view.
+- Extend `_approved_fitting_maps()` / `_is_approved_fitting_map()` helpers to `mastery/views/summary_helpers.py` and re-export them via `mastery/views/common.py`.
+- Improve pilot and export views to check fitting plan approval status before serving skill plans to non-manager users.
+- Consolidate duplicated view patterns (POST guard, context resolution, doctrine-map creation) across fitting view handlers with no user-facing API change.
+- Update `FittingSkillsetMap.objects` queries across views to `select_related("approved_by", "modified_by")` where approval display data is needed.
+
+### Fixed
+
+- Fix doctrine fitting table approval column: approved plans now render the approver actor and timestamp instead of always showing the "No activity recorded yet" fallback.
+- Fix grouped-scope navigation edge cases (invalid `group_id`, scope persistence across pages).
+- Fix `_build_fitting_preview_context()` to forward the resolved fitting map into the preview instead of silently ignoring it when passed as an argument.
+
+### Tests
+
+- New test files: `test_refactor_helpers.py`, `test_common_helpers_extra.py`, `test_sde_importer_and_command.py`, `test_pilot_progress_service_lot3.py`.
+- Extend `test_services.py` with `TestSkillRequirementsHelpers` for `normalize_default_skill_map`/`merge_skill_maps` and `TestFittingApprovalService` for `approve`/`mark_modified` workflow transitions.
+- Extend `test_views.py` with grouped scope propagation, export behavior, approval state transitions, doctrine/fitting mutations, and `_approved_fitting_maps`/`_is_approved_fitting_map`/`_missing_skillset_error` helpers.
+- `pilot_progress_service.py` coverage raised from **48 % → 90 %** (lot 3).
+- Total measured coverage: **80 %**.
+- `pylint --load-plugins pylint_django mastery`: **10.00/10**.
+- Run full suite: `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python runtests.py mastery` (251 tests, all passing).
+
+### Upgrade Notes
+
+- Update package:
+  - `pip install -U aa-fitting-mastery==0.1.5`
+- Add the new optional setting to `local.py` (leave empty if not used):
+  - `MASTERY_DEFAULT_SKILLS = []`
+- Apply database changes (adds approval workflow fields to `FittingSkillsetMap`):
+  - `python manage.py migrate`
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services so Django code and Celery tasks reload:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+- No new permissions or Celery schedule entries are required for this release.
 
 ## [0.1.4] - 2026-04-16
 
@@ -22,7 +84,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Rework Skill Mastery and Doctrine Summary templates with richer KPI/readiness presentation and unified table-header styling across pages (including dark mode consistency).
 - Improve pilot and summary view composition by centralizing status bucket usage in both backend view code and frontend components.
-- Refresh README and plugin settings documentation to cover the expanded UI and behavior.
 - Update pilot detail filter labels to include matching character counts and only expose non-empty filter options.
 
 ### Fixed

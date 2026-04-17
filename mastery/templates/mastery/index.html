@@ -118,6 +118,21 @@
 								</div>
 							</a>
 							<div class="small text-muted text-truncate">{{ fit_card.fitting.ship_type.name }}</div>
+							<div class="d-flex gap-1 flex-wrap mt-1">
+								<button
+									type="button"
+									class="btn btn-xs btn-outline-info preview-fittings-btn"
+									data-bs-toggle="modal"
+									data-bs-target="#fittingPreviewModal"
+									data-preview-url="{% url 'mastery:fitting_skills_preview' fit_card.fitting.id %}"
+									data-fitting-name="{{ fit_card.fitting.name|escape }}"
+								>
+									Preview
+								</button>
+								{% if perms.mastery.manage_fittings %}
+								<a class="btn btn-xs btn-outline-secondary" href="{% url 'mastery:fitting_skills' fit_card.fitting.id %}">Edit</a>
+								{% endif %}
+							</div>
 							{% if fit_card.is_configured %}
 							<div class="small mt-2">
 								<span class="badge {% if fit_card.can_any_fly %}bg-success{% else %}bg-warning text-dark{% endif %}">
@@ -215,6 +230,8 @@
 	</div>
 </div>
 
+{% include 'mastery/partials/_fitting_preview_modal.html' %}
+
 <style>
 	{% include 'mastery/partials/_pilot_avatar_popover_styles.html' %}
 
@@ -239,6 +256,12 @@
 		overflow-y: auto;
 		padding-right: 2px;
 	}
+
+	.btn-xs {
+		padding: 0.1rem 0.4rem;
+		font-size: 0.72rem;
+		line-height: 1.2;
+	}
 </style>
 
 <script>
@@ -262,6 +285,7 @@
                 card.style.display = visibleRows > 0 ? '' : 'none';
             });
         });
+
     });
 </script>
 {% include 'mastery/partials/_pilot_popover_init_script.html' %}

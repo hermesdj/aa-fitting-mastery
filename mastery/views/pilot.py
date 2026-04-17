@@ -21,11 +21,13 @@ from mastery.services.pilots.status_buckets import (
 )
 
 from .common import (
-    FittingSkillsetMap,
+    _approved_fitting_maps,
     _get_accessible_fitting_or_404,
     _get_member_characters,
     _get_pilot_detail_characters,
     _get_summary_group_by_id,
+    _missing_skillset_error,
+    _parse_activity_days,
     _parse_export_language,
     _parse_export_mode,
     pilot_access_service,
@@ -87,6 +89,74 @@ def _build_character_filter_choices_with_counts(character_rows):
     ]
 
 
+def _pilot_detail_action_params(
+    character_id: int,
+    character_filter: str,
+    export_mode: str,
+    export_language: str,
+    summary_group=None,
+    activity_days: int | None = None,
+    include_inactive: bool = False,
+) -> dict:
+    params = {
+        "character_id": character_id,
+        "character_filter": character_filter,
+        "export_mode": export_mode,
+        "export_language": export_language,
+    }
+    if summary_group is not None:
+        params["group_id"] = summary_group.id
+        params["activity_days"] = activity_days
+        if include_inactive:
+            params["include_inactive"] = 1
+    return params
+
+
+def _build_pilot_detail_character_rows(
+    fitting_id: int,
+    skillset,
+    member_characters,
+    export_mode: str,
+    export_language: str,
+    selected_character_filter: str,
+    summary_group=None,
+    activity_days: int | None = None,
+    include_inactive: bool = False,
+):
+    character_rows = []
+    progress_context = {}
+    for character in member_characters:
+        progress = pilot_progress_service.build_for_character(
+            character=character,
+            skillset=skillset,
+            include_export_lines=False,
+            cache_context=progress_context,
+        )
+        action_params = _pilot_detail_action_params(
+            character.id,
+            selected_character_filter,
+            export_mode,
+            export_language,
+            summary_group=summary_group,
+            activity_days=activity_days,
+            include_inactive=include_inactive,
+        )
+        action_url = (
+            f"{reverse('mastery:pilot_fitting_detail', args=[fitting_id])}?"
+            f"{urlencode(action_params)}"
+        )
+        character_rows.append(
+            {
+                "character": character,
+                "progress": progress,
+                "status_bucket": bucket_for_progress(progress),
+                "action_url": action_url,
+                "popover_id": f"pilotdetail-popover-{character.id}",
+            }
+        )
+    return character_rows
+
+
 @login_required
 @permissions_required('mastery.basic_access')
 def index(request):
@@ -109,10 +179,7 @@ def index(request):
                 selected_character = character
                 break
 
-    fitting_maps = {
-        obj.fitting.pk: obj
-        for obj in FittingSkillsetMap.objects.select_related("skillset", "doctrine_map").all()
-    }
+    fitting_maps = _approved_fitting_maps()
     progress_context = {}
 
     doctrine_cards = []
@@ -262,46 +329,38 @@ def index(request):
 def pilot_fitting_detail_view(request, fitting_id):
     """Pilot fitting detail view."""
     fitting, fitting_map, doctrine = _get_accessible_fitting_or_404(request.user, fitting_id)
-    if not fitting_map:
-        return HttpResponseBadRequest("No skillset configured for this fitting yet")
+    missing_error = _missing_skillset_error(fitting_map)
+    if missing_error:
+        return HttpResponseBadRequest(missing_error)
 
     export_mode = _parse_export_mode(request.GET.get("export_mode"))
     export_language = _parse_export_language(request.GET.get("export_language"))
     selected_character_filter = _parse_character_filter(request.GET.get("character_filter"))
+    activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
+    include_inactive = request.GET.get("include_inactive") == "1"
     raw_group_id = request.GET.get("group_id")
     summary_group = _get_summary_group_by_id(raw_group_id)
     if request.user.has_perm("mastery.doctrine_summary") and raw_group_id and summary_group is None:
         return HttpResponseBadRequest("Invalid summary group")
-    member_characters = list(_get_pilot_detail_characters(request.user, summary_group=summary_group))
-    character_rows = []
-    progress_context = {}
-    for character in member_characters:
-        progress = pilot_progress_service.build_for_character(
-            character=character,
-            skillset=fitting_map.skillset,
-            include_export_lines=False,
-            cache_context=progress_context,
+    member_characters = list(
+        _get_pilot_detail_characters(
+            request.user,
+            summary_group=summary_group,
+            activity_days=activity_days,
+            include_inactive=include_inactive,
         )
-        action_params = {
-            "character_id": character.id,
-            "character_filter": selected_character_filter,
-            "export_mode": export_mode,
-            "export_language": export_language,
-        }
-        if summary_group is not None:
-            action_params["group_id"] = summary_group.id
-        character_rows.append(
-            {
-                "character": character,
-                "progress": progress,
-                "status_bucket": bucket_for_progress(progress),
-                "action_url": (
-                    f"{reverse('mastery:pilot_fitting_detail', args=[fitting.id])}?"
-                    f"{urlencode(action_params)}"
-                ),
-                "popover_id": f"pilotdetail-popover-{character.id}",
-            }
-        )
+    )
+    character_rows = _build_pilot_detail_character_rows(
+        fitting_id=fitting.id,
+        skillset=fitting_map.skillset,
+        member_characters=member_characters,
+        export_mode=export_mode,
+        export_language=export_language,
+        selected_character_filter=selected_character_filter,
+        summary_group=summary_group,
+        activity_days=activity_days,
+        include_inactive=include_inactive,
+    )
 
     selected_character = None
     selected_progress = None
@@ -334,15 +393,19 @@ def pilot_fitting_detail_view(request, fitting_id):
 
     # Keep row action links aligned with the active (or normalized) filter.
     for row in character_rows:
-        action_params = {
-            "character_id": row["character"].id,
-            "character_filter": selected_character_filter,
-            "export_mode": export_mode,
-            "export_language": export_language,
-        }
-        if summary_group is not None:
-            action_params["group_id"] = summary_group.id
-        row["action_url"] = f"{reverse('mastery:pilot_fitting_detail', args=[fitting.id])}?{urlencode(action_params)}"
+        action_params = _pilot_detail_action_params(
+            row["character"].id,
+            selected_character_filter,
+            export_mode,
+            export_language,
+            summary_group=summary_group,
+            activity_days=activity_days,
+            include_inactive=include_inactive,
+        )
+        row["action_url"] = (
+            f"{reverse('mastery:pilot_fitting_detail', args=[fitting.id])}?"
+            f"{urlencode(action_params)}"
+        )
 
     # If the selected character has been filtered out, reset to first visible character
     if selected_character is not None:
@@ -413,6 +476,8 @@ def pilot_fitting_detail_view(request, fitting_id):
         "export_language_scope_label": "Affects export and selected missing-skill labels",
         "export_language_choices": pilot_progress_service.export_language_choices(),
         "summary_group_id": None if summary_group is None else summary_group.id,
+        "activity_days": activity_days,
+        "include_inactive": include_inactive,
     }
     return render(request, "mastery/pilot_fitting_detail.html", context)
 
@@ -422,8 +487,9 @@ def pilot_fitting_detail_view(request, fitting_id):
 def pilot_fitting_skillplan_export_view(request, fitting_id):
     """Pilot fitting skillplan export view."""
     fitting, fitting_map, _ = _get_accessible_fitting_or_404(request.user, fitting_id)
-    if not fitting_map:
-        return HttpResponseBadRequest("No skillset configured for this fitting yet")
+    missing_error = _missing_skillset_error(fitting_map)
+    if missing_error:
+        return HttpResponseBadRequest(missing_error)
 
     character_id = request.GET.get("character_id")
     if not character_id:
@@ -435,10 +501,21 @@ def pilot_fitting_skillplan_export_view(request, fitting_id):
         return HttpResponseBadRequest("invalid character_id")
 
     raw_group_id = request.GET.get("group_id")
+    activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
+    include_inactive = request.GET.get("include_inactive") == "1"
     summary_group = _get_summary_group_by_id(raw_group_id)
     if request.user.has_perm("mastery.doctrine_summary") and raw_group_id and summary_group is None:
         return HttpResponseBadRequest("Invalid summary group")
-    character = _get_pilot_detail_characters(request.user, summary_group=summary_group).filter(id=character_id).first()
+    available_characters = _get_pilot_detail_characters(
+        request.user,
+        summary_group=summary_group,
+        activity_days=activity_days,
+        include_inactive=include_inactive,
+    )
+    if hasattr(available_characters, "filter"):
+        character = available_characters.filter(id=character_id).first()
+    else:
+        character = next((obj for obj in available_characters if obj.id == character_id), None)
     if character is None:
         return HttpResponseBadRequest("character not found")
 

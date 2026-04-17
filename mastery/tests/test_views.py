@@ -1,20 +1,30 @@
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone as dt_timezone
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.test import RequestFactory, SimpleTestCase
 
 from mastery import views
-from mastery.templatetags.skill_render import group_has_active_skills, group_has_blacklisted_skills
+from mastery.models import FittingSkillsetMap
+from mastery.templatetags.skill_render import (
+    active_skills,
+    group_has_active_skills,
+    group_has_blacklisted_skills,
+    grouped_has_active_skills,
+)
 from mastery.views import _build_fitting_skills_ajax_response, _group_preview_skills, _resolve_row_levels
 from mastery.views.summary_helpers import (
+    _approved_fitting_maps,
     _annotate_member_detail_pilots,
+            _is_approved_fitting_map,
+            _missing_skillset_error,
     _build_doctrine_kpis,
     _build_fitting_kpis,
     _build_fitting_user_rows,
+    _get_pilot_detail_characters,
     _get_selected_summary_group,
     _get_summary_group_by_id,
     _parse_activity_days,
@@ -46,6 +56,38 @@ class TestViewHelpers(SimpleTestCase):
         self.assertFalse(group_has_blacklisted_skills([]))
         self.assertFalse(group_has_active_skills([{"is_blacklisted": True}]))
         self.assertTrue(group_has_blacklisted_skills([{"is_blacklisted": True}]))
+
+    def test_active_skills_returns_only_non_blacklisted_rows(self):
+        rows = [
+            {"skill_name": "A", "is_blacklisted": True},
+            {"skill_name": "B", "is_blacklisted": False},
+            {"skill_name": "C", "is_blacklisted": False},
+        ]
+
+        self.assertEqual([row["skill_name"] for row in active_skills(rows)], ["B", "C"])
+
+    def test_grouped_has_active_skills_detects_visible_preview_rows(self):
+        grouped = {
+            "Engineering": {
+                "skills": [
+                    {"skill_name": "A", "is_blacklisted": True},
+                    {"skill_name": "B", "is_blacklisted": False},
+                ]
+            }
+        }
+
+        self.assertTrue(grouped_has_active_skills(grouped))
+
+    def test_grouped_has_active_skills_returns_false_when_all_rows_blacklisted(self):
+        grouped = {
+            "Engineering": {
+                "skills": [
+                    {"skill_name": "A", "is_blacklisted": True},
+                ]
+            }
+        }
+
+        self.assertFalse(grouped_has_active_skills(grouped))
 
     def test_resolve_row_levels_with_default_keys(self):
         required_level, recommended_level = _resolve_row_levels(
@@ -297,7 +339,11 @@ class TestFittingSkillsAjax(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         mock_set_blacklist.assert_called_once_with(fitting_id=1, skill_type_id=55, value=True)
-        mock_generate.assert_called_once_with(doctrine_map, fitting)
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args[0], (doctrine_map, fitting))
+        self.assertEqual(call_args[1]["modified_by"], request.user)
+        self.assertEqual(call_args[1]["status"], FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
         mock_build_ajax_response.assert_called_once_with(
             request,
             fitting=fitting,
@@ -379,7 +425,11 @@ class TestFittingSkillsAjax(SimpleTestCase):
             skill_type_ids=[55],
             level=None,
         )
-        mock_generate.assert_called_once_with(doctrine_map, fitting)
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args[0], (doctrine_map, fitting))
+        self.assertEqual(call_args[1]["modified_by"], request.user)
+        self.assertEqual(call_args[1]["status"], FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
         mock_finalize.assert_called_once()
 
     @patch("mastery.views.common._build_fitting_skills_ajax_response")
@@ -414,6 +464,57 @@ class TestFittingSkillsAjax(SimpleTestCase):
             message="No pending suggestion to apply",
             message_level="info",
         )
+
+
+class TestFittingPreviewAccess(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @patch("mastery.views.fitting._get_doctrine_and_map_for_fitting")
+    def test_fitting_skills_preview_blocks_non_approved_for_basic_access(self, mock_get_doctrine):
+        fitting = SimpleNamespace(id=1)
+        doctrine = SimpleNamespace(id=2)
+        doctrine_map = SimpleNamespace(id=3)
+        fitting_map = SimpleNamespace(status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
+        mock_get_doctrine.return_value = (fitting, doctrine, doctrine_map, fitting_map)
+
+        request = self.factory.get("/fitting/1/preview/")
+        request.user = SimpleNamespace(
+            is_authenticated=True,
+            has_perm=lambda perm: perm == "mastery.basic_access",
+            has_perms=lambda perms: all(perm == "mastery.basic_access" for perm in perms),
+        )
+
+        response = views.fitting_skills_preview_view(request, fitting_id=1)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content.decode(), "No approved skillset configured for this fitting yet")
+
+    @patch("mastery.views.fitting.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.fitting._build_fitting_preview_context", return_value={})
+    @patch("mastery.views.fitting._get_doctrine_and_map_for_fitting")
+    def test_fitting_skills_preview_allows_non_approved_for_manage_fittings(
+        self,
+        mock_get_doctrine,
+        _mock_preview_context,
+        _mock_render,
+    ):
+        fitting = SimpleNamespace(id=1)
+        doctrine = SimpleNamespace(id=2)
+        doctrine_map = SimpleNamespace(id=3)
+        fitting_map = SimpleNamespace(status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
+        mock_get_doctrine.return_value = (fitting, doctrine, doctrine_map, fitting_map)
+
+        request = self.factory.get("/fitting/1/preview/")
+        request.user = SimpleNamespace(
+            is_authenticated=True,
+            has_perm=lambda _perm: True,
+            has_perms=lambda _perms: True,
+        )
+
+        response = views.fitting_skills_preview_view(request, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
 
 
 class TestDoctrineViews(SimpleTestCase):
@@ -469,16 +570,22 @@ class TestDoctrineViews(SimpleTestCase):
         self.assertIsNone(context["doctrines"][1]["default_mastery_level"])
 
     @patch("mastery.views.doctrine.render", return_value=HttpResponse("ok"))
-    @patch("mastery.views.doctrine.FittingSkillsetMap.objects.filter")
+    @patch("mastery.views.doctrine.FittingSkillsetMap.objects.select_related")
     @patch("mastery.views.doctrine.DoctrineSkillSetGroupMap.objects.filter")
     @patch("mastery.views.doctrine.Doctrine.objects.prefetch_related")
     def test_doctrine_detail_view_uses_override_or_doctrine_default_mastery(
         self,
         mock_prefetch_related,
         mock_doctrine_map_filter,
-        mock_fitting_map_filter,
+        mock_fitting_map_select_related,
         mock_render,
     ):
+        approved_main = SimpleNamespace(id=99)
+        approved_by = SimpleNamespace(
+            username="approver",
+            get_full_name=lambda: "",
+            profile=SimpleNamespace(main_character=approved_main),
+        )
         fitting_one = SimpleNamespace(id=10, name="Fit A", ship_type_type_id=100, ship_type=SimpleNamespace(name="Ship A"))
         fitting_two = SimpleNamespace(id=11, name="Fit B", ship_type_type_id=101, ship_type=SimpleNamespace(name="Ship B"))
         doctrine = SimpleNamespace(fittings=Mock())
@@ -490,10 +597,17 @@ class TestDoctrineViews(SimpleTestCase):
         mock_doctrine_map_filter.return_value = doctrine_map_qs
 
         first_fitting_map_qs = Mock()
-        first_fitting_map_qs.first.return_value = SimpleNamespace(mastery_level=5)
+        first_fitting_map_qs.first.return_value = SimpleNamespace(
+            mastery_level=5,
+            status=FittingSkillsetMap.ApprovalStatus.APPROVED,
+            approved_by=approved_by,
+            approved_at=datetime(2026, 4, 16, tzinfo=dt_timezone.utc),
+            modified_by=None,
+            modified_at=None,
+        )
         second_fitting_map_qs = Mock()
         second_fitting_map_qs.first.return_value = None
-        mock_fitting_map_filter.side_effect = [first_fitting_map_qs, second_fitting_map_qs]
+        mock_fitting_map_select_related.return_value.filter.side_effect = [first_fitting_map_qs, second_fitting_map_qs]
 
         request = self.factory.get("/doctrines/1/")
         request.user = _view_user()
@@ -505,6 +619,9 @@ class TestDoctrineViews(SimpleTestCase):
         self.assertEqual(context["doctrine_default_mastery_level"], 3)
         self.assertEqual(context["fittings"][0]["effective_mastery_level"], 5)
         self.assertEqual(context["fittings"][1]["effective_mastery_level"], 3)
+        self.assertEqual(context["fittings"][0]["approved_by_actor"]["display_name"], "approver")
+        self.assertEqual(context["fittings"][0]["approved_by_actor"]["main_character"], approved_main)
+        self.assertIsNone(context["fittings"][0]["modified_by_actor"])
 
     @patch("mastery.views.doctrine.redirect", return_value=HttpResponse("redirect"))
     @patch("mastery.views.doctrine.doctrine_map_service.create_doctrine_map")
@@ -543,7 +660,11 @@ class TestDoctrineViews(SimpleTestCase):
         response = views.sync_doctrine(request, doctrine_id=9)
 
         self.assertEqual(response.status_code, 200)
-        mock_sync.assert_called_once_with(doctrine)
+        mock_sync.assert_called_once()
+        call_args = mock_sync.call_args
+        self.assertEqual(call_args[0], (doctrine,))
+        self.assertEqual(call_args[1]["modified_by"], request.user)
+        self.assertEqual(call_args[1]["status"], FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
         mock_redirect.assert_called_once_with("mastery:doctrine_detail", doctrine_id=9)
 
     def test_update_doctrine_mastery_requires_post(self):
@@ -584,7 +705,11 @@ class TestDoctrineViews(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(doctrine_map.default_mastery_level, 5)
         doctrine_map.save.assert_called_once_with(update_fields=["default_mastery_level"])
-        mock_sync.assert_called_once_with(doctrine)
+        mock_sync.assert_called_once()
+        call_args = mock_sync.call_args
+        self.assertEqual(call_args[0], (doctrine,))
+        self.assertEqual(call_args[1]["modified_by"], request.user)
+        self.assertEqual(call_args[1]["status"], FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
         mock_redirect.assert_called_once_with("mastery:doctrine_detail", doctrine_id=1)
 
     @patch("mastery.views.doctrine._parse_mastery_level", side_effect=ValueError("invalid mastery"))
@@ -691,6 +816,74 @@ class TestSummaryHelpers(SimpleTestCase):
         groups, selected = _get_selected_summary_group(None)
         self.assertEqual(groups, [])
         self.assertIsNone(selected)
+
+    @patch("mastery.views.summary_helpers.Character.objects.filter")
+    @patch("mastery.views.summary_helpers._summary_group_users")
+    @patch("mastery.views.summary_helpers.timezone.now")
+    def test_get_pilot_detail_characters_filters_group_characters_by_activity_window(
+        self,
+        mock_now,
+        mock_group_users,
+        mock_character_filter,
+    ):
+        now = datetime(2026, 4, 16, tzinfo=dt_timezone.utc)
+        mock_now.return_value = now
+        mock_group_users.return_value = [SimpleNamespace(id=1)]
+        active_character = SimpleNamespace(
+            id=10,
+            online_status=SimpleNamespace(last_login=now - timedelta(days=3), last_logout=None),
+        )
+        inactive_character = SimpleNamespace(
+            id=11,
+            online_status=SimpleNamespace(last_login=now - timedelta(days=30), last_logout=None),
+        )
+        mock_character_filter.return_value.select_related.return_value.order_by.return_value = [
+            active_character,
+            inactive_character,
+        ]
+
+        result = _get_pilot_detail_characters(
+            _view_user(),
+            summary_group=SimpleNamespace(id=5),
+            activity_days=14,
+            include_inactive=False,
+        )
+
+        self.assertEqual(result, [active_character])
+
+    @patch("mastery.views.summary_helpers.Character.objects.filter")
+    @patch("mastery.views.summary_helpers._summary_group_users")
+    @patch("mastery.views.summary_helpers.timezone.now")
+    def test_get_pilot_detail_characters_keeps_inactive_when_requested(
+        self,
+        mock_now,
+        mock_group_users,
+        mock_character_filter,
+    ):
+        now = datetime(2026, 4, 16, tzinfo=dt_timezone.utc)
+        mock_now.return_value = now
+        mock_group_users.return_value = [SimpleNamespace(id=1)]
+        active_character = SimpleNamespace(
+            id=10,
+            online_status=SimpleNamespace(last_login=now - timedelta(days=3), last_logout=None),
+        )
+        inactive_character = SimpleNamespace(
+            id=11,
+            online_status=SimpleNamespace(last_login=now - timedelta(days=30), last_logout=None),
+        )
+        mock_character_filter.return_value.select_related.return_value.order_by.return_value = [
+            active_character,
+            inactive_character,
+        ]
+
+        result = _get_pilot_detail_characters(
+            _view_user(),
+            summary_group=SimpleNamespace(id=5),
+            activity_days=14,
+            include_inactive=True,
+        )
+
+        self.assertEqual(result, [active_character, inactive_character])
 
     # -- _build_fitting_kpis -------------------------------------------------
 
@@ -909,6 +1102,47 @@ class TestSummaryHelpers(SimpleTestCase):
         self.assertEqual(corps, [])
         self.assertEqual(alliances, [])
 
+    def test_is_approved_fitting_map_handles_missing_or_unapproved(self):
+        self.assertFalse(_is_approved_fitting_map(None))
+        self.assertFalse(
+            _is_approved_fitting_map(
+                SimpleNamespace(status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS),
+            )
+        )
+        self.assertTrue(
+            _is_approved_fitting_map(
+                SimpleNamespace(status=FittingSkillsetMap.ApprovalStatus.APPROVED),
+            )
+        )
+
+    def test_missing_skillset_error_returns_expected_messages(self):
+        self.assertEqual(_missing_skillset_error(None), "No skillset configured for this fitting yet")
+        self.assertEqual(
+            _missing_skillset_error(SimpleNamespace(skillset=None, status=FittingSkillsetMap.ApprovalStatus.APPROVED)),
+            "No skillset configured for this fitting yet",
+        )
+        self.assertEqual(
+            _missing_skillset_error(
+                SimpleNamespace(skillset=SimpleNamespace(id=1), status=FittingSkillsetMap.ApprovalStatus.NOT_APPROVED),
+            ),
+            "No approved skillset configured for this fitting yet",
+        )
+        self.assertIsNone(
+            _missing_skillset_error(
+                SimpleNamespace(skillset=SimpleNamespace(id=1), status=FittingSkillsetMap.ApprovalStatus.APPROVED),
+            )
+        )
+
+    @patch("mastery.views.summary_helpers.FittingSkillsetMap.objects.select_related")
+    def test_approved_fitting_maps_filters_only_approved_status(self, mock_select_related):
+        approved = SimpleNamespace(fitting_id=10, status=FittingSkillsetMap.ApprovalStatus.APPROVED)
+        pending = SimpleNamespace(fitting_id=11, status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
+        mock_select_related.return_value.all.return_value = [approved, pending]
+
+        result = _approved_fitting_maps()
+
+        self.assertEqual(result, {10: approved})
+
 
 # ---------------------------------------------------------------------------
 # Summary views
@@ -933,6 +1167,52 @@ class TestSummaryViews(SimpleTestCase):
         response = views.summary_doctrine_detail_view(req, doctrine_id=1)
         self.assertEqual(response.status_code, 400)
 
+    @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.summary._build_fitting_kpis", side_effect=lambda rows: {"users_total": len(rows)})
+    @patch("mastery.views.summary._build_doctrine_summary")
+    @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
+    @patch("mastery.views.summary._approved_fitting_maps")
+    @patch("mastery.views.summary.pilot_access_service")
+    @patch("mastery.views.summary.get_object_or_404")
+    @patch("mastery.views.summary._get_selected_summary_group")
+    def test_summary_doctrine_detail_view_propagates_activity_scope(
+        self,
+        mock_get_group,
+        mock_get_object_or_404,
+        mock_pilot_access,
+        mock_approved_fitting_maps,
+        mock_member_groups,
+        mock_build_summary,
+        _mock_build_fitting_kpis,
+        mock_render,
+    ):
+        selected_group = SimpleNamespace(id=7, name="Group", entries=Mock())
+        doctrine = SimpleNamespace(id=1, name="Alpha", fittings=Mock())
+        doctrine.fittings.all.return_value = []
+        mock_get_group.return_value = ([selected_group], selected_group)
+        mock_pilot_access.accessible_doctrines.return_value.prefetch_related.return_value = Mock()
+        mock_get_object_or_404.return_value = doctrine
+        mock_approved_fitting_maps.return_value = {}
+        mock_build_summary.return_value = {
+            "doctrine": doctrine,
+            "fittings": [],
+            "kpis": {"flyable_now_users": 0, "users_total": 0},
+        }
+
+        req = self._req(path="/summary/doctrine/1/?group_id=7&activity_days=21&include_inactive=1")
+        response = views.summary_doctrine_detail_view(req, doctrine_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        mock_member_groups.assert_called_once_with(
+            summary_group=selected_group,
+            activity_days=21,
+            include_inactive=True,
+        )
+        context = mock_render.call_args[0][2]
+        self.assertEqual(context["selected_group"], selected_group)
+        self.assertEqual(context["activity_days"], 21)
+        self.assertTrue(context["include_inactive"])
+
     # -- summary_fitting_detail_view -----------------------------------------
 
     @patch("mastery.views.summary._get_selected_summary_group")
@@ -947,14 +1227,14 @@ class TestSummaryViews(SimpleTestCase):
     @patch("mastery.views.summary._build_fitting_kpis", return_value={})
     @patch("mastery.views.summary._build_fitting_user_rows", return_value=[])
     @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
-    @patch("mastery.views.summary.FittingSkillsetMap.objects.select_related")
+    @patch("mastery.views.summary._approved_fitting_maps")
     @patch("mastery.views.summary._get_accessible_fitting_or_404")
     @patch("mastery.views.summary._get_selected_summary_group")
     def test_summary_fitting_detail_view_returns_400_when_no_fitting_map(
         self,
         mock_get_group,
         mock_fitting_404,
-        _mock_fitting_maps,
+        _mock_approved_fitting_maps,
         _mock_member_groups,
         _mock_user_rows,
         _mock_kpis,
@@ -977,7 +1257,7 @@ class TestSummaryViews(SimpleTestCase):
     @patch("mastery.views.summary._build_fitting_kpis", return_value={})
     @patch("mastery.views.summary._build_fitting_user_rows", return_value=[])
     @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
-    @patch("mastery.views.summary.FittingSkillsetMap.objects.select_related")
+    @patch("mastery.views.summary._approved_fitting_maps")
     @patch("mastery.views.summary._get_accessible_fitting_or_404")
     @patch("mastery.views.summary._get_selected_summary_group")
     @patch("mastery.views.summary.pilot_progress_service")
@@ -986,7 +1266,7 @@ class TestSummaryViews(SimpleTestCase):
         mock_pilot_service,
         mock_get_group,
         mock_fitting_404,
-        _mock_fitting_maps,
+        _mock_approved_fitting_maps,
         _mock_member_groups,
         _mock_user_rows,
         _mock_kpis,
@@ -1006,19 +1286,62 @@ class TestSummaryViews(SimpleTestCase):
         response = views.summary_fitting_detail_view(req, fitting_id=1)
         self.assertEqual(response.status_code, 200)
 
+    @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.summary._annotate_member_detail_pilots", return_value=[])
+    @patch("mastery.views.summary._build_fitting_kpis", return_value={})
+    @patch("mastery.views.summary._build_fitting_user_rows", return_value=[])
+    @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
+    @patch("mastery.views.summary._approved_fitting_maps")
+    @patch("mastery.views.summary._get_accessible_fitting_or_404")
+    @patch("mastery.views.summary._get_selected_summary_group")
+    @patch("mastery.views.summary.pilot_progress_service")
+    def test_summary_fitting_detail_view_propagates_activity_scope(
+        self,
+        mock_pilot_service,
+        mock_get_group,
+        mock_fitting_404,
+        _mock_approved_fitting_maps,
+        mock_member_groups,
+        _mock_user_rows,
+        _mock_kpis,
+        _mock_annotate,
+        mock_render,
+    ):
+        selected_group = SimpleNamespace(id=7, name="Group", entries=Mock())
+        mock_get_group.return_value = ([selected_group], selected_group)
+        fitting_map = SimpleNamespace(skillset=SimpleNamespace(id=10))
+        fitting = SimpleNamespace(id=1, name="Fit")
+        doctrine = SimpleNamespace(id=2)
+        mock_fitting_404.return_value = (fitting, fitting_map, doctrine)
+        mock_pilot_service.export_mode_choices.return_value = [("recommended", "Recommended")]
+
+        req = self._req(path="/summary/fitting/1/?group_id=7&activity_days=21&include_inactive=1")
+        response = views.summary_fitting_detail_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        mock_member_groups.assert_called_once_with(
+            summary_group=selected_group,
+            activity_days=21,
+            include_inactive=True,
+        )
+        context = mock_render.call_args[0][2]
+        self.assertEqual(context["selected_group"], selected_group)
+        self.assertEqual(context["activity_days"], 21)
+        self.assertTrue(context["include_inactive"])
+
     # -- summary_list_view ---------------------------------------------------
 
     @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
     @patch("mastery.views.summary._build_doctrine_summary")
     @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
-    @patch("mastery.views.summary.FittingSkillsetMap.objects.select_related")
+    @patch("mastery.views.summary._approved_fitting_maps")
     @patch("mastery.views.summary.pilot_access_service")
     @patch("mastery.views.summary._get_selected_summary_group")
     def test_summary_list_view_renders_successfully(
         self,
         mock_get_group,
         mock_pilot_access,
-        _mock_fitting_maps,
+        mock_approved_fitting_maps,
         _mock_member_groups,
         mock_build_doctrine_summary,
         mock_render,
@@ -1032,7 +1355,7 @@ class TestSummaryViews(SimpleTestCase):
         )
         doctrine.fittings.all.return_value = []
         mock_pilot_access.accessible_doctrines.return_value.prefetch_related.return_value = [doctrine]
-        _mock_fitting_maps.return_value.all.return_value = []
+        mock_approved_fitting_maps.return_value = {}
         mock_build_doctrine_summary.return_value = {"doctrine": doctrine, "fittings": []}
 
         req = self._req(path="/summary/")
@@ -1211,6 +1534,83 @@ class TestPilotViews(SimpleTestCase):
         req = self._req(path="/fitting/1/")
         response = views.pilot_fitting_detail_view(req, fitting_id=1)
         self.assertEqual(response.status_code, 200)
+
+    @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.pilot.pilot_progress_service")
+    @patch("mastery.views.pilot._get_summary_group_by_id")
+    @patch("mastery.views.pilot._get_pilot_detail_characters")
+    @patch("mastery.views.pilot._get_accessible_fitting_or_404")
+    def test_pilot_fitting_detail_view_applies_group_activity_window(
+        self,
+        mock_fitting_404,
+        mock_get_chars,
+        mock_get_group,
+        mock_progress_service,
+        mock_render,
+    ):
+        fitting = SimpleNamespace(id=1, name="Fit", ship_type=SimpleNamespace(name="Drake"))
+        skillset = SimpleNamespace(id=10)
+        fitting_map = SimpleNamespace(skillset=skillset, doctrine_map=None)
+        doctrine = SimpleNamespace(id=2)
+        summary_group = SimpleNamespace(id=99, name="Group")
+        character = SimpleNamespace(id=5, eve_character=SimpleNamespace(character_name="Scoped Pilot"))
+        mock_fitting_404.return_value = (fitting, fitting_map, doctrine)
+        mock_get_group.return_value = summary_group
+        mock_get_chars.return_value = [character]
+        mock_progress_service.build_for_character.return_value = {
+            "can_fly": True,
+            "required_pct": 100,
+            "recommended_pct": 100,
+            "status_label": "Elite ready",
+            "status_class": "success",
+            "missing_required": [],
+            "missing_recommended": [],
+            "missing_required_count": 0,
+            "missing_recommended_count": 0,
+            "total_missing_sp": 0,
+            "mode_stats": {"recommended": {"coverage_pct": 100, "total_missing_sp": 0, "total_missing_time": None}},
+        }
+        mock_progress_service.export_mode_choices.return_value = [("recommended", "Recommended")]
+        mock_progress_service.EXPORT_MODE_RECOMMENDED = "recommended"
+        mock_progress_service.normalize_export_language.return_value = "en"
+        mock_progress_service.localize_missing_rows.side_effect = lambda rows, language: rows
+        mock_progress_service.build_export_lines.return_value = []
+        mock_progress_service.build_skill_plan_summary.return_value = None
+        mock_progress_service.export_language_choices.return_value = [("en", "English")]
+
+        req = self._req(path="/fitting/1/?group_id=99&activity_days=21&include_inactive=1")
+        response = views.pilot_fitting_detail_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        mock_get_chars.assert_called_once_with(
+            req.user,
+            summary_group=summary_group,
+            activity_days=21,
+            include_inactive=True,
+        )
+        context = mock_render.call_args[0][2]
+        self.assertEqual(context["activity_days"], 21)
+        self.assertTrue(context["include_inactive"])
+        self.assertIn("activity_days=21", context["character_rows"][0]["action_url"])
+        self.assertIn("include_inactive=1", context["character_rows"][0]["action_url"])
+
+    @patch("mastery.views.pilot._get_summary_group_by_id", return_value=None)
+    @patch("mastery.views.pilot._get_accessible_fitting_or_404")
+    def test_pilot_fitting_detail_view_returns_400_for_invalid_summary_group(
+        self,
+        mock_fitting_404,
+        _mock_get_group,
+    ):
+        fitting = SimpleNamespace(id=1, name="Fit", ship_type=SimpleNamespace(name="Drake"))
+        fitting_map = SimpleNamespace(skillset=SimpleNamespace(id=10), doctrine_map=None)
+        doctrine = SimpleNamespace(id=2)
+        mock_fitting_404.return_value = (fitting, fitting_map, doctrine)
+
+        req = self._req(path="/fitting/1/?group_id=999")
+        response = views.pilot_fitting_detail_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content.decode(), "Invalid summary group")
 
     @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
     @patch("mastery.views.pilot.pilot_progress_service")
@@ -1452,18 +1852,22 @@ class TestPilotViews(SimpleTestCase):
         self.assertIn("character not found", response.content.decode())
 
     @patch("mastery.views.pilot.pilot_progress_service")
+    @patch("mastery.views.pilot._get_summary_group_by_id")
     @patch("mastery.views.pilot._get_pilot_detail_characters")
     @patch("mastery.views.pilot._get_accessible_fitting_or_404")
     def test_skillplan_export_returns_text_file_for_valid_request(
         self,
         mock_fitting_404,
         mock_get_chars,
+        mock_get_group,
         mock_progress_service,
     ):
         fitting = SimpleNamespace(id=5)
         skillset = SimpleNamespace(id=10)
         fitting_map = SimpleNamespace(skillset=skillset)
         mock_fitting_404.return_value = (fitting, fitting_map, None)
+        summary_group = SimpleNamespace(id=7, name="Group")
+        mock_get_group.return_value = summary_group
 
         char = SimpleNamespace(id=99)
         char_qs = Mock()
@@ -1476,32 +1880,57 @@ class TestPilotViews(SimpleTestCase):
         mock_progress_service.build_for_character.return_value = {"can_fly": True}
         mock_progress_service.build_export_lines.return_value = ["Skill A 5", "Skill B 4"]
 
-        req = self._req(path="/fitting/5/export/?character_id=99")
+        req = self._req(path="/fitting/5/export/?character_id=99&group_id=7&activity_days=21&include_inactive=1")
         response = views.pilot_fitting_skillplan_export_view(req, fitting_id=5)
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/plain", response.get("Content-Type", ""))
         self.assertIn("attachment", response.get("Content-Disposition", ""))
         self.assertIn("Skill A 5", response.content.decode())
+        mock_get_chars.assert_called_once_with(
+            req.user,
+            summary_group=summary_group,
+            activity_days=21,
+            include_inactive=True,
+        )
+
+    @patch("mastery.views.pilot._get_summary_group_by_id", return_value=None)
+    @patch("mastery.views.pilot._get_accessible_fitting_or_404")
+    def test_skillplan_export_returns_400_for_invalid_summary_group(
+        self,
+        mock_fitting_404,
+        _mock_get_group,
+    ):
+        mock_fitting_404.return_value = (
+            SimpleNamespace(id=1),
+            SimpleNamespace(skillset=SimpleNamespace(id=10)),
+            None,
+        )
+
+        req = self._req(path="/fitting/1/export/?character_id=99&group_id=999")
+        response = views.pilot_fitting_skillplan_export_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content.decode(), "Invalid summary group")
 
     # -- index ---------------------------------------------------------------
 
     @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
-    @patch("mastery.views.pilot.FittingSkillsetMap.objects.select_related")
+    @patch("mastery.views.pilot._approved_fitting_maps")
     @patch("mastery.views.pilot._get_member_characters")
     @patch("mastery.views.pilot.pilot_access_service")
     def test_pilot_index_renders_empty_cards_when_no_fittings(
         self,
         mock_access_service,
         mock_get_chars,
-        mock_fitting_maps,
+        mock_approved_fitting_maps,
         mock_render,
     ):
         doctrine = SimpleNamespace(id=1, name="Alpha", fittings=Mock())
         doctrine.fittings.all.return_value = []
         mock_access_service.accessible_doctrines.return_value = [doctrine]
         mock_get_chars.return_value = []
-        mock_fitting_maps.return_value.all.return_value = []
+        mock_approved_fitting_maps.return_value = {}
 
         req = self._req(path="/")
         response = views.index(req)

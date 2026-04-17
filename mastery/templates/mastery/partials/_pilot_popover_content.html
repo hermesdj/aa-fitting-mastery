@@ -21,7 +21,7 @@
         <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pilot.progress.recommended_pct|unlocalize }}%"></div>
     </div>
 
-    <a class="btn btn-sm btn-outline-{{ focus_btn }} w-100" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ pilot.character.id }}&character_filter={{ focus_filter }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}">
+    <a class="btn btn-sm btn-outline-{{ focus_btn }} w-100" href="{% url 'mastery:pilot_fitting_detail' fitting.id %}?character_id={{ pilot.character.id }}&character_filter={{ focus_filter }}&export_mode={{ export_mode }}&group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">
         <span class="fas fa-external-link-alt me-1" aria-hidden="true"></span>Open pilot focus
     </a>
 </div>

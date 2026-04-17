@@ -28,6 +28,37 @@ from .deps import pilot_access_service, pilot_progress_service
 User = get_user_model()
 
 
+def _is_approved_fitting_map(fitting_map) -> bool:
+    """Return True when a fitting map exists and is approved."""
+    return bool(
+        fitting_map
+        and getattr(
+            fitting_map,
+            "status",
+            FittingSkillsetMap.ApprovalStatus.APPROVED,
+        )
+        == FittingSkillsetMap.ApprovalStatus.APPROVED
+    )
+
+
+def _approved_fitting_maps() -> dict:
+    """Return fitting-id keyed maps restricted to approved skill plans."""
+    return {
+        obj.fitting_id: obj
+        for obj in FittingSkillsetMap.objects.select_related("skillset", "doctrine_map").all()
+        if _is_approved_fitting_map(obj)
+    }
+
+
+def _missing_skillset_error(fitting_map) -> str | None:
+    """Return a user-facing error when fitting map/skillset is missing or not approved."""
+    if not fitting_map or not getattr(fitting_map, "skillset", None):
+        return "No skillset configured for this fitting yet"
+    if not _is_approved_fitting_map(fitting_map):
+        return "No approved skillset configured for this fitting yet"
+    return None
+
+
 def _get_member_characters(user):
     return Character.objects.filter(
         eve_character__character_ownership__user=user,
@@ -67,13 +98,47 @@ def _get_summary_group_by_id(group_id_raw: str):
     return SummaryAudienceGroup.objects.filter(id=group_id).prefetch_related("entries").first()
 
 
-def _get_pilot_detail_characters(user, summary_group=None):
+def _character_last_seen(character) -> datetime | None:
+    """Return the latest known activity timestamp for a character."""
+    online_status = getattr(character, "online_status", None)
+    last_login = None if online_status is None else online_status.last_login
+    last_logout = None if online_status is None else online_status.last_logout
+    last_seen: datetime | None = None
+    for ts in (last_login, last_logout):
+        ts_dt = ts if isinstance(ts, datetime) else None
+        if ts_dt is None:
+            continue
+        if last_seen is None or ts_dt > last_seen:
+            last_seen = ts_dt
+    return last_seen
+
+
+def _is_character_active(character, cutoff: datetime | None, include_inactive: bool) -> bool:
+    """Return whether a character is in scope for the requested activity window."""
+    if include_inactive or cutoff is None:
+        return True
+    last_seen = _character_last_seen(character)
+    return last_seen is not None and last_seen >= cutoff
+
+
+def _get_pilot_detail_characters(
+    user,
+    summary_group=None,
+    activity_days: int | None = None,
+    include_inactive: bool = False,
+):
     # Elevated cross-account access is only allowed within an explicit summary group scope.
     if user.has_perm("mastery.doctrine_summary") and summary_group is not None:
         eligible_users = _summary_group_users(summary_group)
-        return Character.objects.filter(
+        characters = Character.objects.filter(
             eve_character__character_ownership__user__in=eligible_users,
-        ).select_related("eve_character").order_by("eve_character__character_name")
+        ).select_related("eve_character", "online_status").order_by("eve_character__character_name")
+        cutoff = None if activity_days is None else timezone.now() - timedelta(days=activity_days)
+        return [
+            character
+            for character in characters
+            if _is_character_active(character, cutoff=cutoff, include_inactive=include_inactive)
+        ]
 
     return _get_member_characters(user)
 
@@ -167,17 +232,8 @@ def _build_member_groups_for_summary(summary_group, activity_days: int, include_
         if owner is None:
             continue
 
-        online_status = getattr(character, "online_status", None)
-        last_login = None if online_status is None else online_status.last_login
-        last_logout = None if online_status is None else online_status.last_logout
-        last_seen: datetime | None = None
-        for ts in (last_login, last_logout):
-            ts_dt = ts if isinstance(ts, datetime) else None
-            if ts_dt is None:
-                continue
-            if last_seen is None or ts_dt > last_seen:
-                last_seen = ts_dt
-        is_active = include_inactive or (last_seen is not None and last_seen >= cutoff)
+        last_seen = _character_last_seen(character)
+        is_active = _is_character_active(character, cutoff=cutoff, include_inactive=include_inactive)
 
         group = groups.setdefault(
             owner.id,
@@ -515,28 +571,11 @@ def _build_doctrine_summary(
 
     for fitting in unique_fittings:
         fitting_map = fitting_maps.get(fitting.id)
-        if not fitting_map or not fitting_map.skillset:
-            fittings.append(
-                {
-                    "fitting": fitting,
-                    "configured": False,
-                    "users_total": 0,
-                    "users_with_flyable": 0,
-                    "best_required_pct": 0,
-                    "best_recommended_pct": 0,
-                    "user_rows": [],
-                    "kpis": {
-                        "users_total": 0,
-                        "flyable_now_users": 0,
-                        "elite_characters": 0,
-                        "almost_elite_characters": 0,
-                        "can_fly_characters": 0,
-                        "almost_fit_characters": 0,
-                        "needs_training_characters": 0,
-                        "recommended_avg_pct": 0.0,
-                    },
-                }
-            )
+        if (
+            not fitting_map
+            or not fitting_map.skillset
+            or getattr(fitting_map, "status", None) != FittingSkillsetMap.ApprovalStatus.APPROVED
+        ):
             continue
 
         user_rows = _build_fitting_user_rows(

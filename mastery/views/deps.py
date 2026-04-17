@@ -2,7 +2,7 @@
 
 from mastery.services.doctrine.doctrine_map_service import DoctrineMapService
 from mastery.services.doctrine.doctrine_skill_service import DoctrineSkillService
-from mastery.services.fittings import FittingMapService, FittingSkillExtractor
+from mastery.services.fittings import FittingApprovalService, FittingMapService, FittingSkillExtractor
 from mastery.services.pilots import PilotAccessService, PilotProgressService
 from mastery.services.sde import MasteryService
 from mastery.services.skills import SkillSuggestionService
@@ -22,6 +22,7 @@ mastery_service = MasteryService()
 control_service = SkillControlService()
 suggestion_service = SkillSuggestionService()
 fitting_map_service = FittingMapService()
+approval_service = FittingApprovalService()
 pilot_access_service = PilotAccessService()
 pilot_progress_service = PilotProgressService()
 doctrine_skill_service = DoctrineSkillService(
@@ -30,5 +31,6 @@ doctrine_skill_service = DoctrineSkillService(
     control_service=control_service,
     suggestion_service=suggestion_service,
     fitting_map_service=fitting_map_service,
+    approval_service=approval_service,
 )
 doctrine_map_service = DoctrineMapService(doctrine_skill_service=doctrine_skill_service)

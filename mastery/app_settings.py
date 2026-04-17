@@ -21,3 +21,6 @@ MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT = clean_setting(
     "MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT", 90, min_value=0, max_value=100
 )
 """Required coverage threshold (pct) for the Almost fit bucket."""
+
+MASTERY_DEFAULT_SKILLS = clean_setting("MASTERY_DEFAULT_SKILLS", [])
+"""Optional list of globally injected default skills for all generated skill plans."""

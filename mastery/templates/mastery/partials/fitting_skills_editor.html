@@ -1,6 +1,7 @@
 {% load humanize %}
 {% load l10n %}
 {% load skill_render %}
+{% load evelinks %}
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
     <div>
@@ -36,6 +37,88 @@
     </div>
 </div>
 {% endif %}
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body py-2 px-3">
+                <div class="small text-muted mb-1">Approval status</div>
+                <div class="mb-2"><span class="badge {{ approval_status_badge_class }}">{{ approval_status_label }}</span></div>
+                <div class="d-flex flex-wrap gap-2">
+                    <form method="post" action="{% url 'mastery:update_fitting_approval_status' fitting.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="approve">
+                        <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
+                        <button type="submit" class="btn btn-sm btn-success" {% if not can_approve_plan or approval_status == 'approved' %}disabled{% endif %}>
+                            Approve
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'mastery:update_fitting_approval_status' fitting.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="mark_in_progress">
+                        <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
+                        <button type="submit" class="btn btn-sm btn-outline-warning" {% if approval_status == 'in_progress' %}disabled{% endif %}>
+                            Mark in progress
+                        </button>
+                    </form>
+                    <form method="post" action="{% url 'mastery:update_fitting_approval_status' fitting.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="mark_not_approved">
+                        <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" {% if approval_status == 'not_approved' %}disabled{% endif %}>
+                            Mark not approved
+                        </button>
+                    </form>
+                </div>
+                {% if not can_approve_plan %}
+                <div class="small text-muted mt-2">Approval is available after the current skill plan has been synchronised.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body py-2 px-3">
+                <div class="small text-muted mb-1">Approved by</div>
+                {% if approved_by_actor and approved_at %}
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    {% if approved_by_actor.main_character %}
+                    <img src="{{ approved_by_actor.main_character|character_portrait_url:32 }}" class="rounded-circle mastery-approval-avatar" width="32" height="32" alt="{{ approved_by_actor.display_name }}">
+                    {% endif %}
+                    <div class="small lh-sm">
+                        <div class="fw-semibold">{{ approved_by_actor.display_name }}</div>
+                    </div>
+                </div>
+                <div class="small text-muted"><span data-bs-tooltip="aa-mastery" data-bs-title="{{ approved_at|date:'Y-m-d H:i:s' }} UTC">{{ approved_at|timesince }} ago</span></div>
+                {% else %}
+                <div class="small text-muted">No approval recorded yet.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body py-2 px-3">
+                <div class="small text-muted mb-1">Last modified</div>
+                {% if modified_by_actor and modified_at %}
+                <div class="d-flex align-items-center gap-2 mb-1">
+                    {% if modified_by_actor.main_character %}
+                    <img src="{{ modified_by_actor.main_character|character_portrait_url:32 }}" class="rounded-circle mastery-approval-avatar" width="32" height="32" alt="{{ modified_by_actor.display_name }}">
+                    {% endif %}
+                    <div class="small lh-sm">
+                        <div class="fw-semibold">{{ modified_by_actor.display_name }}</div>
+                    </div>
+                </div>
+                <div class="small text-muted"><span data-bs-tooltip="aa-mastery" data-bs-title="{{ modified_at|date:'Y-m-d H:i:s' }} UTC">{{ modified_at|timesince }} ago</span></div>
+                {% elif last_synced_at %}
+                <div class="small text-muted">Last plan change timestamp is not available for this entry.</div>
+                {% else %}
+                <div class="small text-muted">Generate or sync the plan before requesting approval.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="row g-3 mb-3">
     <div class="col-12 col-xl-7">
@@ -148,26 +231,61 @@
                 <div class="small text-muted mb-1">Recommended plan from 0</div>
                 <div class="fw-semibold">{{ recommended_plan_total_sp|intcomma }} SP</div>
                 <div class="small text-muted">Estimated training: {{ recommended_plan_total_time }} @ {{ plan_estimate_sp_per_hour|intcomma }} SP/h</div>
+                <div class="mt-2">
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-outline-primary mastery-copy-plan-btn"
+                        data-copy-text="{{ recommended_plan_copy_text|escape }}"
+                        {% if not recommended_plan_copy_text %}disabled{% endif %}
+                    >
+                        Copy recommended plan{% if recommended_plan_copy_line_count %} ({{ recommended_plan_copy_line_count }} lines){% endif %}
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="row row-cols-1 row-cols-xl-2 g-3">
+<div class="mastery-editor-tab-layout d-flex flex-column flex-lg-row gap-3 align-items-start">
+    <div class="mastery-editor-tab-nav">
+        <div class="mastery-tabs-scroll">
+            <div class="nav nav-pills mastery-group-nav" role="tablist" aria-orientation="vertical">
+                {% for group, payload in grouped_skills.items %}
+                <button
+                    class="nav-link mastery-group-pill {% if forloop.first %}active{% endif %}"
+                    id="mastery-group-tab-{{ forloop.counter }}"
+                    data-bs-toggle="tab"
+                    data-bs-target="#mastery-group-pane-{{ forloop.counter }}"
+                    type="button"
+                    role="tab"
+                    aria-controls="mastery-group-pane-{{ forloop.counter }}"
+                    aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                >
+                    <span class="mastery-group-pill-label">{{ group }}</span>
+                    <span class="badge bg-secondary">{{ payload.skills|length }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content mastery-editor-tab-content flex-grow-1 w-100">
     {% for group, payload in grouped_skills.items %}
     {% with skills=payload.skills %}
-    <div class="col" data-group-key="{{ payload.group_id|default:'other' }}">
-        <div class="card border-0 shadow-sm h-100 skill-group-card">
-            <div class="card-header d-flex justify-content-between align-items-center py-2">
-                <div>
-                    <span class="fw-semibold">{{ group }}</span>
-                    <div class="small text-muted">
-                        Req {{ payload.required_total_sp|default_if_none:0|default:0|intcomma }} SP · Rec {{ payload.recommended_total_sp|default_if_none:0|default:0|intcomma }} SP
-                    </div>
-                </div>
-                <span class="badge bg-secondary">{{ skills|length }}</span>
-            </div>
+    <div
+        class="tab-pane fade {% if forloop.first %}show active{% endif %}"
+        id="mastery-group-pane-{{ forloop.counter }}"
+        role="tabpanel"
+        aria-labelledby="mastery-group-tab-{{ forloop.counter }}"
+        data-group-key="{{ payload.group_id|default:'other' }}"
+    >
+        <div class="card border-0 shadow-sm skill-group-card mb-3">
             <div class="card-body pt-2">
+                <div class="small text-muted mb-2">
+                    Req <strong>{{ payload.required_total_sp|default_if_none:0|default:0|intcomma }} SP</strong>
+                    · Rec <strong>{{ payload.recommended_total_sp|default_if_none:0|default:0|intcomma }} SP</strong>
+                    <span class="ms-2 badge bg-secondary">{{ skills|length }} skill{{ skills|length|pluralize }}</span>
+                </div>
                 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
                     {% if skills|group_has_active_skills %}
                     <form method="post" action="{% url 'mastery:update_skill_group_controls' fitting.id %}" class="d-flex gap-2">
@@ -225,7 +343,7 @@
                     {% endif %}
                 </div>
 
-                <div class="table-responsive group-table-wrap">
+                <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0 group-skills-table">
                         <thead class="mastery-table-head">
                         <tr>
@@ -328,6 +446,7 @@
     </div>
     {% endwith %}
     {% endfor %}
+    </div>
 </div>
 
 {% if suggestion_count %}

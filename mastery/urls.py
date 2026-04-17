@@ -50,6 +50,11 @@ urlpatterns = [
         views.apply_skill_suggestion_view,
         name="apply_skill_suggestion",
     ),
+    path(
+        "fitting/<int:fitting_id>/skills/approval/",
+        views.update_fitting_approval_status_view,
+        name="update_fitting_approval_status",
+    ),
     path("fitting/<int:fitting_id>/skills/add-manual/", views.add_manual_skill_view, name="add_manual_skill"),
     path("fitting/<int:fitting_id>/skills/remove-manual/", views.remove_manual_skill_view, name="remove_manual_skill"),
     path(

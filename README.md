@@ -258,6 +258,7 @@ The following setting can be added to your Alliance Auth `local.py`:
 | `MASTERY_STATUS_ELITE_RECOMMENDED_PCT` | Recommended coverage threshold for the **Elite** bucket | `100` |
 | `MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT` | Recommended coverage threshold for the **Almost elite** bucket | `75` |
 | `MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT` | Required coverage threshold for the **Almost fit** bucket | `90` |
+| `MASTERY_DEFAULT_SKILLS` | Global default required skills injected into all generated fitting plans | `[]` |
 
 Example:
 
@@ -266,7 +267,32 @@ MASTERY_PLAN_ESTIMATE_SP_PER_HOUR = 1800
 MASTERY_STATUS_ELITE_RECOMMENDED_PCT = 100
 MASTERY_STATUS_ALMOST_ELITE_RECOMMENDED_PCT = 75
 MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT = 90
+MASTERY_DEFAULT_SKILLS = [
+    {"type_id": 28164, "required_level": 1},  # Thermodynamics I
+]
 ```
+
+### Default skills injected into all plans
+
+`MASTERY_DEFAULT_SKILLS` lets you force one or more baseline skills into **every** generated fitting plan.
+
+This is useful for alliance-wide standards such as always requiring `Thermodynamics I`, even when that skill does not come directly from fitting requirements or ship mastery data.
+
+Format:
+
+```python
+MASTERY_DEFAULT_SKILLS = [
+    {"type_id": 28164, "required_level": 1},
+    {"type_id": 3436, "required_level": 4},
+]
+```
+
+Behavior:
+
+- each entry must provide `type_id` and `required_level`,
+- `required_level` must be between `1` and `5`,
+- if a skill already exists in the generated plan, the plugin keeps the **highest** required level,
+- invalid entries are ignored safely instead of breaking plan generation.
 
 ## Contributing
 

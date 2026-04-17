@@ -8,11 +8,13 @@ from django.test import SimpleTestCase
 
 from mastery.services.doctrine.doctrine_skill_service import DoctrineSkillService
 from mastery.services.doctrine.doctrine_map_service import DoctrineMapService
+from mastery.services.fittings.approval_service import FittingApprovalService
 from mastery.services.fittings.skill_extractor import FittingSkillExtractor
 from mastery.services.fittings.fitting_map_service import FittingMapService
 from mastery.services.pilots.pilot_access_service import PilotAccessService
 from mastery.services.sde.mastery_service import MasteryService
 from mastery.services.sde.version_service import SdeVersionService
+from mastery.services.skill_requirements import merge_skill_maps, normalize_default_skill_map
 from mastery.services.skills.skill_control_service import SkillControlService
 from mastery.services.skills.skillcheck_service import SkillCheckService
 from mastery.services.skills.suggestion_service import SkillSuggestionService
@@ -166,6 +168,47 @@ class TestDoctrineAndFittingMapServices(SimpleTestCase):
         self.assertIs(result, fitting_map)
         doctrine_map.skillset_group.skill_sets.add.assert_called_once_with(skillset)
         mock_map_create.assert_called_once()
+
+
+class TestFittingApprovalService(SimpleTestCase):
+    @patch("mastery.services.fittings.approval_service.timezone.now", return_value="2026-04-16T00:00:00Z")
+    def test_mark_modified_clears_existing_approval_and_records_modifier(self, mock_now):
+        fitting_map = Mock()
+
+        result = FittingApprovalService.mark_modified(
+            fitting_map,
+            user=SimpleNamespace(username="editor"),
+            status="in_progress",
+        )
+
+        self.assertIs(result, fitting_map)
+        self.assertEqual(fitting_map.status, "in_progress")
+        self.assertIsNone(fitting_map.approved_by)
+        self.assertIsNone(fitting_map.approved_at)
+        self.assertEqual(fitting_map.modified_by.username, "editor")
+        self.assertEqual(fitting_map.modified_at, mock_now.return_value)
+        fitting_map.save.assert_called_once_with(
+            update_fields=[
+                "status",
+                "approved_by",
+                "approved_at",
+                "modified_by",
+                "modified_at",
+            ]
+        )
+
+    @patch("mastery.services.fittings.approval_service.timezone.now", return_value="2026-04-16T00:00:00Z")
+    def test_approve_sets_approved_status_and_audit_fields(self, mock_now):
+        fitting_map = Mock()
+        approver = SimpleNamespace(username="reviewer")
+
+        result = FittingApprovalService.approve(fitting_map, user=approver)
+
+        self.assertIs(result, fitting_map)
+        self.assertEqual(fitting_map.status, "approved")
+        self.assertIs(fitting_map.approved_by, approver)
+        self.assertEqual(fitting_map.approved_at, mock_now.return_value)
+        fitting_map.save.assert_called_once_with(update_fields=["status", "approved_by", "approved_at"])
 
 
 class TestFittingSkillExtractor(SimpleTestCase):
@@ -463,6 +506,7 @@ class TestDoctrineSkillService(SimpleTestCase):
             control_service=control_service,
             suggestion_service=suggestion_service,
             fitting_map_service=fitting_map_service,
+            approval_service=Mock(),
         )
         fitting = SimpleNamespace(id=55, ship_type_type_id=9001)
         doctrine_map = SimpleNamespace(default_mastery_level=4)
@@ -487,6 +531,95 @@ class TestDoctrineSkillService(SimpleTestCase):
             }
         })
 
+    @patch("mastery.services.doctrine.doctrine_skill_service.app_settings.MASTERY_DEFAULT_SKILLS", [{"type_id": 28164, "required_level": 1}])
+    def test_preview_fitting_injects_default_skills_into_required_map(self):
+        extractor = Mock()
+        extractor.get_required_skills_for_fitting.return_value = {1: 3}
+        mastery_service = Mock()
+        mastery_service.get_ship_skills.return_value = {}
+        control_service = Mock()
+        control_service.get_blacklist.return_value = set()
+        control_service.get_controls_map.return_value = {}
+        suggestion_service = Mock()
+        suggestion_service.suggest.return_value = {}
+        fitting_map_service = Mock()
+        fitting_map_service.create_fitting_map.return_value = SimpleNamespace(mastery_level=None)
+
+        service = DoctrineSkillService(
+            extractor=extractor,
+            mastery_service=mastery_service,
+            control_service=control_service,
+            suggestion_service=suggestion_service,
+            fitting_map_service=fitting_map_service,
+            approval_service=Mock(),
+        )
+
+        result = service.preview_fitting(
+            doctrine_map=SimpleNamespace(default_mastery_level=4),
+            fitting=SimpleNamespace(id=55, ship_type_type_id=9001),
+        )
+
+        rows = {row["skill_type_id"]: row for row in result["skill_rows"]}
+        self.assertIn(28164, rows)
+        self.assertEqual(rows[28164]["required_level"], 1)
+        self.assertEqual(rows[28164]["recommended_level"], 1)
+
+    @patch("mastery.services.doctrine.doctrine_skill_service.app_settings.MASTERY_DEFAULT_SKILLS", [{"type_id": 1, "required_level": 2}])
+    def test_preview_fitting_keeps_highest_required_level_when_default_skill_already_exists(self):
+        extractor = Mock()
+        extractor.get_required_skills_for_fitting.return_value = {1: 4}
+        mastery_service = Mock()
+        mastery_service.get_ship_skills.return_value = {}
+        control_service = Mock()
+        control_service.get_blacklist.return_value = set()
+        control_service.get_controls_map.return_value = {}
+        suggestion_service = Mock()
+        suggestion_service.suggest.return_value = {}
+        fitting_map_service = Mock()
+        fitting_map_service.create_fitting_map.return_value = SimpleNamespace(mastery_level=None)
+
+        service = DoctrineSkillService(
+            extractor=extractor,
+            mastery_service=mastery_service,
+            control_service=control_service,
+            suggestion_service=suggestion_service,
+            fitting_map_service=fitting_map_service,
+            approval_service=Mock(),
+        )
+
+        result = service.preview_fitting(
+            doctrine_map=SimpleNamespace(default_mastery_level=4),
+            fitting=SimpleNamespace(id=55, ship_type_type_id=9001),
+        )
+
+        rows = {row["skill_type_id"]: row for row in result["skill_rows"]}
+        self.assertEqual(rows[1]["required_level"], 4)
+
+
+class TestSkillRequirementsHelpers(SimpleTestCase):
+    def test_normalize_default_skill_map_returns_empty_for_invalid_container(self):
+        self.assertEqual(normalize_default_skill_map("invalid"), {})
+
+    def test_normalize_default_skill_map_ignores_invalid_entries_and_keeps_highest_level(self):
+        result = normalize_default_skill_map(
+            [
+                {"type_id": 10, "required_level": 2},
+                {"type_id": 10, "required_level": 4},
+                {"type_id": "oops", "required_level": 2},
+                {"type_id": 11, "required_level": 0},
+                {"type_id": 12, "required_level": 6},
+                "bad-entry",
+            ]
+        )
+
+        self.assertEqual(result, {10: 4})
+
+    def test_merge_skill_maps_keeps_highest_level_per_skill(self):
+        self.assertEqual(
+            merge_skill_maps({1: 3, 2: 1}, {2: 4, 3: 2}),
+            {1: 3, 2: 4, 3: 2},
+        )
+
     @patch("mastery.services.doctrine.doctrine_skill_service.timezone.now", return_value="now")
     @patch("mastery.services.doctrine.doctrine_skill_service.transaction.atomic", return_value=nullcontext())
     def test_generate_for_fitting_creates_only_non_blacklisted_entries_and_syncs(
@@ -495,12 +628,14 @@ class TestDoctrineSkillService(SimpleTestCase):
         mock_now,
     ):
         control_service = Mock()
+        approval_service = Mock()
         service = DoctrineSkillService(
             extractor=Mock(),
             mastery_service=Mock(),
             control_service=control_service,
             suggestion_service=Mock(),
             fitting_map_service=Mock(),
+            approval_service=approval_service,
         )
         fitting = SimpleNamespace(id=77)
         skillset = SimpleNamespace(skills=Mock())
@@ -533,6 +668,11 @@ class TestDoctrineSkillService(SimpleTestCase):
         self.assertEqual(entries[0].recommended_level, 4)
         fitting_map.save.assert_called_once_with(update_fields=["last_synced_at"])
         self.assertEqual(fitting_map.last_synced_at, mock_now.return_value)
+        approval_service.mark_modified.assert_called_once_with(
+            fitting_map,
+            user=None,
+            status=None,
+        )
         control_service.sync_suggestions.assert_called_once_with(77, {3: {"reason": "unused"}})
 
     @patch("mastery.services.doctrine.doctrine_skill_service.Doctrine.objects.prefetch_related")
@@ -550,14 +690,15 @@ class TestDoctrineSkillService(SimpleTestCase):
             control_service=Mock(),
             suggestion_service=Mock(),
             fitting_map_service=Mock(),
+            approval_service=Mock(),
         )
 
         with patch.object(service, "generate_for_fitting") as mock_generate_for_fitting:
-            service.generate_for_doctrine(doctrine_map=doctrine_map, mastery_level=3)
+            service.generate_for_doctrine(doctrine_map=doctrine_map, mastery_level=3, modified_by=None, status=None)
 
         self.assertEqual(mock_generate_for_fitting.call_count, 2)
-        mock_generate_for_fitting.assert_any_call(doctrine_map=doctrine_map, fitting=fitting_one, mastery_level=3)
-        mock_generate_for_fitting.assert_any_call(doctrine_map=doctrine_map, fitting=fitting_two, mastery_level=3)
+        mock_generate_for_fitting.assert_any_call(doctrine_map=doctrine_map, fitting=fitting_one, mastery_level=3, modified_by=None, status=None)
+        mock_generate_for_fitting.assert_any_call(doctrine_map=doctrine_map, fitting=fitting_two, mastery_level=3, modified_by=None, status=None)
 
 
 class TestSkillControlService(SimpleTestCase):

@@ -55,8 +55,8 @@
                     <tr>
                         <th>Fitting</th>
                         <th>Status</th>
+                        <th>Approval</th>
                         <th>Mastery</th>
-                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -80,34 +80,78 @@
                             <span class="badge bg-warning text-dark">Missing</span>
                             {% endif %}
                         </td>
-                        <td>
-                            <div class="small text-muted mb-1">Effective: <strong>{{ f.effective_mastery_label }}</strong></div>
-                            <form method="post" action="{% url 'mastery:update_fitting_mastery' f.id %}" class="d-flex align-items-center gap-2 flex-wrap">
+                        <td class="approval-cell">
+                            <div class="d-flex flex-column gap-1">
+                                <span class="badge {{ f.approval_status_badge_class }} align-self-start">{{ f.approval_status_label }}</span>
+
+                                {% if f.approved_by_actor and f.approved_at %}
+                                <div class="d-flex align-items-center gap-2 mt-1">
+                                    {% if f.approved_by_actor.main_character %}
+                                    <img src="{{ f.approved_by_actor.main_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ f.approved_by_actor.display_name }}">
+                                    {% endif %}
+                                    <div class="small lh-sm">
+                                        <div class="text-muted">Approved by</div>
+                                        <div class="fw-semibold text-body">{{ f.approved_by_actor.display_name }}</div>
+                                    </div>
+                                </div>
+                                <div class="small text-muted">
+                                    <span class="fas fa-clock me-1" aria-hidden="true"></span>
+                                    <span data-bs-tooltip="aa-mastery" data-bs-title="{{ f.approved_at|date:'Y-m-d H:i:s' }} UTC">{{ f.approved_at|timesince }} ago</span>
+                                </div>
+                                {% elif f.modified_by_actor and f.modified_at %}
+                                <div class="d-flex align-items-center gap-2 mt-1">
+                                    {% if f.modified_by_actor.main_character %}
+                                    <img src="{{ f.modified_by_actor.main_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ f.modified_by_actor.display_name }}">
+                                    {% endif %}
+                                    <div class="small lh-sm">
+                                        <div class="text-muted">Last updated by</div>
+                                        <div class="fw-semibold text-body">{{ f.modified_by_actor.display_name }}</div>
+                                    </div>
+                                </div>
+                                <div class="small text-muted">
+                                    <span class="fas fa-clock me-1" aria-hidden="true"></span>
+                                    <span data-bs-tooltip="aa-mastery" data-bs-title="{{ f.modified_at|date:'Y-m-d H:i:s' }} UTC">{{ f.modified_at|timesince }} ago</span>
+                                </div>
+                                {% else %}
+                                <div class="small text-muted mt-1">No activity recorded yet.</div>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="mastery-cell">
+                            <div class="small text-muted mb-1">Effective mastery</div>
+                            <div class="mb-2">
+                                <span class="badge text-bg-primary">{{ f.effective_mastery_label }}</span>
+                            </div>
+
+                            <form method="post" action="{% url 'mastery:update_fitting_mastery' f.id %}" class="mb-2">
                                 {% csrf_token %}
                                 <input type="hidden" name="doctrine_id" value="{{ doctrine.id }}">
-                                <select class="form-select form-select-sm" name="mastery_level" id="fitting-mastery-{{ f.id }}">
-                                    <option value="" {% if f.mastery_override is None %}selected{% endif %}>Use doctrine default ({{ doctrine_default_mastery_label }})</option>
-                                    {% for value, label in mastery_choices %}
-                                    <option value="{{ value }}" {% if f.mastery_override == value %}selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </select>
                                 <input type="hidden" name="next" value="{% url 'mastery:doctrine_detail' doctrine.id %}">
-                                <button type="submit" class="btn btn-sm btn-outline-primary">Apply</button>
+                                <div class="input-group input-group-sm mastery-apply-group">
+                                    <select class="form-select" name="mastery_level" id="fitting-mastery-{{ f.id }}">
+                                        <option value="" {% if f.mastery_override is None %}selected{% endif %}>Use doctrine default ({{ doctrine_default_mastery_label }})</option>
+                                        {% for value, label in mastery_choices %}
+                                        <option value="{{ value }}" {% if f.mastery_override == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="submit" class="btn btn-outline-primary">Apply</button>
+                                </div>
                             </form>
-                        </td>
-                        <td>
-                            <div class="d-flex gap-2 flex-wrap">
-                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:fitting_skills' f.id %}">Open fitting</a>
+
+                            <div class="btn-group btn-group-sm mastery-actions-group" role="group" aria-label="Fitting mastery actions">
+                                <a class="btn btn-outline-secondary" href="{% url 'mastery:fitting_skills' f.id %}">
+                                    <span class="fas fa-sliders-h me-1" aria-hidden="true"></span>Edit
+                                </a>
                                 <button
                                     type="button"
-                                    class="btn btn-sm btn-outline-info preview-fittings-btn"
+                                    class="btn btn-outline-info preview-fittings-btn"
                                     data-bs-toggle="modal"
                                     data-bs-target="#fittingPreviewModal"
                                     data-preview-url="{% url 'mastery:fitting_skills_preview' f.id %}?doctrine_id={{ doctrine.id }}"
                                     data-select-id="fitting-mastery-{{ f.id }}"
                                     data-fitting-name="{{ f.name|escape }}"
                                 >
-                                    Preview skills
+                                    <span class="fas fa-list-ul me-1" aria-hidden="true"></span>Preview
                                 </button>
                             </div>
                         </td>
@@ -124,49 +168,32 @@
     </div>
 </div>
 
-<div class="modal fade" id="fittingPreviewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Fitting skill preview</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="fittingPreviewModalBody">
-                <div class="text-muted">Loading preview...</div>
-            </div>
-        </div>
-    </div>
-</div>
+{% include 'mastery/partials/_fitting_preview_modal.html' %}
 
-<script>
-    (() => {
-        const modalElement = document.getElementById('fittingPreviewModal');
-        const modalBody = document.getElementById('fittingPreviewModalBody');
-        const modalTitle = modalElement.querySelector('.modal-title');
+<style>
+    .approval-cell {
+        min-width: 250px;
+    }
 
-        modalElement.addEventListener('show.bs.modal', async (event) => {
-            const button = event.relatedTarget;
-            if (!button) {
-                return;
-            }
+    .approval-cell .rounded-circle {
+        border: 1px solid var(--bs-border-color-translucent, rgba(0, 0, 0, 0.14));
+    }
 
-            const select = document.getElementById(button.dataset.selectId);
-            const masteryLevel = select ? select.value : '';
-            const separator = button.dataset.previewUrl.includes('?') ? '&' : '?';
-            const previewUrl = `${button.dataset.previewUrl}${separator}mastery_level=${encodeURIComponent(masteryLevel)}`;
+    .mastery-cell {
+        min-width: 340px;
+    }
 
-            modalTitle.textContent = `Fitting skill preview - ${button.dataset.fittingName}`;
-            modalBody.innerHTML = '<div class="text-muted">Loading preview...</div>';
+    .mastery-apply-group .form-select {
+        min-width: 210px;
+    }
 
-            const response = await fetch(previewUrl, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
+    .mastery-actions-group {
+        width: 100%;
+    }
 
-            modalBody.innerHTML = await response.text();
-        });
-    })();
-</script>
+    .mastery-actions-group > .btn {
+        flex: 1 1 0;
+    }
+</style>
 
 {% endblock %}

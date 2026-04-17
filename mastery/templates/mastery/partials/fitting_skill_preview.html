@@ -21,24 +21,21 @@
         <div class="table-responsive">
             <table class="table table-sm table-striped mb-0" style="table-layout: fixed; width: 100%;">
                 <colgroup>
-                    <col style="width: 420px;">
-                    <col style="width: 120px;">
+                    <col style="width: 500px;">
                     <col style="width: 140px;">
-                    <col>
-                    <col style="width: 120px;">
+                    <col style="width: 160px;">
                 </colgroup>
                 <thead class="mastery-table-head">
                 <tr>
                     <th>Skill</th>
                     <th>Required</th>
                     <th>Recommended</th>
-                    <th>Suggestion</th>
-                    <th>Status</th>
                 </tr>
                 </thead>
                 <tbody>
                 {% for skill in skills %}
-                <tr class="{% if skill.is_blacklisted %}table-danger{% elif skill.is_suggested %}table-warning{% endif %}">
+                {% if not skill.is_blacklisted %}
+                <tr>
                     <td>
                         <span>{{ skill.skill_name }}</span>
                         {% if skill.is_manual %}
@@ -59,29 +56,8 @@
                     </td>
                     <td>{{ skill.required_level|skill_render }}</td>
                     <td>{{ skill.recommended_level|skill_render }}</td>
-                    <td>
-                        {% if skill.is_suggested %}
-                        {% if skill.suggestion_action == 'remove' %}
-                        Suggested to remove: {{ skill.suggestion_reason }}
-                        {% elif skill.suggestion_action == 'add' %}
-                        Suggested to add: {{ skill.suggestion_reason }}
-                        {% else %}
-                        {{ skill.suggestion_reason }}
-                        {% endif %}
-                        {% else %}
-                        <span class="text-muted">—</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {% if skill.is_blacklisted %}
-                        <span class="badge bg-danger">Blacklisted</span>
-                        {% elif skill.is_suggested %}
-                        <span class="badge bg-warning text-dark">Suggested</span>
-                        {% else %}
-                        <span class="badge bg-success">Included</span>
-                        {% endif %}
-                    </td>
                 </tr>
+                {% endif %}
                 {% endfor %}
                 </tbody>
             </table>

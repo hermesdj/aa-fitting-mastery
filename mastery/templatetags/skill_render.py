@@ -42,6 +42,26 @@ def skill_render(value):
 
 
 @register.filter
+def active_skills(skills):
+    """Return only the non-blacklisted skill rows."""
+    if not skills:
+        return []
+    return [skill for skill in skills if not skill.get("is_blacklisted")]
+
+
+@register.filter
+def grouped_has_active_skills(grouped):
+    """Return True when at least one skill row in any group is not blacklisted."""
+    if not grouped:
+        return False
+    for group_data in grouped.values():
+        for skill in group_data.get("skills", []):
+            if not skill.get("is_blacklisted"):
+                return True
+    return False
+
+
+@register.filter
 def group_has_active_skills(skills):
     """Return True when at least one skill row is not blacklisted."""
     if not skills:

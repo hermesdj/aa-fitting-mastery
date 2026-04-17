@@ -37,11 +37,15 @@ class DoctrineMapService:
 
         return doctrine_map
 
-    def sync(self, doctrine: Doctrine):
+    def sync(self, doctrine: Doctrine, modified_by=None, status: str | None = None):
         """Regenerate all fitting skillsets attached to a doctrine."""
         doctrine_map = DoctrineSkillSetGroupMap.objects.filter(doctrine=doctrine).first()
 
         if not doctrine_map:
             doctrine_map = self.create_doctrine_map(doctrine)
 
-        self._doctrine_skill_service.generate_for_doctrine(doctrine_map)
+        self._doctrine_skill_service.generate_for_doctrine(
+            doctrine_map,
+            modified_by=modified_by,
+            status=status,
+        )
