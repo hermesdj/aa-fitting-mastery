@@ -21,6 +21,13 @@
     </a>
 </li>
 {% endif %}
+{% if perms.mastery.basic_access %}
+<li class="nav-item">
+    <a class="nav-link {% navactive request 'mastery:progression_list' %}" href="{% url 'mastery:progression_list' %}">
+        {% translate 'Skill Progressions' %}
+    </a>
+</li>
+{% endif %}
 {% if perms.mastery.manage_summary_groups %}
 <li class="nav-item">
     <a class="nav-link {% navactive request 'mastery:summary_settings' %}" href="{% url 'mastery:summary_settings' %}">
@@ -32,6 +39,11 @@
 <li class="nav-item">
     <a class="nav-link {% navactive request 'mastery:doctrine_list' %}" href="{% url 'mastery:doctrine_list' %}">
         {% translate 'Manage Skill Plans' %}
+    </a>
+</li>
+<li class="nav-item">
+    <a class="nav-link {% navactive request 'mastery:progression_editor_list' %}" href="{% url 'mastery:progression_editor_list' %}">
+        {% translate 'Manage Progressions' %}
     </a>
 </li>
 {% endif %}

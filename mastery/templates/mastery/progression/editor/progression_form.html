@@ -1,0 +1,43 @@
+{% extends "mastery/base.html" %}
+
+{% block details %}
+<div class="container mt-4">
+    <h2 class="mb-3">{% if edit_mode %}Update{% else %}Create{% endif %} progression</h2>
+
+    <form method="post" class="card shadow-sm border-0">
+        {% csrf_token %}
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label" for="progressionName">Name</label>
+                <input id="progressionName" class="form-control" type="text" name="name" value="{{ progression.name|default:'' }}" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="progressionDescription">Description</label>
+                <textarea id="progressionDescription" class="form-control" name="description" rows="3">{{ progression.description|default:'' }}</textarea>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label" for="progressionOrder">Order</label>
+                    <input id="progressionOrder" class="form-control" type="number" min="0" name="order" value="{{ progression.order|default:0 }}">
+                </div>
+                {% if edit_mode %}
+                <div class="col-md-8 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input id="progressionIsActive" class="form-check-input" type="checkbox" name="is_active" {% if progression.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="progressionIsActive">Active</label>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card-footer d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Save</button>
+            <a class="btn btn-outline-secondary" href="{% url 'mastery:progression_editor_list' %}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock details %}
+
+

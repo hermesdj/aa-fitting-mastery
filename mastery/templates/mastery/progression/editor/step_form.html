@@ -1,0 +1,46 @@
+{% extends "mastery/base.html" %}
+
+{% block details %}
+<div class="container mt-4">
+    <h2 class="mb-3">{% if edit_mode %}Update{% else %}Add{% endif %} step</h2>
+
+    <form method="post" class="card shadow-sm border-0">
+        {% csrf_token %}
+        <div class="card-body row g-3">
+            <div class="col-md-3">
+                <label class="form-label" for="stepNumber">Step number</label>
+                <input id="stepNumber" class="form-control" name="step_number" value="{{ step.step_number|default:'' }}" required>
+            </div>
+            <div class="col-md-5">
+                <label class="form-label" for="stepSkillsetGroup">SkillSet group</label>
+                <select id="stepSkillsetGroup" class="form-select" name="skillset_group_id" required>
+                    <option value="">Select one...</option>
+                    {% for group in skillset_groups %}
+                    <option value="{{ group.id }}" {% if step.skillset_group_id == group.id %}selected{% endif %}>{{ group.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="stepBranchKey">Branch key</label>
+                <input id="stepBranchKey" class="form-control" name="branch_key" value="{{ step.branch_key|default:'' }}">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <div class="form-check mb-2">
+                    <input id="stepRequired" class="form-check-input" type="checkbox" name="is_required" {% if step.is_required or not edit_mode %}checked{% endif %}>
+                    <label class="form-check-label" for="stepRequired">Required</label>
+                </div>
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="stepDescription">Description</label>
+                <textarea id="stepDescription" class="form-control" name="description" rows="3">{{ step.description|default:'' }}</textarea>
+            </div>
+        </div>
+        <div class="card-footer d-flex gap-2">
+            <button class="btn btn-primary" type="submit">Save</button>
+            <a class="btn btn-outline-secondary" href="{% url 'mastery:progression_editor_detail' progression.id %}">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock details %}
+
+

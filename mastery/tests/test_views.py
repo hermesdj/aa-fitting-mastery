@@ -1978,3 +1978,46 @@ class TestPilotViews(SimpleTestCase):
         context = mock_render.call_args[0][2]
         self.assertEqual(context["doctrine_cards"], [])
         self.assertEqual(context["configured_fittings_count"], 0)
+
+
+class TestProgressionViews(SimpleTestCase):
+    def setUp(self):
+        self.request_factory = RequestFactory()
+
+    @staticmethod
+    def _request_user():
+        return SimpleNamespace(
+            is_authenticated=True,
+            has_perm=lambda _perm: True,
+            has_perms=lambda _perms: True,
+        )
+
+    @patch("mastery.views.progression.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.progression.SkillPlanProgressionService.bulk_get_user_progressions")
+    def test_progression_list_view_renders_with_service_payload(self, mock_bulk_get, mock_render):
+        mock_bulk_get.return_value = [{"progression": SimpleNamespace(id=1, name="Path")}]
+        request = self.request_factory.get("/fitting-mastery/progressions/")
+        request.user = self._request_user()
+
+        response = views.progression_list_view(request)
+
+        self.assertEqual(response.status_code, 200)
+        mock_bulk_get.assert_called_once_with(request.user)
+        self.assertEqual(mock_render.call_args[0][1], "mastery/progression/progression_list.html")
+
+    @patch("mastery.views.progression.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.progression.SkillPlanProgressionService.calculate_user_progression_state")
+    @patch("mastery.views.progression.get_object_or_404")
+    def test_progression_detail_view_renders_with_state(self, mock_get_object, mock_calc_state, mock_render):
+        progression = SimpleNamespace(id=8, name="Path", is_active=True)
+        mock_get_object.return_value = progression
+        mock_calc_state.return_value = {"progression": progression, "steps": []}
+        request = self.request_factory.get("/fitting-mastery/progressions/8/")
+        request.user = self._request_user()
+
+        response = views.progression_detail_view(request, progression_id=8)
+
+        self.assertEqual(response.status_code, 200)
+        mock_calc_state.assert_called_once_with(request.user, progression)
+        self.assertEqual(mock_render.call_args[0][1], "mastery/progression/progression_detail.html")
+

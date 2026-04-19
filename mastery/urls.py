@@ -20,6 +20,59 @@ urlpatterns = [
         views.pilot_fitting_skillplan_export_view,
         name="pilot_fitting_skillplan_export",
     ),
+    # Progressions (read-only)
+    path("progressions/", views.progression_list_view, name="progression_list"),
+    path(
+        "progressions/<int:progression_id>/",
+        views.progression_detail_view,
+        name="progression_detail",
+    ),
+    # Progressions (editor)
+    path(
+        "progressions/editor/",
+        views.progression_editor_list_view,
+        name="progression_editor_list",
+    ),
+    path(
+        "progressions/editor/create/",
+        views.progression_editor_create_view,
+        name="progression_editor_create",
+    ),
+    path(
+        "progressions/editor/<int:progression_id>/",
+        views.progression_editor_detail_view,
+        name="progression_editor_detail",
+    ),
+    path(
+        "progressions/editor/<int:progression_id>/update/",
+        views.progression_editor_update_view,
+        name="progression_editor_update",
+    ),
+    path(
+        "progressions/editor/<int:progression_id>/delete/",
+        views.progression_editor_delete_view,
+        name="progression_editor_delete",
+    ),
+    path(
+        "progressions/editor/<int:progression_id>/steps/create/",
+        views.progression_step_add_view,
+        name="progression_step_create",
+    ),
+    path(
+        "progressions/editor/<int:progression_id>/steps/<int:step_id>/update/",
+        views.progression_step_update_view,
+        name="progression_step_update",
+    ),
+    path(
+        "progressions/editor/<int:progression_id>/steps/<int:step_id>/delete/",
+        views.progression_step_delete_view,
+        name="progression_step_delete",
+    ),
+    path(
+        "progressions/editor/<int:progression_id>/steps/reorder/",
+        views.progression_step_reorder_view,
+        name="progression_step_reorder",
+    ),
     # Summaries
     path("summaries/", views.summary_list_view, name="summary_list"),
     path("summaries/doctrine/<int:doctrine_id>/", views.summary_doctrine_detail_view, name="summary_doctrine_detail"),

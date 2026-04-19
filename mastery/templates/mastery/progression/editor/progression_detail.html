@@ -1,0 +1,106 @@
+{% extends "mastery/base.html" %}
+
+{% block details %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">{{ progression.name }}</h2>
+            {% if progression.description %}
+            <p class="text-muted mb-0">{{ progression.description }}</p>
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary" href="{% url 'mastery:progression_editor_update' progression.id %}">Edit progression</a>
+            <a class="btn btn-outline-secondary" href="{% url 'mastery:progression_editor_list' %}">Back</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header"><strong>Add step</strong></div>
+        <div class="card-body">
+            <form method="post" action="{% url 'mastery:progression_step_create' progression.id %}" class="row g-3">
+                {% csrf_token %}
+                <div class="col-md-3">
+                    <label class="form-label" for="stepNumber">Step number</label>
+                    <input id="stepNumber" class="form-control" name="step_number" placeholder="1 / 2 / 3a" required>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label" for="stepSkillsetGroup">SkillSet group</label>
+                    <select id="stepSkillsetGroup" class="form-select" name="skillset_group_id" required>
+                        <option value="">Select one...</option>
+                        {% for group in skillset_groups %}
+                        <option value="{{ group.id }}">{{ group.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" for="stepBranchKey">Branch key</label>
+                    <input id="stepBranchKey" class="form-control" name="branch_key" placeholder="step_3">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                        <input id="stepRequired" class="form-check-input" type="checkbox" name="is_required" checked>
+                        <label class="form-check-label" for="stepRequired">Required</label>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="stepDescription">Description</label>
+                    <input id="stepDescription" class="form-control" name="description" placeholder="Optional note for pilots">
+                </div>
+                <div class="col-12">
+                    <button class="btn btn-primary" type="submit">Add step</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if progression.steps.count %}
+    <div class="card shadow-sm border-0">
+        <div class="card-header"><strong>Configured steps</strong></div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead class="mastery-table-head">
+                    <tr>
+                        <th>Order</th>
+                        <th>Step</th>
+                        <th>SkillSet group</th>
+                        <th>Branch</th>
+                        <th>Required</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for step in progression.steps.all %}
+                    <tr>
+                        <td>{{ step.order }}</td>
+                        <td>{{ step.step_number }}</td>
+                        <td>{{ step.skillset_group.name }}</td>
+                        <td>{{ step.branch_key|default:'-' }}</td>
+                        <td>
+                            {% if step.is_required %}
+                            <span class="badge bg-success">Yes</span>
+                            {% else %}
+                            <span class="badge bg-warning text-dark">Optional</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:progression_step_update' progression.id step.id %}">Edit</a>
+                            <form method="post" action="{% url 'mastery:progression_step_delete' progression.id step.id %}" class="d-inline">
+                                {% csrf_token %}
+                                <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info mb-0">No steps configured yet.</div>
+    {% endif %}
+</div>
+{% endblock details %}
+
+
+

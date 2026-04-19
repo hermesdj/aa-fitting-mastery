@@ -1,0 +1,64 @@
+{% extends "mastery/base.html" %}
+
+{% block details %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h2 class="mb-1">Manage Skill Progressions</h2>
+            <p class="text-muted mb-0">Create and maintain ordered skill-learning processes.</p>
+        </div>
+        <a class="btn btn-primary" href="{% url 'mastery:progression_editor_create' %}">
+            <i class="fas fa-plus"></i> New progression
+        </a>
+    </div>
+
+    {% if progressions %}
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead class="mastery-table-head">
+                <tr>
+                    <th>Name</th>
+                    <th>Order</th>
+                    <th>Status</th>
+                    <th>Steps</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for progression in progressions %}
+                <tr>
+                    <td>
+                        <div class="fw-semibold">{{ progression.name }}</div>
+                        {% if progression.description %}
+                        <div class="small text-muted">{{ progression.description }}</div>
+                        {% endif %}
+                    </td>
+                    <td>{{ progression.order }}</td>
+                    <td>
+                        {% if progression.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ progression.steps.count }}</td>
+                    <td class="text-end">
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:progression_editor_detail' progression.id %}">Edit steps</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:progression_editor_update' progression.id %}">Edit</a>
+                        <form method="post" action="{% url 'mastery:progression_editor_delete' progression.id %}" class="d-inline">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info mb-0">No progression configured yet.</div>
+    {% endif %}
+</div>
+{% endblock details %}
+
+

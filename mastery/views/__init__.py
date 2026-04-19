@@ -33,6 +33,21 @@ from .pilot import (
     pilot_fitting_detail_view,
     pilot_fitting_skillplan_export_view,
 )
+from .progression import (
+    progression_detail_view,
+    progression_list_view,
+)
+from .progression_editor import (
+    progression_editor_create_view,
+    progression_editor_delete_view,
+    progression_editor_detail_view,
+    progression_editor_list_view,
+    progression_editor_update_view,
+    progression_step_add_view,
+    progression_step_delete_view,
+    progression_step_reorder_view,
+    progression_step_update_view,
+)
 from .summary import (
     summary_doctrine_detail_view,
     summary_fitting_detail_view,
@@ -58,6 +73,17 @@ __all__ = [
     "index",
     "pilot_fitting_detail_view",
     "pilot_fitting_skillplan_export_view",
+    "progression_detail_view",
+    "progression_list_view",
+    "progression_editor_create_view",
+    "progression_editor_delete_view",
+    "progression_editor_detail_view",
+    "progression_editor_list_view",
+    "progression_editor_update_view",
+    "progression_step_add_view",
+    "progression_step_delete_view",
+    "progression_step_reorder_view",
+    "progression_step_update_view",
     "remove_manual_skill_view",
     "summary_doctrine_detail_view",
     "summary_fitting_detail_view",

@@ -12,6 +12,7 @@ from mastery.services.fittings.approval_service import FittingApprovalService
 from mastery.services.fittings.skill_extractor import FittingSkillExtractor
 from mastery.services.fittings.fitting_map_service import FittingMapService
 from mastery.services.pilots.pilot_access_service import PilotAccessService
+from mastery.services.progressions import SkillPlanProgressionService
 from mastery.services.sde.mastery_service import MasteryService
 from mastery.services.sde.version_service import SdeVersionService
 from mastery.services.skill_requirements import merge_skill_maps, normalize_default_skill_map
@@ -834,6 +835,89 @@ class TestSkillControlService(SimpleTestCase):
             skill_type_id=2,
             defaults={"is_blacklisted": True},
         )
+
+
+class TestSkillPlanProgressionService(SimpleTestCase):
+    def test_build_progression_state_marks_current_stage_and_branch_completion(self):
+        class _Steps:
+            def __init__(self, rows):
+                self._rows = rows
+
+            def all(self):
+                return self._rows
+
+        progression = SimpleNamespace(
+            id=5,
+            name="Path",
+            steps=_Steps(
+                [
+                    SimpleNamespace(
+                        id=1,
+                        progression_id=5,
+                        order=1,
+                        step_number="1",
+                        skillset_group_id=100,
+                        skillset_group=SimpleNamespace(name="Basics"),
+                        description="",
+                        is_required=True,
+                        branch_key=None,
+                    ),
+                    SimpleNamespace(
+                        id=2,
+                        progression_id=5,
+                        order=2,
+                        step_number="2a",
+                        skillset_group_id=101,
+                        skillset_group=SimpleNamespace(name="Branch A"),
+                        description="",
+                        is_required=False,
+                        branch_key="s2",
+                    ),
+                    SimpleNamespace(
+                        id=3,
+                        progression_id=5,
+                        order=2,
+                        step_number="2b",
+                        skillset_group_id=102,
+                        skillset_group=SimpleNamespace(name="Branch B"),
+                        description="",
+                        is_required=False,
+                        branch_key="s2",
+                    ),
+                    SimpleNamespace(
+                        id=4,
+                        progression_id=5,
+                        order=3,
+                        step_number="3",
+                        skillset_group_id=103,
+                        skillset_group=SimpleNamespace(name="Advanced"),
+                        description="",
+                        is_required=True,
+                        branch_key=None,
+                    ),
+                ]
+            ),
+        )
+
+        state = SkillPlanProgressionService._build_progression_state(
+            progression=progression,
+            completed_group_ids={100, 101},
+        )
+
+        statuses = {row["step_number"]: row["status"] for row in state["steps"]}
+        self.assertEqual(statuses["1"], "completed")
+        self.assertEqual(statuses["2a"], "completed")
+        self.assertEqual(statuses["2b"], "completed")
+        self.assertEqual(statuses["3"], "current")
+        self.assertEqual(state["completed_count"], 3)
+        self.assertEqual(state["current_step"]["step_number"], "3")
+
+    @patch("mastery.services.progressions.progression_service.SkillPlanProgressionStep.objects.filter")
+    def test_reorder_progression_steps_raises_on_mismatch(self, mock_filter):
+        mock_filter.return_value.values_list.return_value = [1, 2, 3]
+
+        with self.assertRaises(ValueError):
+            SkillPlanProgressionService.reorder_progression_steps(99, [1, 2])
 
     @patch("mastery.services.skills.skill_control_service.FittingSkillControl.objects.filter")
     def test_get_controls_map_indexes_rows_by_skill_type(self, mock_filter):

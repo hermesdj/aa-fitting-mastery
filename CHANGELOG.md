@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.1.8] - 2026-04-19
+
+### Added
+
+- Add skill learning progressions: curators can now define ordered sequences of skill plans that pilots should learn in stages (e.g., "Basic Pilot" → "Intermediate" → "Advanced [choose one]"). Progressions support optional branches and can include both doctrine-linked skillsets and standalone memberaudit skillsets.
+- Add new menu item "Skill Progressions" (basic_access) with read-only views of all active learning paths.
+- Add progression editor (users with `mastery.manage_fittings`) to create, reorder, and manage progression steps.
+- Add `SkillPlanProgression` and `SkillPlanProgressionStep` models with full CRUD support.
+- Add per-user progression tracking in detail view (completed steps, current step, pending/optional steps with visual progress).
+- Add `SkillPlanProgressionService` with helpers for user progression state calculation and step reordering.
+- Add `progression_editor` permission for curator-level access to progression management.
+
+### Technical Details
+
+- Progressions are independent of doctrines: steps reference `memberaudit.SkillSetGroup` directly.
+- User progress is calculated from `memberaudit.CharacterSkillSetCheck.can_fly` status for each step.
+- Steps support optional branching via `branch_key` (e.g., "step_3" groups "3a" and "3b" as alternatives).
+- All progression data is read-only for pilots; only editors with `mastery.manage_fittings` can modify.
+
+### Upgrade Notes
+
+- Update package:
+  - `pip install -U aa-fitting-mastery==0.1.8`
+- Apply database changes:
+  - `python manage.py migrate`
+- Ensure progression managers have `mastery.manage_fittings` permission.
+- No Celery changes required.
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+
 ## [0.1.7] - 2026-04-17
 
 ### Fixed

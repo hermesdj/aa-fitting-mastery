@@ -8,3 +8,4 @@ from .ship_mastery_certificate import *
 from .doctrine_skillsetgroup_map import *
 from .fitting_skillset_map import *
 from .summary_group import *
+from .skill_plan_progression import *
