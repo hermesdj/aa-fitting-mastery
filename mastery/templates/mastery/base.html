@@ -14,17 +14,17 @@
     </a>
 </li>
 {% endif %}
-{% if perms.mastery.doctrine_summary %}
-<li class="nav-item">
-    <a class="nav-link {% navactive request 'mastery:summary_list' %}" href="{% url 'mastery:summary_list' %}">
-        {% translate 'Doctrine Summary' %}
-    </a>
-</li>
-{% endif %}
 {% if perms.mastery.basic_access %}
 <li class="nav-item">
     <a class="nav-link {% navactive request 'mastery:progression_list' %}" href="{% url 'mastery:progression_list' %}">
         {% translate 'Skill Progressions' %}
+    </a>
+</li>
+{% endif %}
+{% if perms.mastery.doctrine_summary %}
+<li class="nav-item">
+    <a class="nav-link {% navactive request 'mastery:summary_list' %}" href="{% url 'mastery:summary_list' %}">
+        {% translate 'Doctrine Summary' %}
     </a>
 </li>
 {% endif %}
