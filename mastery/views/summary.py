@@ -259,6 +259,10 @@ def summary_fitting_detail_view(request, fitting_id):
     if request.GET.get("format") == "csv":
         return _summary_fitting_member_coverage_csv_response(fitting=fitting, user_rows=user_rows)
 
+    doctrine_priority = 0 if doctrine is None else int(
+        getattr(getattr(fitting_map, "doctrine_map", None), "priority", 0) or 0
+    )
+
     return render(
         request,
         "mastery/summary_fitting_detail.html",
@@ -266,7 +270,7 @@ def summary_fitting_detail_view(request, fitting_id):
             "fitting": fitting,
             "fitting_map": fitting_map,
             "doctrine": doctrine,
-            "doctrine_priority": 0 if doctrine is None else int(getattr(getattr(fitting_map, "doctrine_map", None), "priority", 0) or 0),
+            "doctrine_priority": doctrine_priority,
             "fitting_kpis": fitting_kpis,
             "user_rows": user_rows,
             "summary_groups": summary_groups,

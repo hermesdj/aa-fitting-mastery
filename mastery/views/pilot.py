@@ -31,7 +31,6 @@ from .common import (
     _parse_activity_days,
     _parse_export_language,
     _parse_export_mode,
-    DoctrineSkillSetGroupMap,
     pilot_access_service,
     pilot_progress_service,
 )
@@ -159,12 +158,26 @@ def _build_pilot_detail_character_rows(
     return character_rows
 
 
+def _get_doctrine_priority_map(priority_map: dict[int, int] | None = None) -> dict[int, int]:
+    """Build a doctrine-id -> priority lookup for pilot overview pages."""
+    if priority_map is not None:
+        return priority_map
+
+    from mastery.models import DoctrineSkillSetGroupMap
+
+    return {
+        row["doctrine_id"]: row["priority"]
+        for row in DoctrineSkillSetGroupMap.objects.values("doctrine_id", "priority")
+    }
+
+
 @login_required
 @permissions_required('mastery.basic_access')
 def index(request):
     """Render pilot overview cards across accessible doctrines and fittings."""
     doctrines = pilot_access_service.accessible_doctrines(request.user)
     member_characters = list(_get_member_characters(request.user))
+    doctrine_priority_map = None
     selected_character_id = request.GET.get("character_id")
     selected_status = _parse_index_status_filter((request.GET.get("status") or "all").strip().lower())
     search_query = (request.GET.get("q") or "").strip().lower()
@@ -183,19 +196,6 @@ def index(request):
 
     fitting_maps = _approved_fitting_maps()
     progress_context = {}
-
-    # Build a doctrine-id → priority lookup from the mapping table (lazy, built on demand)
-    from mastery.models import DoctrineSkillSetGroupMap as _DMap
-    _doctrine_priority_map_cache: dict | None = None
-
-    def _get_doctrine_priority_map():
-        nonlocal _doctrine_priority_map_cache
-        if _doctrine_priority_map_cache is None:
-            _doctrine_priority_map_cache = {
-                row["doctrine_id"]: row["priority"]
-                for row in _DMap.objects.values("doctrine_id", "priority")
-            }
-        return _doctrine_priority_map_cache
 
     doctrine_cards = []
     configured_fittings_count = 0
@@ -317,7 +317,8 @@ def index(request):
             )
 
         if fitting_cards:
-            doctrine_priority = _get_doctrine_priority_map().get(doctrine.id, 0)
+            doctrine_priority_map = _get_doctrine_priority_map(doctrine_priority_map)
+            doctrine_priority = doctrine_priority_map.get(doctrine.id, 0)
             doctrine_cards.append(
                 {
                     "doctrine": doctrine,
