@@ -166,6 +166,9 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# Keep compiled Django translations versioned for production i18n.
+!mastery/locale/**/LC_MESSAGES/*.mo
+
 # PyPI configuration file
 .pypirc
 

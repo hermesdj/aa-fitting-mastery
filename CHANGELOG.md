@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.1.9] - 2026-04-21
+
+### Added
+
+- Keep compiled locale catalogs in version control by explicitly allowing `mastery/locale/**/LC_MESSAGES/*.mo` in `.gitignore`.
+
+### Changed
+
+- Include compiled translation files (`django.mo`) in release artifacts so production instances can immediately serve `fr_FR` strings without requiring a post-deploy `compilemessages` run.
+
+### Upgrade Notes
+
+- Update package:
+  - `pip install -U aa-fitting-mastery==0.1.9`
+- No database migration, settings change, or Celery schedule update is required for this release.
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+
 ## [0.1.8] - 2026-04-21
 
 ### Added
