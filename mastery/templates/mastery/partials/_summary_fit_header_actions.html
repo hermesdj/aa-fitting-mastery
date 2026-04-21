@@ -1,6 +1,8 @@
+{% load i18n %}
+
 {% if fit.configured %}
-<span class="badge bg-success">{{ fit.users_with_flyable }}/{{ fit.users_total }} members have a flyable alt</span>
-<a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=all">Open member detail</a>
+<span class="badge bg-success">{% blocktranslate with flyable=fit.users_with_flyable total=fit.users_total %}{{ flyable }}/{{ total }} members have a flyable alt{% endblocktranslate %}</span>
+<a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=all">{% translate "Open member detail" %}</a>
 <button
 	type="button"
 	class="btn btn-sm btn-outline-info preview-fittings-btn"
@@ -9,12 +11,12 @@
 	data-preview-url="{% url 'mastery:fitting_skills_preview' fit.fitting.id %}"
 	data-fitting-name="{{ fit.fitting.name|escape }}"
 >
-	Preview skills
+	{% translate "Preview skills" %}
 </button>
 {% if perms.mastery.manage_fittings %}
-<a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:fitting_skills' fit.fitting.id %}">Edit skill plan</a>
+<a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:fitting_skills' fit.fitting.id %}">{% translate "Edit skill plan" %}</a>
 {% endif %}
 {% else %}
-<span class="badge bg-secondary">Not configured</span>
+<span class="badge bg-secondary">{% translate "Not configured" %}</span>
 {% endif %}
 

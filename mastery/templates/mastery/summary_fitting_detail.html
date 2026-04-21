@@ -1,23 +1,36 @@
 {% extends 'mastery/base.html' %}
+{% load i18n %}
 {% load humanize %}
 {% load evelinks %}
 {% load l10n %}
+{% translate "Elite" as status_elite_label %}
+{% translate "Almost elite" as status_almost_elite_label %}
+{% translate "Can fly" as status_can_fly_label %}
+{% translate "Almost fit" as status_almost_fit_label %}
+{% translate "Needs training" as status_needs_training_label %}
+{% translate "Fitting skill preview" as fitting_preview_label %}
+{% translate "Loading preview..." as loading_preview_label %}
+{% translate "Failed to load preview." as failed_preview_label %}
 
 {% block details %}
 <div class="container mt-4">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
         <div>
-            <h2 class="mb-1 d-flex align-items-center gap-2">
+            <h2 class="mb-1 d-flex align-items-center gap-2 flex-wrap">
                 <img src="{{ fitting.ship_type_type_id|type_render_url:32 }}" class="rounded" width="32" height="32" alt="{{ fitting.ship_type.name }}">
                 <span>{{ fitting.name }}</span>
+                {% include 'mastery/partials/_priority_badge.html' with priority=fitting_map.priority %}
             </h2>
-            <div class="text-muted">{{ fitting.ship_type.name }}{% if doctrine %} · Doctrine: {{ doctrine.name }}{% endif %}</div>
+            <div class="text-muted d-flex align-items-center gap-2 flex-wrap">
+                <span>{{ fitting.ship_type.name }}{% if doctrine %} · {% translate "Doctrine" %}: {{ doctrine.name }}{% endif %}</span>
+                {% if doctrine %}{% include 'mastery/partials/_priority_badge.html' with priority=doctrine_priority %}{% endif %}
+            </div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
             {% if doctrine %}
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_doctrine_detail' doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">Back to doctrine</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_doctrine_detail' doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">{% translate "Back to doctrine" %}</a>
             {% endif %}
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_fit' fitting.id %}">View fitting</a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_fit' fitting.id %}">{% translate "View fitting" %}</a>
             <button
                 type="button"
                 class="btn btn-sm btn-outline-info preview-fittings-btn"
@@ -26,38 +39,38 @@
                 data-preview-url="{% url 'mastery:fitting_skills_preview' fitting.id %}"
                 data-fitting-name="{{ fitting.name|escape }}"
             >
-                Preview skills
+                {% translate "Preview skills" %}
             </button>
             {% if perms.mastery.manage_fittings %}
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:fitting_skills' fitting.id %}">Edit skill plan</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:fitting_skills' fitting.id %}">{% translate "Edit skill plan" %}</a>
             {% endif %}
         </div>
     </div>
 
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-body d-flex flex-wrap justify-content-between gap-2 align-items-center">
-            <div class="small text-muted">Audience group: <strong>{{ selected_group.name }}</strong></div>
+            <div class="small text-muted">{% translate "Audience group:" %} <strong>{{ selected_group.name }}</strong></div>
             <form method="get" class="d-flex flex-wrap align-items-center gap-2">
                 {% if include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
                 <input type="hidden" name="export_mode" value="{{ export_mode }}">
-                <label class="small text-muted" for="summaryGroupSwitchFitting">Switch group</label>
+                <label class="small text-muted" for="summaryGroupSwitchFitting">{% translate "Switch group" %}</label>
                 <select id="summaryGroupSwitchFitting" name="group_id" class="form-select form-select-sm" style="width: 240px;">
                     {% for group in summary_groups %}
                     <option value="{{ group.id }}" {% if selected_group.id == group.id %}selected{% endif %}>{{ group.name }}</option>
                     {% endfor %}
                 </select>
-                <label class="small text-muted" for="summaryFittingActivityDays">Activity days</label>
+                <label class="small text-muted" for="summaryFittingActivityDays">{% translate "Activity days" %}</label>
                 <input id="summaryFittingActivityDays" class="form-control form-control-sm" type="number" min="1" max="90" name="activity_days" value="{{ activity_days }}" style="width: 96px;">
-                <button class="btn btn-sm btn-outline-primary" type="submit">Apply</button>
+                <button class="btn btn-sm btn-outline-primary" type="submit">{% translate "Apply" %}</button>
             </form>
         </div>
     </div>
 
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-header d-flex justify-content-between align-items-center">
-            <span class="fw-semibold">Character readiness</span>
+            <span class="fw-semibold">{% translate "Character readiness" %}</span>
             <div class="d-flex align-items-center gap-2">
-                <span class="small text-muted">Avg recommended</span>
+                <span class="small text-muted">{% translate "Avg recommended" %}</span>
                 <span class="fw-semibold">{{ fitting_kpis.recommended_avg_pct }}%</span>
                 <div class="progress" style="height: 6px; width: 100px;">
                     <div class="progress-bar bg-primary" role="progressbar" style="width: {{ fitting_kpis.recommended_avg_pct|unlocalize }}%"></div>
@@ -72,11 +85,11 @@
     <div class="card border-0 shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
             <div class="d-flex align-items-center gap-2">
-                <span>Member coverage</span>
-                <button type="button" class="btn btn-sm btn-outline-secondary kpi-filter-btn show-all-filter-btn" data-filter="all">Show all</button>
+                <span>{% translate "Member coverage" %}</span>
+                <button type="button" class="btn btn-sm btn-outline-secondary kpi-filter-btn show-all-filter-btn" data-filter="all">{% translate "Show all" %}</button>
             </div>
             <a class="btn btn-sm btn-outline-primary" href="?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&export_mode={{ export_mode }}&format=csv">
-                <span class="fas fa-file-csv me-1" aria-hidden="true"></span>Export CSV
+                <span class="fas fa-file-csv me-1" aria-hidden="true"></span>{% translate "Export CSV" %}
             </a>
         </div>
         <div class="card-body p-0">
@@ -84,7 +97,7 @@
                 <table class="table table-sm align-middle mb-0 mastery-summary-table">
                     <thead class="mastery-summary-thead">
                     <tr>
-                        <th>Main</th>
+                        <th>{% translate "Main" %}</th>
                         {% include 'mastery/partials/_summary_status_headers.html' with include_tooltips=1 include_chars_suffix=0 status_thresholds=status_thresholds %}
                     </tr>
                     </thead>
@@ -97,33 +110,33 @@
                                 <img src="{{ row.main_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ row.main_character.character_name }}">
                                 <div>
                                     <div>{{ row.main_character.character_name }}</div>
-                                    <div class="small text-muted">{{ row.flyable_count }}/{{ row.active_count }} flyable</div>
+                                    <div class="small text-muted">{% blocktranslate with flyable=row.flyable_count total=row.active_count %}{{ flyable }}/{{ total }} flyable{% endblocktranslate %}</div>
                                 </div>
                             </div>
                             {% else %}
                             <div>{{ row.user.username }}</div>
-                            <div class="small text-muted">{{ row.flyable_count }}/{{ row.active_count }} flyable</div>
+                            <div class="small text-muted">{% blocktranslate with flyable=row.flyable_count total=row.active_count %}{{ flyable }}/{{ total }} flyable{% endblocktranslate %}</div>
                             {% endif %}
                         </td>
                         <td>
-                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.elite_pilots bucket='elite' row_user_id=row.user.id status_label='Elite' focus_filter='elite' focus_btn='success' fitting=fitting export_mode=export_mode selected_group=selected_group %}
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.elite_pilots bucket='elite' row_user_id=row.user.id status_label=status_elite_label focus_filter='elite' focus_btn='success' fitting=fitting export_mode=export_mode selected_group=selected_group %}
                         </td>
                         <td>
-                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.almost_elite_pilots bucket='almost_elite' row_user_id=row.user.id status_label='Almost elite' focus_filter='almost_elite' focus_btn='primary' fitting=fitting export_mode=export_mode selected_group=selected_group %}
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.almost_elite_pilots bucket='almost_elite' row_user_id=row.user.id status_label=status_almost_elite_label focus_filter='almost_elite' focus_btn='primary' fitting=fitting export_mode=export_mode selected_group=selected_group %}
                         </td>
                         <td>
-                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.can_fly_pilots bucket='can_fly' row_user_id=row.user.id status_label='Can fly' focus_filter='can_fly_now' focus_btn='info' fitting=fitting export_mode=export_mode selected_group=selected_group %}
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.can_fly_pilots bucket='can_fly' row_user_id=row.user.id status_label=status_can_fly_label focus_filter='can_fly_now' focus_btn='info' fitting=fitting export_mode=export_mode selected_group=selected_group %}
                         </td>
                         <td>
-                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.almost_fit_pilots bucket='almost_fit' row_user_id=row.user.id status_label='Almost fit' focus_filter='almost_required' focus_btn='warning' fitting=fitting export_mode=export_mode selected_group=selected_group %}
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.almost_fit_pilots bucket='almost_fit' row_user_id=row.user.id status_label=status_almost_fit_label focus_filter='almost_required' focus_btn='warning' fitting=fitting export_mode=export_mode selected_group=selected_group %}
                         </td>
                         <td>
-                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.needs_training_pilots bucket='needs_training' row_user_id=row.user.id status_label='Needs training' focus_filter='needs_training' focus_btn='danger' fitting=fitting export_mode=export_mode selected_group=selected_group %}
+                            {% include 'mastery/partials/_pilot_avatar_cell.html' with pilots=row.needs_training_pilots bucket='needs_training' row_user_id=row.user.id status_label=status_needs_training_label focus_filter='needs_training' focus_btn='danger' fitting=fitting export_mode=export_mode selected_group=selected_group %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-muted">No active characters in the selected activity window.</td>
+                        <td colspan="6" class="text-muted">{% translate "No active characters in the selected activity window." %}</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -137,11 +150,11 @@
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Fitting skill preview</h5>
+                <h5 class="modal-title">{{ fitting_preview_label }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="fittingPreviewModalBody">
-                <div class="text-muted">Loading preview...</div>
+                <div class="text-muted">{{ loading_preview_label }}</div>
             </div>
         </div>
     </div>
@@ -234,19 +247,26 @@
         if (modalElement) {
             const modalBody = document.getElementById('fittingPreviewModalBody');
             const modalTitle = modalElement.querySelector('.modal-title');
+            const previewTitleLabel = '{{ fitting_preview_label|escapejs }}';
+            const loadingPreviewHtml = '<div class="text-muted">{{ loading_preview_label|escapejs }}</div>';
+            const failedPreviewHtml = '<div class="text-danger">{{ failed_preview_label|escapejs }}</div>';
             modalElement.addEventListener('show.bs.modal', async (event) => {
                 const button = event.relatedTarget;
                 if (!button) {
                     return;
                 }
-                modalTitle.textContent = `Fitting skill preview - ${button.dataset.fittingName}`;
-                modalBody.innerHTML = '<div class="text-muted">Loading preview...</div>';
-                const response = await fetch(button.dataset.previewUrl, {
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-                modalBody.innerHTML = await response.text();
+                modalTitle.textContent = `${previewTitleLabel} - ${button.dataset.fittingName}`;
+                modalBody.innerHTML = loadingPreviewHtml;
+                try {
+                    const response = await fetch(button.dataset.previewUrl, {
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+                    modalBody.innerHTML = await response.text();
+                } catch (_error) {
+                    modalBody.innerHTML = failedPreviewHtml;
+                }
             });
         }
     });

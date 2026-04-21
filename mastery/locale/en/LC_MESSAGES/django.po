@@ -1,0 +1,1816 @@
+# English translations for AA Fitting Mastery plugin
+# Copyright (C) 2026
+# This file is distributed under the same license as the AA Fitting Mastery package.
+#
+msgid ""
+msgstr ""
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-04-21 13:15+0000\n"
+"Language: en\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: mastery/auth_hooks.py:11
+msgid "Skill Planner"
+msgstr ""
+
+#: mastery/models/doctrine_skill_snapshot.py:15
+msgid "doctrine"
+msgstr ""
+
+#: mastery/models/doctrine_skill_snapshot.py:20
+msgid "doctrine name"
+msgstr ""
+
+#: mastery/models/doctrine_skill_snapshot.py:26
+#: mastery/models/fitting_skill_control.py:13
+#: mastery/models/fitting_skillset_map.py:33
+msgid "fitting"
+msgstr ""
+
+#: mastery/models/doctrine_skill_snapshot.py:33
+msgid "fitting name"
+msgstr ""
+
+#: mastery/models/doctrine_skill_snapshot.py:39
+msgid "ship type"
+msgstr ""
+
+#: mastery/models/doctrine_skill_snapshot.py:50
+#: mastery/models/fitting_skill_control.py:20
+msgid "skill type"
+msgstr ""
+
+#: mastery/models/doctrine_skill_snapshot.py:57
+msgid "required level"
+msgstr ""
+
+#: mastery/models/doctrine_skill_snapshot.py:61
+msgid "recommended level"
+msgstr ""
+
+#: mastery/models/fitting_skill_control.py:27
+msgid "is blacklisted"
+msgstr ""
+
+#: mastery/models/fitting_skill_control.py:32
+msgid "is suggested"
+msgstr ""
+
+#: mastery/models/fitting_skill_control.py:44
+msgid "recommended level override"
+msgstr ""
+
+#: mastery/models/fitting_skill_control.py:49
+msgid "is manual"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:18 mastery/views/common.py:55
+msgid "In progress"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:19 mastery/views/common.py:56
+msgid "Not approved"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:20 mastery/views/common.py:57
+msgid "Approved"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:25
+msgid "doctrine map"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:40
+msgid "skillset"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:47
+msgid "mastery level"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:53
+msgid "priority"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:54
+msgid "Fitting training priority from 0 (default, no highlight) to 10 (highest)."
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:60
+msgid "last synced at"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:67
+msgid "approval status"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:76
+msgid "approved by"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:82
+msgid "approved at"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:91
+msgid "modified by"
+msgstr ""
+
+#: mastery/models/fitting_skillset_map.py:97
+msgid "modified at"
+msgstr ""
+
+#: mastery/models/general.py:17
+msgid "Can access the Fitting Mastery app"
+msgstr ""
+
+#: mastery/models/general.py:18
+msgid "Can manage fitting skill plans"
+msgstr ""
+
+#: mastery/models/general.py:19
+msgid "Can view doctrine summaries"
+msgstr ""
+
+#: mastery/models/general.py:20
+msgid "Can manage doctrine summary groups"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:35
+msgid "Charisma"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:36
+msgid "Intelligence"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:37
+msgid "Memory"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:38
+msgid "Perception"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:39
+msgid "Willpower"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:62
+msgid "English"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:63
+msgid "French"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:64
+msgid "German"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:65
+msgid "Spanish"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:66
+msgid "Italian"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:67
+msgid "Dutch"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:68
+msgid "Polish"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:69
+msgid "Russian"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:70
+msgid "Ukrainian"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:71
+msgid "Japanese"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:72
+msgid "Korean"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:73
+msgid "Chinese"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:240
+#: mastery/templates/mastery/pilot_fitting_detail.html:216
+msgid "Unknown"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:602
+#: mastery/templates/mastery/index.html:158
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:43
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:29
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:32
+#: mastery/templates/mastery/pilot_fitting_detail.html:95
+#: mastery/templates/mastery/pilot_fitting_detail.html:438
+#: mastery/templates/mastery/pilot_fitting_detail.html:548
+msgid "Required"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:603
+#: mastery/templates/mastery/index.html:162
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:48
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:34
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:33
+#: mastery/templates/mastery/pilot_fitting_detail.html:96
+#: mastery/templates/mastery/pilot_fitting_detail.html:467
+#: mastery/templates/mastery/pilot_fitting_detail.html:575
+msgid "Recommended"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:666
+#: mastery/services/pilots/status_buckets.py:22
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:27
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:13
+#: mastery/templates/mastery/partials/_summary_status_headers.html:4
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:12
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:42
+#: mastery/templates/mastery/partials/_summary_status_kpi_nav_cards.html:12
+#: mastery/templates/mastery/summary_fitting_detail.html:6
+msgid "Elite"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:668
+#: mastery/services/pilots/status_buckets.py:23
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:29
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:15
+#: mastery/templates/mastery/partials/_summary_status_headers.html:10
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:18
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:46
+#: mastery/templates/mastery/partials/_summary_status_kpi_nav_cards.html:18
+#: mastery/templates/mastery/summary_fitting_detail.html:7
+#: mastery/views/pilot.py:51
+msgid "Almost elite"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:670
+#: mastery/services/pilots/status_buckets.py:24
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:31
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:17
+#: mastery/templates/mastery/partials/_summary_status_headers.html:16
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:24
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:50
+#: mastery/templates/mastery/partials/_summary_status_kpi_nav_cards.html:24
+#: mastery/templates/mastery/summary_fitting_detail.html:8
+msgid "Can fly"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:672
+#: mastery/services/pilots/status_buckets.py:25
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:33
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:19
+#: mastery/templates/mastery/partials/_summary_status_headers.html:22
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:30
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:54
+#: mastery/templates/mastery/partials/_summary_status_kpi_nav_cards.html:30
+#: mastery/templates/mastery/summary_fitting_detail.html:9
+#: mastery/views/pilot.py:50
+msgid "Almost fit"
+msgstr ""
+
+#: mastery/services/pilots/pilot_progress_service.py:673
+#: mastery/services/pilots/status_buckets.py:26
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:35
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:21
+#: mastery/templates/mastery/partials/_summary_status_headers.html:28
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:36
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:58
+#: mastery/templates/mastery/partials/_summary_status_kpi_nav_cards.html:36
+#: mastery/templates/mastery/summary_fitting_detail.html:10
+#: mastery/views/pilot.py:52
+msgid "Needs training"
+msgstr ""
+
+#: mastery/templates/mastery/base.html:5 mastery/templates/mastery/base.html:7
+msgid "Ship Mastery"
+msgstr ""
+
+#: mastery/templates/mastery/base.html:13
+#: mastery/templates/mastery/index.html:12
+msgid "Skill Mastery"
+msgstr ""
+
+#: mastery/templates/mastery/base.html:20
+msgid "Doctrine Summary"
+msgstr ""
+
+#: mastery/templates/mastery/base.html:27
+#: mastery/templates/mastery/summary_settings.html:11
+msgid "Summary Group Settings"
+msgstr ""
+
+#: mastery/templates/mastery/base.html:34
+#: mastery/templates/mastery/doctrine_list.html:10
+msgid "Manage Skill Plans"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:14
+msgid "Fitting mastery configuration for this doctrine"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:18
+msgid "Back to doctrines"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:21
+msgid "Sync doctrine"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:30
+msgid "Doctrine default mastery"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:31
+msgid "Applied to all fittings unless an override is set on a fitting."
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:40
+msgid "Save & sync doctrine"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:50
+msgid "Doctrine priority"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:51
+msgid "Training priority for pilots (0 = default, no highlight; 10 = highest urgency)."
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:56
+#: mastery/templates/mastery/doctrine_detail.html:167
+#: mastery/templates/mastery/doctrine_list.html:45
+msgid "Priority"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:62
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:206
+msgid "Save priority"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:70
+msgid "Fittings"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:71
+#: mastery/templates/mastery/doctrine_list.html:37
+#, python-format
+msgid "%(count)s total"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:78
+#: mastery/templates/mastery/index.html:106
+msgid "Fitting"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:79
+#: mastery/templates/mastery/doctrine_list.html:48
+#: mastery/templates/mastery/index.html:34
+msgid "Status"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:80
+msgid "Approval"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:81
+msgid "Mastery"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:100
+msgid "Configured"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:102
+msgid "Missing"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:115
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:85
+msgid "Approved by"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:121
+#: mastery/templates/mastery/doctrine_detail.html:135
+msgid "ago"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:129
+msgid "Last updated by"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:138
+msgid "No activity recorded yet."
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:143
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:246
+msgid "Effective mastery"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:154
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:163
+#, python-format
+msgid "Use doctrine default (%(level)s)"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:159
+#: mastery/templates/mastery/index.html:42
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:229
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:458
+#: mastery/templates/mastery/pilot_fitting_detail.html:77
+#: mastery/templates/mastery/summary_doctrine_detail.html:42
+#: mastery/templates/mastery/summary_fitting_detail.html:64
+#: mastery/templates/mastery/summary_list_view.html:49
+msgid "Apply"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:169
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:447
+msgid "Set"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:176
+msgid "Fitting mastery actions"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:178
+#: mastery/templates/mastery/index.html:139
+msgid "Edit"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:189
+#: mastery/templates/mastery/index.html:136
+msgid "Preview"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_detail.html:196
+msgid "No fittings found in this doctrine."
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:11
+msgid "Doctrine-level overview and initialization status."
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:19
+#: mastery/templates/mastery/doctrine_list.html:36
+#: mastery/templates/mastery/summary_list_view.html:67
+msgid "Doctrines"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:27
+msgid "Workflow"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:28
+msgid "Initialize missing plans, then sync doctrine after updates."
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:44
+#: mastery/templates/mastery/summary_settings.html:22
+msgid "Name"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:46
+msgid "Default mastery"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:47
+#: mastery/templates/mastery/pilot_fitting_detail.html:199
+msgid "Coverage"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:49
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:403
+#: mastery/templates/mastery/summary_settings.html:131
+msgid "Actions"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:76
+msgid "Not set"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:89
+msgid "Initialized"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:91
+msgid "Not initialized"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:96
+msgid "Open"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:100
+msgid "Initialize"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:105
+msgid "Sync"
+msgstr ""
+
+#: mastery/templates/mastery/doctrine_list.html:113
+msgid "No doctrines found."
+msgstr ""
+
+#: mastery/templates/mastery/fitting_skills.html:7
+msgid "Unable to determine the form action."
+msgstr ""
+
+#: mastery/templates/mastery/fitting_skills.html:8
+msgid "Unable to update the fitting skills."
+msgstr ""
+
+#: mastery/templates/mastery/fitting_skills.html:9
+msgid "No recommended plan available to copy."
+msgstr ""
+
+#: mastery/templates/mastery/fitting_skills.html:10
+msgid "Recommended plan copied to clipboard."
+msgstr ""
+
+#: mastery/templates/mastery/fitting_skills.html:11
+msgid "Unable to copy plan to clipboard."
+msgstr ""
+
+#: mastery/templates/mastery/fitting_skills.html:12
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:286
+#: mastery/templates/mastery/pilot_fitting_detail.html:6
+msgid "Copied!"
+msgstr ""
+
+#: mastery/templates/mastery/fitting_skills.html:13
+msgid "Close"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:13
+#, python-format
+msgid "Doctrine readiness overview for your characters (%(count)s tracked)."
+msgstr ""
+
+#: mastery/templates/mastery/index.html:21
+#: mastery/templates/mastery/summary_list_view.html:27
+msgid "Search doctrine / fitting / ship"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:25
+msgid "Focus character"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:27
+msgid "Best character available"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:43
+#: mastery/templates/mastery/summary_list_view.html:50
+msgid "Reset"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:53
+msgid "Configured fittings in view"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:61
+#, python-format
+msgid "Flyable fittings for %(name)s"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:61
+msgid "Flyable fittings"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:69
+msgid "Focused pilot"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:70
+msgid "Best available pilot"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:87
+#, python-format
+msgid "%(count)s fitting visible after filters"
+msgid_plural "%(count)s fittings visible after filters"
+msgstr[0] ""
+msgstr[1] ""
+
+#: mastery/templates/mastery/index.html:90
+#: mastery/templates/mastery/pilot_fitting_detail.html:16
+#: mastery/templates/mastery/summary_fitting_detail.html:25
+#: mastery/templates/mastery/summary_list_view.html:73
+msgid "Doctrine"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:107
+msgid "Readiness"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:120
+msgid "Open fit planner"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:145
+msgid "At least one pilot can fly"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:145
+msgid "Training required"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:149
+msgid "Leadership has not configured this fit yet"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:167
+msgid "Best required coverage"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:171
+msgid "Best recommended coverage"
+msgstr ""
+
+#: mastery/templates/mastery/index.html:176
+msgid "No pilot data available."
+msgstr ""
+
+#: mastery/templates/mastery/index.html:234
+msgid "No accessible doctrines found."
+msgstr ""
+
+#: mastery/templates/mastery/partials/_fitting_preview_modal.html:2
+#: mastery/templates/mastery/summary_fitting_detail.html:11
+msgid "Fitting skill preview"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_fitting_preview_modal.html:3
+#: mastery/templates/mastery/summary_fitting_detail.html:12
+msgid "Loading preview..."
+msgstr ""
+
+#: mastery/templates/mastery/partials/_fitting_preview_modal.html:4
+#: mastery/templates/mastery/summary_fitting_detail.html:13
+msgid "Failed to load preview."
+msgstr ""
+
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:43
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:48
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:29
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:34
+msgid "SP missing"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_pilot_avatar_button.html:55
+#: mastery/templates/mastery/partials/_pilot_popover_content.html:40
+msgid "Open pilot focus"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_priority_badge.html:5
+#, python-format
+msgid "Priority %(p)s — maximum urgency"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_priority_badge.html:11
+#, python-format
+msgid "Priority %(p)s — high priority"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_priority_badge.html:17
+#, python-format
+msgid "Priority %(p)s — medium priority"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_priority_badge.html:23
+#, python-format
+msgid "Priority %(p)s — low priority"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_fit_header_actions.html:4
+#, python-format
+msgid "%(flyable)s/%(total)s members have a flyable alt"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_fit_header_actions.html:5
+msgid "Open member detail"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_fit_header_actions.html:14
+#: mastery/templates/mastery/summary_fitting_detail.html:42
+msgid "Preview skills"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_fit_header_actions.html:17
+#: mastery/templates/mastery/pilot_fitting_detail.html:47
+#: mastery/templates/mastery/summary_fitting_detail.html:45
+msgid "Edit skill plan"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_fit_header_actions.html:20
+msgid "Not configured"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_status_headers.html:4
+#: mastery/templates/mastery/partials/_summary_status_headers.html:10
+#: mastery/templates/mastery/partials/_summary_status_headers.html:16
+#: mastery/templates/mastery/partials/_summary_status_headers.html:22
+#: mastery/templates/mastery/partials/_summary_status_headers.html:28
+msgid "chars"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_status_headers.html:6
+#, python-format
+msgid "Can fly and recommended >= %(pct)s%%"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_status_headers.html:12
+#, python-format
+msgid "Can fly and recommended > %(pct)s%%"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_status_headers.html:18
+msgid "Meets all required skills"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_status_headers.html:24
+#, python-format
+msgid "Not flyable and required > %(pct)s%%"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_status_headers.html:30
+#, python-format
+msgid "Not flyable and required <= %(pct)s%%"
+msgstr ""
+
+#: mastery/templates/mastery/partials/_summary_status_kpi_cards.html:5
+#: mastery/templates/mastery/partials/_summary_status_kpi_nav_cards.html:6
+#: mastery/templates/mastery/summary_list_view.html:74
+msgid "Flyable now (players)"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:5
+msgid "Effective mastery:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:7
+msgid "Doctrine default:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:9
+msgid "Saved fitting override:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:31
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:399
+msgid "Skill"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:43
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:421
+msgid "Manual"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:52
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:415
+msgid "Skill description"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skill_preview.html:70
+msgid "No skills found for this fitting at the selected mastery level."
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:9
+msgid "Skills"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:10
+msgid "Doctrine:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:15
+#: mastery/templates/mastery/pilot_fitting_detail.html:25
+#: mastery/templates/mastery/summary_fitting_detail.html:33
+msgid "View fitting"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:18
+#: mastery/templates/mastery/pilot_fitting_detail.html:30
+#: mastery/templates/mastery/summary_doctrine_detail.html:22
+msgid "View doctrine"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:27
+msgid "MemberAudit SkillSet"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:30
+#, python-format
+msgid "%(count)s skill synchronised"
+msgid_plural "%(count)s skills synchronised"
+msgstr[0] ""
+msgstr[1] ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:33
+msgid "last sync:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:36
+msgid "never synced yet"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:46
+msgid "Approval status"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:55
+msgid "Approve"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:64
+msgid "Mark in progress"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:72
+msgid "Mark not approved"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:77
+msgid "Approval is available after the current skill plan has been synchronised."
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:97
+msgid "No approval recorded yet."
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:105
+msgid "Last modified"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:117
+msgid "Last plan change timestamp is not available for this entry."
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:119
+msgid "Generate or sync the plan before requesting approval."
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:130
+msgid "Add skill manually"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:136
+msgid "Skill name (e.g. Thermodynamics)"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:144
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:376
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:444
+msgid "Level"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:147
+msgid "Add skill"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:155
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:170
+msgid "Apply mastery"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:178
+msgid "Training priority"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:180
+msgid "Doctrine priority:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:184
+msgid "Default"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:192
+msgid "Fitting priority"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:217
+msgid "Skill groups"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:225
+msgid "Suggestions"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:238
+msgid "SkillSet size"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:248
+msgid "Current doctrine mastery:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:250
+msgid "Fitting override active"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:261
+msgid "Required plan from 0"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:263
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:272
+#: mastery/templates/mastery/pilot_fitting_detail.html:505
+#: mastery/templates/mastery/pilot_fitting_detail.html:507
+msgid "Estimated training:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:270
+msgid "Recommended plan from 0"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:285
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:289
+msgid "Copy recommended plan"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:285
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:289
+msgid "lines"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:348
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:469
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:470
+msgid "Blacklist"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:361
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:469
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:470
+msgid "Unblacklist"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:374
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:442
+msgid "Auto"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:379
+msgid "No active skills in this group"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:379
+msgid "Apply level"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:390
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:524
+#, python-format
+msgid "Apply %(count)s suggestion"
+msgid_plural "Apply %(count)s suggestions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:400
+msgid "Req"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:401
+msgid "Rec"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:402
+msgid "Edit rec"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:422
+msgid "Blacklisted"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:428
+msgid "Suggest:"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:428
+msgid "Remove from plan"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:428
+msgid "Add back to plan"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:457
+msgid "Apply suggestion"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:483
+msgid "Remove manual"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:507
+msgid "Apply suggestions"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:511
+#, python-format
+msgid "This will automatically apply <strong>%(count)s suggestion</strong>:"
+msgid_plural "This will automatically apply <strong>%(count)s suggestions</strong>:"
+msgstr[0] ""
+msgstr[1] ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:514
+msgid "Skills suggested for"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:514
+msgid "removal"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:514
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:515
+msgid "will be"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:514
+msgid "blacklisted"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:514
+msgid "and excluded from the MemberAudit SkillSet."
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:515
+msgid "Skills suggested to"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:515
+msgid "add back"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:515
+msgid "unblacklisted"
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:517
+msgid "You can review and undo individual changes afterwards."
+msgstr ""
+
+#: mastery/templates/mastery/partials/fitting_skills_editor.html:520
+msgid "Cancel"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:21
+msgid "Back to Skill Mastery"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:42
+msgid "Preview skill plan"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:56
+#: mastery/templates/mastery/summary_fitting_detail.html:71
+msgid "Character readiness"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:57
+#, python-format
+msgid "%(visible)s/%(total)s visible"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:66
+msgid "Filter"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:75
+#: mastery/templates/mastery/summary_doctrine_detail.html:40
+#: mastery/templates/mastery/summary_fitting_detail.html:62
+msgid "Activity days"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:94
+msgid "Character"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:97
+msgid "Gap"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:98
+msgid "Details"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:133
+msgid "Selected"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:136
+msgid "Select"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:143
+msgid "No characters match the current filter."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:156
+msgid "Export mode (affects the whole view)"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:157
+msgid "Active mode:"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:172
+msgid "Export language"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:187
+msgid "Selected pilot"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:207
+msgid "Missing SP"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:215
+msgid "Estimated training"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:229
+msgid "Plan advisory"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:230
+#, python-format
+msgid "%(label)s training plan overview"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:231
+msgid "Quick read on remap efficiency, injector fallback and the overall scope of the current plan."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:234
+#, python-format
+msgid "%(count)s step"
+msgid_plural "%(count)s steps"
+msgstr[0] ""
+msgstr[1] ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:235
+#, python-format
+msgid "%(count)s skill"
+msgid_plural "%(count)s skills"
+msgstr[0] ""
+msgstr[1] ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:246
+msgid "Neural remap advisory"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:247
+msgid "Best attribute focus for this plan"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:258
+msgid "Recommended focus"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:260
+msgid "This is the remap pairing that minimizes training time across the current exported plan."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:265
+msgid "Training time comparison"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:269
+msgid "Implant bonuses are included in both current and recommended simulations."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:273
+msgid "Best-case with suggested remap"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:278
+msgid "With current attributes"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:282
+msgid "Potential time saved"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:286
+msgid "Current attribute data is unavailable, so only the optimal remap estimate can be shown."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:293
+msgid "Suggested remap values"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:298
+#: mastery/templates/mastery/pilot_fitting_detail.html:312
+msgid "Base"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:300
+#: mastery/templates/mastery/pilot_fitting_detail.html:314
+msgid "With implants"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:307
+msgid "Current character attributes"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:322
+msgid "Detected implant bonuses"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:330
+msgid "Unable to determine an optimal remap for this plan."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:339
+msgid "Injector fallback"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:340
+msgid "Large Skill Injectors"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:343
+msgid "Estimated"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:345
+msgid "Unavailable"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:352
+#, python-format
+msgid "Estimated injectors for this %(mode)s plan"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:362
+msgid "Approximate fallback if you finish the plan with injectors only."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:364
+msgid "Character total SP is missing, so the injector estimate cannot be derived."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:372
+msgid "Plan SP to cover"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:376
+msgid "Unallocated SP available"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:380
+msgid "Remaining after unallocated SP"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:384
+msgid "Current character total SP"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:389
+msgid "Current yield per injector"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:393
+msgid "Injector SP applied"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:397
+msgid "Projected total SP after injectors"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:402
+msgid "Injector overage"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:410
+msgid "LSI yield bands"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:426
+#, python-format
+msgid "Missing skills · %(name)s"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:428
+msgid "Missing required"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:429
+msgid "Missing recommended"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:432
+msgid "View full gap"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:461
+msgid "All required skills met."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:490
+msgid "All recommended skills met."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:499
+#, python-format
+msgid "%(label)s gap and plan export"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:503
+msgid "Missing SP:"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:507
+msgid "Unknown (missing attribute data)"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:511
+msgid "EVE clipboard text"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:513
+#: mastery/views/pilot.py:556
+msgid "No missing skills for this fitting."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:519
+#: mastery/templates/mastery/pilot_fitting_detail.html:520
+#: mastery/templates/mastery/pilot_fitting_detail.html:524
+msgid "Copy to clipboard"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:528
+msgid "Download .txt"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:540
+msgid "Missing skills"
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:568
+msgid "No missing required skills."
+msgstr ""
+
+#: mastery/templates/mastery/pilot_fitting_detail.html:595
+msgid "No missing recommended skills."
+msgstr ""
+
+#: mastery/templates/mastery/summary_doctrine_detail.html:17
+#, python-format
+msgid "%(flyable)s/%(total)s players can fly at least one fit now"
+msgstr ""
+
+#: mastery/templates/mastery/summary_doctrine_detail.html:21
+msgid "Back to summary"
+msgstr ""
+
+#: mastery/templates/mastery/summary_doctrine_detail.html:24
+#: mastery/templates/mastery/summary_list_view.html:18
+msgid "Summary settings"
+msgstr ""
+
+#: mastery/templates/mastery/summary_doctrine_detail.html:31
+#: mastery/templates/mastery/summary_fitting_detail.html:52
+msgid "Audience group:"
+msgstr ""
+
+#: mastery/templates/mastery/summary_doctrine_detail.html:34
+#: mastery/templates/mastery/summary_fitting_detail.html:56
+msgid "Switch group"
+msgstr ""
+
+#: mastery/templates/mastery/summary_doctrine_detail.html:68
+#: mastery/templates/mastery/summary_fitting_detail.html:73
+#: mastery/templates/mastery/summary_list_view.html:76
+msgid "Avg recommended"
+msgstr ""
+
+#: mastery/templates/mastery/summary_fitting_detail.html:31
+msgid "Back to doctrine"
+msgstr ""
+
+#: mastery/templates/mastery/summary_fitting_detail.html:88
+msgid "Member coverage"
+msgstr ""
+
+#: mastery/templates/mastery/summary_fitting_detail.html:89
+msgid "Show all"
+msgstr ""
+
+#: mastery/templates/mastery/summary_fitting_detail.html:92
+msgid "Export CSV"
+msgstr ""
+
+#: mastery/templates/mastery/summary_fitting_detail.html:100
+msgid "Main"
+msgstr ""
+
+#: mastery/templates/mastery/summary_fitting_detail.html:113
+#: mastery/templates/mastery/summary_fitting_detail.html:118
+#, python-format
+msgid "%(flyable)s/%(total)s flyable"
+msgstr ""
+
+#: mastery/templates/mastery/summary_fitting_detail.html:139
+msgid "No active characters in the selected activity window."
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:11
+msgid "Doctrine Coverage Summary"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:12
+msgid "Global view for leadership and FCs"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:15
+#, python-format
+msgid "%(count)s members"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:16
+#: mastery/templates/mastery/summary_list_view.html:91
+#, python-format
+msgid "%(count)s active characters"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:31
+msgid "Audience group"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:39
+msgid "Activity window (days)"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:45
+msgid "Include inactive"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:58
+msgid "No summary audience group is configured yet."
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:60
+msgid "Create one in summary settings"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:77
+msgid "Configured fits"
+msgstr ""
+
+#: mastery/templates/mastery/summary_list_view.html:111
+msgid "No doctrines available for this filter scope."
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:5
+msgid "Delete this group?"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:6
+msgid "Delete this entry?"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:12
+msgid "Back to summaries"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:16
+msgid "Create group"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:26
+msgid "Description"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:30
+msgid "Create"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:39
+msgid "Groups"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:46
+msgid "Active"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:48
+msgid "Disabled"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:53
+msgid "No groups yet."
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:69
+msgid "Disable"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:69
+msgid "Enable"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:75
+#: mastery/templates/mastery/summary_settings.html:154
+msgid "Delete"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:80
+msgid "No description."
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:85
+msgid "Add corporation/alliance"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:92
+#: mastery/templates/mastery/summary_settings.html:128
+msgid "Type"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:100
+#: mastery/templates/mastery/summary_settings.html:129
+msgid "Entity"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:111
+msgid "Label (optional)"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:115
+msgid "Add"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:122
+msgid "Configured entries"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:130
+msgid "Label"
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:160
+msgid "No entries configured yet."
+msgstr ""
+
+#: mastery/templates/mastery/summary_settings.html:169
+msgid "Create a summary group to start configuring corporation/alliance audiences."
+msgstr ""
+
+#: mastery/views/deps.py:13
+msgid "I - Basic"
+msgstr ""
+
+#: mastery/views/deps.py:14
+msgid "II - Standard"
+msgstr ""
+
+#: mastery/views/deps.py:15
+msgid "III - Improved"
+msgstr ""
+
+#: mastery/views/deps.py:16
+msgid "IV - Advanced"
+msgstr ""
+
+#: mastery/views/deps.py:17
+msgid "V - Elite"
+msgstr ""
+
+#: mastery/views/doctrine.py:169 mastery/views/doctrine.py:197
+#: mastery/views/doctrine.py:259 mastery/views/fitting.py:78
+#: mastery/views/fitting.py:116
+msgid "POST required"
+msgstr ""
+
+#: mastery/views/doctrine.py:181 mastery/views/doctrine.py:229
+msgid "Priority must be between 0 and 10."
+msgstr ""
+
+#: mastery/views/doctrine.py:188
+msgid "Doctrine priority updated"
+msgstr ""
+
+#: mastery/views/doctrine.py:217 mastery/views/fitting.py:45
+#: mastery/views/fitting.py:95 mastery/views/fitting.py:566
+msgid "No doctrine found for fitting"
+msgstr ""
+
+#: mastery/views/doctrine.py:243 mastery/views/doctrine.py:246
+msgid "Fitting priority updated"
+msgstr ""
+
+#: mastery/views/fitting.py:49 mastery/views/fitting.py:390
+#: mastery/views/fitting.py:430 mastery/views/fitting.py:488
+msgid "No doctrine map found for fitting"
+msgstr ""
+
+#: mastery/views/fitting.py:147 mastery/views/fitting.py:152
+#: mastery/views/fitting.py:155
+msgid "Mastery updated"
+msgstr ""
+
+#: mastery/views/fitting.py:188
+msgid "Skill blacklist updated"
+msgstr ""
+
+#: mastery/views/fitting.py:207 mastery/views/fitting.py:277
+#: mastery/views/fitting.py:325
+msgid "recommended_level must be between 0 and 5"
+msgstr ""
+
+#: mastery/views/fitting.py:219
+#, python-format
+msgid "recommended_level cannot be lower than required level (%(level)s)"
+msgstr ""
+
+#: mastery/views/fitting.py:234
+msgid "Recommended level updated"
+msgstr ""
+
+#: mastery/views/fitting.py:252 mastery/views/fitting.py:446
+msgid "No skills provided"
+msgstr ""
+
+#: mastery/views/fitting.py:262
+msgid "Skill group blacklisted"
+msgstr ""
+
+#: mastery/views/fitting.py:265
+msgid "Skill group unblacklisted"
+msgstr ""
+
+#: mastery/views/fitting.py:268
+msgid "Group recommended level cleared"
+msgstr ""
+
+#: mastery/views/fitting.py:288
+msgid "recommended_level cannot be lower than required level for one or more selected skills"
+msgstr ""
+
+#: mastery/views/fitting.py:290
+msgid "Group recommended level updated"
+msgstr ""
+
+#: mastery/views/fitting.py:298 mastery/views/fitting.py:548
+#: mastery/views/summary.py:341
+msgid "Unsupported action"
+msgstr ""
+
+#: mastery/views/fitting.py:317
+msgid "skill_name is required"
+msgstr ""
+
+#: mastery/views/fitting.py:337
+#, python-format
+msgid "Skill not found: %(skill_name)s"
+msgstr ""
+
+#: mastery/views/fitting.py:352
+msgid "Manual skill added"
+msgstr ""
+
+#: mastery/views/fitting.py:378
+msgid "Manual skill removed"
+msgstr ""
+
+#: mastery/views/fitting.py:403
+#, python-format
+msgid "Applied %(count)d suggestion"
+msgid_plural "Applied %(count)d suggestions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: mastery/views/fitting.py:409
+msgid "No pending suggestion to apply"
+msgstr ""
+
+#: mastery/views/fitting.py:456
+#, python-format
+msgid "Applied %(count)d suggestion for this group"
+msgid_plural "Applied %(count)d suggestions for this group"
+msgstr[0] ""
+msgstr[1] ""
+
+#: mastery/views/fitting.py:462
+msgid "No pending suggestion in this group"
+msgstr ""
+
+#: mastery/views/fitting.py:501
+msgid "Suggestion applied"
+msgstr ""
+
+#: mastery/views/fitting.py:504
+msgid "No pending suggestion for this skill"
+msgstr ""
+
+#: mastery/views/fitting.py:532
+msgid "Skill plan must be synchronised before it can be approved"
+msgstr ""
+
+#: mastery/views/fitting.py:534
+msgid "Skill plan approved"
+msgstr ""
+
+#: mastery/views/fitting.py:540
+msgid "Skill plan marked as in progress"
+msgstr ""
+
+#: mastery/views/fitting.py:546
+msgid "Skill plan marked as not approved"
+msgstr ""
+
+#: mastery/views/fitting.py:582 mastery/views/summary_helpers.py:59
+msgid "No approved skillset configured for this fitting yet"
+msgstr ""
+
+#: mastery/views/pilot.py:47
+msgid "All characters"
+msgstr ""
+
+#: mastery/views/pilot.py:48
+msgid "Can fly now"
+msgstr ""
+
+#: mastery/views/pilot.py:49
+msgid "Elite (recommended 100%)"
+msgstr ""
+
+#: mastery/views/pilot.py:364 mastery/views/pilot.py:528
+msgid "Invalid summary group"
+msgstr ""
+
+#: mastery/views/pilot.py:496
+msgid "Affects export and selected missing-skill labels"
+msgstr ""
+
+#: mastery/views/pilot.py:516
+msgid "character_id is required"
+msgstr ""
+
+#: mastery/views/pilot.py:521
+msgid "invalid character_id"
+msgstr ""
+
+#: mastery/views/pilot.py:540
+msgid "character not found"
+msgstr ""
+
+#: mastery/views/summary.py:174 mastery/views/summary.py:235
+msgid "No summary group configured"
+msgstr ""
+
+#: mastery/views/summary.py:296
+msgid "name is required"
+msgstr ""
+
+#: mastery/views/summary.py:298
+msgid "Summary group created"
+msgstr ""
+
+#: mastery/views/summary.py:304
+msgid "Summary group deleted"
+msgstr ""
+
+#: mastery/views/summary.py:311
+msgid "Summary group updated"
+msgstr ""
+
+#: mastery/views/summary.py:318
+msgid "invalid entity_type"
+msgstr ""
+
+#: mastery/views/summary.py:322
+msgid "invalid entity_id"
+msgstr ""
+
+#: mastery/views/summary.py:331
+msgid "Entry saved"
+msgstr ""
+
+#: mastery/views/summary.py:338
+msgid "Entry deleted"
+msgstr ""
+
+#: mastery/views/summary_helpers.py:57
+msgid "No skillset configured for this fitting yet"
+msgstr ""

@@ -4,6 +4,13 @@
 {% load l10n %}
 {% load static %}
 {% load skill_render %}
+{% translate "Unable to determine the form action." as msg_unable_form_action %}
+{% translate "Unable to update the fitting skills." as msg_unable_update_skills %}
+{% translate "No recommended plan available to copy." as msg_no_plan_to_copy %}
+{% translate "Recommended plan copied to clipboard." as msg_plan_copied %}
+{% translate "Unable to copy plan to clipboard." as msg_copy_failed %}
+{% translate "Copied!" as msg_copied_short %}
+{% translate "Close" as close_label %}
 
 {% block details %}
 <div class="container mt-4" id="mastery-skills-page">
@@ -390,7 +397,7 @@
             messages.innerHTML = `
                 <div class="alert alert-${level} alert-dismissible fade show shadow-sm" role="alert">
                     ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{{ close_label }}"></button>
                 </div>
             `;
         };
@@ -433,6 +440,22 @@
             alertElement.querySelector(".btn-close")?.click();
         };
 
+        const copyWithExecCommand = (text) => {
+            const temp = document.createElement("textarea");
+            temp.value = text;
+            temp.setAttribute("readonly", "readonly");
+            temp.style.position = "fixed";
+            temp.style.top = "-9999px";
+            temp.style.left = "-9999px";
+            document.body.appendChild(temp);
+            temp.focus();
+            temp.select();
+            temp.setSelectionRange(0, temp.value.length);
+            const copied = document.execCommand("copy");
+            document.body.removeChild(temp);
+            return copied;
+        };
+
         const scheduleAlertsDismiss = () => {
             messages.querySelectorAll(".alert").forEach((alertElement) => {
                 window.setTimeout(() => {
@@ -441,6 +464,31 @@
                     }
                 }, 5000);
             });
+        };
+
+        const flashCopyButtonSuccess = (button) => {
+            if (!(button instanceof HTMLElement)) {
+                return;
+            }
+
+            const label = button.dataset.copySuccessLabel || "{{ msg_copied_short|escapejs }}" || "Copied!";
+            const defaultLabel = (button.dataset.copyDefaultLabel || "").trim();
+            const computedLabel = (button.dataset.copyOriginalLabel || button.textContent || "").trim();
+            const originalLabel = computedLabel || defaultLabel || "Copy recommended plan";
+            button.dataset.copyOriginalLabel = originalLabel;
+
+            const wasDisabled = button.disabled;
+            button.disabled = true;
+            button.textContent = label;
+            button.classList.remove("btn-outline-primary");
+            button.classList.add("btn-success");
+
+            window.setTimeout(() => {
+                button.textContent = button.dataset.copyOriginalLabel || originalLabel;
+                button.classList.remove("btn-success");
+                button.classList.add("btn-outline-primary");
+                button.disabled = wasDisabled;
+            }, 1800);
         };
 
         const animateGroupCard = (groupKey) => {
@@ -472,7 +520,7 @@
             const groupKey = asString(formData.get("_group_key")) || activeGroupKey;
 
             if (!actionUrl) {
-                renderFallbackMessage("Unable to determine the form action.", "danger");
+                renderFallbackMessage("{{ msg_unable_form_action|escapejs }}", "danger");
                 return;
             }
 
@@ -496,7 +544,7 @@
 
                 if (!response.ok) {
                     renderFallbackMessage(
-                        payload && payload.message ? payload.message : "Unable to update the fitting skills.",
+                        payload && payload.message ? payload.message : "{{ msg_unable_update_skills|escapejs }}",
                         "danger",
                     );
                     return;
@@ -530,7 +578,7 @@
                     messages.innerHTML = "";
                 }
             } catch (_error) {
-                renderFallbackMessage("Unable to update the fitting skills.", "danger");
+                renderFallbackMessage("{{ msg_unable_update_skills|escapejs }}", "danger");
                 scheduleAlertsDismiss();
             } finally {
                 setFormBusy(form, false);
@@ -563,20 +611,48 @@
                 return;
             }
 
-            const copyText = button.dataset.copyText || "";
+            let copyText = "";
+            const copyTargetId = button.dataset.copyTarget || "";
+            if (copyTargetId) {
+                const copyTarget = document.getElementById(copyTargetId);
+                if (copyTarget) {
+                    if ("value" in copyTarget) {
+                        copyText = String(copyTarget.value || "");
+                    } else {
+                        copyText = String(copyTarget.textContent || "");
+                    }
+                }
+            }
             if (!copyText) {
-                renderFallbackMessage("No recommended plan available to copy.", "warning");
+                copyText = button.dataset.copyText || "";
+            }
+            if (!copyText) {
+                renderFallbackMessage("{{ msg_no_plan_to_copy|escapejs }}", "warning");
                 scheduleAlertsDismiss();
                 return;
             }
 
             try {
-                await navigator.clipboard.writeText(copyText);
-                renderFallbackMessage("Recommended plan copied to clipboard.", "success");
+                if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+                    await navigator.clipboard.writeText(copyText);
+                } else if (!copyWithExecCommand(copyText)) {
+                    throw new Error("Legacy copy command failed");
+                }
+                flashCopyButtonSuccess(button);
+                renderFallbackMessage("{{ msg_plan_copied|escapejs }}", "success");
                 scheduleAlertsDismiss();
             } catch (_error) {
-                renderFallbackMessage("Unable to copy plan to clipboard.", "danger");
-                scheduleAlertsDismiss();
+                try {
+                    if (!copyWithExecCommand(copyText)) {
+                        throw new Error("Legacy copy command failed");
+                    }
+                    flashCopyButtonSuccess(button);
+                    renderFallbackMessage("{{ msg_plan_copied|escapejs }}", "success");
+                    scheduleAlertsDismiss();
+                } catch (_fallbackError) {
+                    renderFallbackMessage("{{ msg_copy_failed|escapejs }}", "danger");
+                    scheduleAlertsDismiss();
+                }
             }
         });
 

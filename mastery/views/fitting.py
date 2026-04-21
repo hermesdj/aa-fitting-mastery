@@ -1,9 +1,11 @@
-"""Fitting management views (skill editor, preview, suggestions)."""
+﻿"""Fitting management views (skill editor, preview, suggestions)."""
 from allianceauth.authentication.decorators import permissions_required
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
+from django.utils.translation import ngettext
 
 from .common import (
     Doctrine,
@@ -40,11 +42,11 @@ def _resolve_fitting_context(
     fitting, doctrine, doctrine_map, fitting_map = _get_doctrine_and_map_for_fitting(fitting_id)
 
     if doctrine is None:
-        return None, _bad_request_response(request, "No doctrine found for fitting")
+        return None, _bad_request_response(request, _("No doctrine found for fitting"))
 
     if doctrine_map is None:
         if not create_doctrine_map:
-            return None, _bad_request_response(request, missing_map_message or "No doctrine map found for fitting")
+            return None, _bad_request_response(request, missing_map_message or _("No doctrine map found for fitting"))
         doctrine_map = doctrine_map_service.create_doctrine_map(doctrine)
 
     return (fitting, doctrine, doctrine_map, fitting_map), None
@@ -73,7 +75,7 @@ def _require_post_and_resolve(
     (fitting, doctrine, doctrine_map, fitting_map) or None on error.
     """
     if request.method != "POST":
-        return None, _bad_request_response(request, "POST required")
+        return None, _bad_request_response(request, _("POST required"))
 
     return _resolve_fitting_context(
         request,
@@ -90,7 +92,7 @@ def fitting_skills_view(request, fitting_id):
     fitting, doctrine, doctrine_map, fitting_map = _get_doctrine_and_map_for_fitting(fitting_id)
 
     if doctrine is None:
-        return HttpResponseBadRequest("No doctrine found for fitting")
+        return HttpResponseBadRequest(_("No doctrine found for fitting"))
 
     if doctrine_map is None:
         doctrine_map = doctrine_map_service.create_doctrine_map(doctrine)
@@ -111,7 +113,7 @@ def fitting_skills_view(request, fitting_id):
 def update_fitting_mastery(request, fitting_id):
     """Update fitting mastery."""
     if request.method != "POST":
-        return _bad_request_response(request, "POST required")
+        return _bad_request_response(request, _("POST required"))
 
     doctrine_id = request.POST.get("doctrine_id")
     doctrine = get_object_or_404(Doctrine, id=doctrine_id)
@@ -142,15 +144,15 @@ def update_fitting_mastery(request, fitting_id):
             doctrine=doctrine,
             doctrine_map=doctrine_map,
             fitting_map=fitting_map,
-            message="Mastery updated",
+            message=_("Mastery updated"),
         )
 
     next_url = request.POST.get("next")
     if next_url:
-        messages.success(request, "Mastery updated")
+        messages.success(request, _("Mastery updated"))
         return redirect(next_url)
 
-    messages.success(request, "Mastery updated")
+    messages.success(request, _("Mastery updated"))
     return redirect('mastery:doctrine_detail', doctrine_id=doctrine_id)
 
 
@@ -165,7 +167,7 @@ def toggle_skill_blacklist_view(request, fitting_id):
     resolved, error_response = _require_post_and_resolve(request, fitting_id)
     if error_response:
         return error_response
-    fitting, doctrine, doctrine_map, _ = resolved
+    fitting, doctrine, doctrine_map, _unused = resolved
 
     should_blacklist = request.POST.get("value")
 
@@ -183,7 +185,7 @@ def toggle_skill_blacklist_view(request, fitting_id):
         fitting=fitting,
         doctrine=doctrine,
         doctrine_map=doctrine_map,
-        message="Skill blacklist updated",
+        message=_("Skill blacklist updated"),
     )
 
 
@@ -202,19 +204,19 @@ def update_skill_recommended_view(request, fitting_id):
         return _bad_request_response(request, str(ex))
 
     if level is not None and level not in range(0, 6):
-        return _bad_request_response(request, "recommended_level must be between 0 and 5")
+        return _bad_request_response(request, _("recommended_level must be between 0 and 5"))
 
     resolved, error_response = _require_post_and_resolve(request, fitting_id)
     if error_response:
         return error_response
-    fitting, doctrine, doctrine_map, _ = resolved
+    fitting, doctrine, doctrine_map, _unused = resolved
 
     required_by_skill = extractor_service.get_required_skills_for_fitting(fitting)
     required_level = int(required_by_skill.get(skill_type_id, 0) or 0)
     if level is not None and level < required_level:
         return _bad_request_response(
             request,
-            f"recommended_level cannot be lower than required level ({required_level})",
+            _("recommended_level cannot be lower than required level (%(level)s)") % {"level": required_level},
         )
 
     control_service.set_recommended_level(
@@ -229,7 +231,7 @@ def update_skill_recommended_view(request, fitting_id):
         fitting=fitting,
         doctrine=doctrine,
         doctrine_map=doctrine_map,
-        message="Recommended level updated",
+        message=_("Recommended level updated"),
     )
 
 
@@ -247,23 +249,23 @@ def update_skill_group_controls_view(request, fitting_id):
         return _bad_request_response(request, str(ex))
 
     if not skill_type_ids:
-        return _bad_request_response(request, "No skills provided")
+        return _bad_request_response(request, _("No skills provided"))
 
     action = request.POST.get("action")
     resolved, error_response = _require_post_and_resolve(request, fitting_id)
     if error_response:
         return error_response
-    fitting, doctrine, doctrine_map, _ = resolved
+    fitting, doctrine, doctrine_map, _unused = resolved
 
     if action == "blacklist_group":
         control_service.set_blacklist_batch(fitting_id=fitting_id, skill_type_ids=skill_type_ids, value=True)
-        message = "Skill group blacklisted"
+        message = _("Skill group blacklisted")
     elif action == "unblacklist_group":
         control_service.set_blacklist_batch(fitting_id=fitting_id, skill_type_ids=skill_type_ids, value=False)
-        message = "Skill group unblacklisted"
+        message = _("Skill group unblacklisted")
     elif action in {"set_group_recommended", "clear_group_recommended"}:
         level = None
-        message = "Group recommended level cleared"
+        message = _("Group recommended level cleared")
         if action == "set_group_recommended":
             raw_level = request.POST.get("recommended_level")
             if raw_level not in (None, ""):
@@ -272,7 +274,7 @@ def update_skill_group_controls_view(request, fitting_id):
                 except ValueError as ex:
                     return _bad_request_response(request, str(ex))
                 if level not in range(0, 6):
-                    return _bad_request_response(request, "recommended_level must be between 0 and 5")
+                    return _bad_request_response(request, _("recommended_level must be between 0 and 5"))
 
                 required_by_skill = extractor_service.get_required_skills_for_fitting(fitting)
                 invalid_skill_ids = [
@@ -283,9 +285,9 @@ def update_skill_group_controls_view(request, fitting_id):
                 if invalid_skill_ids:
                     return _bad_request_response(
                         request,
-                        "recommended_level cannot be lower than required level for one or more selected skills",
+                        _("recommended_level cannot be lower than required level for one or more selected skills"),
                     )
-                message = "Group recommended level updated"
+                message = _("Group recommended level updated")
 
         control_service.set_recommended_level_batch(
             fitting_id=fitting_id,
@@ -293,7 +295,7 @@ def update_skill_group_controls_view(request, fitting_id):
             level=level,
         )
     else:
-        return _bad_request_response(request, "Unsupported action")
+        return _bad_request_response(request, _("Unsupported action"))
 
     _regenerate_fitting_plan(doctrine_map, fitting, request.user)
 
@@ -312,7 +314,7 @@ def add_manual_skill_view(request, fitting_id):
     """Add manual skill view."""
     skill_name = (request.POST.get("skill_name") or "").strip()
     if not skill_name:
-        return _bad_request_response(request, "skill_name is required")
+        return _bad_request_response(request, _("skill_name is required"))
 
     try:
         recommended_level = _parse_posted_int(request.POST.get("recommended_level"), "recommended_level")
@@ -320,19 +322,19 @@ def add_manual_skill_view(request, fitting_id):
         return _bad_request_response(request, str(ex))
 
     if recommended_level not in range(0, 6):
-        return _bad_request_response(request, "recommended_level must be between 0 and 5")
+        return _bad_request_response(request, _("recommended_level must be between 0 and 5"))
 
     resolved, error_response = _require_post_and_resolve(request, fitting_id)
     if error_response:
         return error_response
-    fitting, doctrine, doctrine_map, _ = resolved
+    fitting, doctrine, doctrine_map, _unused = resolved
 
     skill = ItemType.objects.filter(
         name__iexact=skill_name,
         group__category__name__iexact="Skill",
     ).first()
     if skill is None:
-        return _bad_request_response(request, f"Skill not found: {skill_name}")
+        return _bad_request_response(request, _("Skill not found: %(skill_name)s") % {"skill_name": skill_name})
 
     control_service.add_manual_skill(
         fitting_id=fitting_id,
@@ -347,7 +349,7 @@ def add_manual_skill_view(request, fitting_id):
         fitting=fitting,
         doctrine=doctrine,
         doctrine_map=doctrine_map,
-        message="Manual skill added",
+        message=_("Manual skill added"),
     )
 
 
@@ -363,7 +365,7 @@ def remove_manual_skill_view(request, fitting_id):
     resolved, error_response = _require_post_and_resolve(request, fitting_id)
     if error_response:
         return error_response
-    fitting, doctrine, doctrine_map, _ = resolved
+    fitting, doctrine, doctrine_map, _unused = resolved
 
     control_service.remove_manual_skill(fitting_id=fitting_id, skill_type_id=skill_type_id)
     _regenerate_fitting_plan(doctrine_map, fitting, request.user)
@@ -373,7 +375,7 @@ def remove_manual_skill_view(request, fitting_id):
         fitting=fitting,
         doctrine=doctrine,
         doctrine_map=doctrine_map,
-        message="Manual skill removed",
+        message=_("Manual skill removed"),
     )
 
 
@@ -385,11 +387,11 @@ def apply_suggestions_view(request, fitting_id):
         request,
         fitting_id,
         create_doctrine_map=False,
-        missing_map_message="No doctrine map found for fitting",
+        missing_map_message=_("No doctrine map found for fitting"),
     )
     if error_response:
         return error_response
-    fitting, doctrine, doctrine_map, _ = resolved
+    fitting, doctrine, doctrine_map, _unused = resolved
 
     applied_count = _apply_preview_suggestions(
         fitting=fitting,
@@ -397,10 +399,14 @@ def apply_suggestions_view(request, fitting_id):
         modified_by=request.user,
     )
     if applied_count:
-        message = f"Applied {applied_count} suggestion(s)"
+        message = ngettext(
+            "Applied %(count)d suggestion",
+            "Applied %(count)d suggestions",
+            applied_count,
+        ) % {"count": applied_count}
         message_level = "success"
     else:
-        message = "No pending suggestion to apply"
+        message = _("No pending suggestion to apply")
         message_level = "info"
 
     return _finalize_fitting_skills_action(
@@ -421,11 +427,11 @@ def apply_group_suggestions_view(request, fitting_id):
         request,
         fitting_id,
         create_doctrine_map=False,
-        missing_map_message="No doctrine map found for fitting",
+        missing_map_message=_("No doctrine map found for fitting"),
     )
     if error_response:
         return error_response
-    fitting, doctrine, doctrine_map, _ = resolved
+    fitting, doctrine, doctrine_map, _unused = resolved
 
     try:
         allowed_skill_ids = {
@@ -437,7 +443,7 @@ def apply_group_suggestions_view(request, fitting_id):
         return _bad_request_response(request, str(ex))
 
     if not allowed_skill_ids:
-        return _bad_request_response(request, "No skills provided")
+        return _bad_request_response(request, _("No skills provided"))
 
     applied_count = _apply_preview_suggestions(
         fitting=fitting,
@@ -446,10 +452,14 @@ def apply_group_suggestions_view(request, fitting_id):
         modified_by=request.user,
     )
     if applied_count:
-        message = f"Applied {applied_count} suggestion(s) for this group"
+        message = ngettext(
+            "Applied %(count)d suggestion for this group",
+            "Applied %(count)d suggestions for this group",
+            applied_count,
+        ) % {"count": applied_count}
         message_level = "success"
     else:
-        message = "No pending suggestion in this group"
+        message = _("No pending suggestion in this group")
         message_level = "info"
 
     return _finalize_fitting_skills_action(
@@ -475,11 +485,11 @@ def apply_skill_suggestion_view(request, fitting_id):
         request,
         fitting_id,
         create_doctrine_map=False,
-        missing_map_message="No doctrine map found for fitting",
+        missing_map_message=_("No doctrine map found for fitting"),
     )
     if error_response:
         return error_response
-    fitting, doctrine, doctrine_map, _ = resolved
+    fitting, doctrine, doctrine_map, _unused = resolved
 
     applied_count = _apply_preview_suggestions(
         fitting=fitting,
@@ -488,10 +498,10 @@ def apply_skill_suggestion_view(request, fitting_id):
         modified_by=request.user,
     )
     if applied_count:
-        message = "Suggestion applied"
+        message = _("Suggestion applied")
         message_level = "success"
     else:
-        message = "No pending suggestion for this skill"
+        message = _("No pending suggestion for this skill")
         message_level = "info"
 
     return _finalize_fitting_skills_action(
@@ -519,23 +529,23 @@ def update_fitting_approval_status_view(request, fitting_id):
     action = request.POST.get("action")
     if action == "approve":
         if not getattr(fitting_map, "last_synced_at", None):
-            return _bad_request_response(request, "Skill plan must be synchronised before it can be approved")
+            return _bad_request_response(request, _("Skill plan must be synchronised before it can be approved"))
         approval_service.approve(fitting_map, user=request.user)
-        message = "Skill plan approved"
+        message = _("Skill plan approved")
     elif action == "mark_in_progress":
         approval_service.mark_status(
             fitting_map,
             status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS,
         )
-        message = "Skill plan marked as in progress"
+        message = _("Skill plan marked as in progress")
     elif action == "mark_not_approved":
         approval_service.mark_status(
             fitting_map,
             status=FittingSkillsetMap.ApprovalStatus.NOT_APPROVED,
         )
-        message = "Skill plan marked as not approved"
+        message = _("Skill plan marked as not approved")
     else:
-        return _bad_request_response(request, "Unsupported action")
+        return _bad_request_response(request, _("Unsupported action"))
 
     return _finalize_fitting_skills_action(
         request,
@@ -553,7 +563,7 @@ def fitting_skills_preview_view(request, fitting_id):
     fitting, doctrine, doctrine_map, fitting_map = _get_doctrine_and_map_for_fitting(fitting_id)
 
     if doctrine is None:
-        return HttpResponseBadRequest("No doctrine found for fitting")
+        return HttpResponseBadRequest(_("No doctrine found for fitting"))
 
     if doctrine_map is None:
         doctrine_map = doctrine_map_service.create_doctrine_map(doctrine)
@@ -569,7 +579,7 @@ def fitting_skills_preview_view(request, fitting_id):
         == FittingSkillsetMap.ApprovalStatus.APPROVED
     )
     if not is_approved and not request.user.has_perm("mastery.manage_fittings"):
-        return HttpResponseBadRequest("No approved skillset configured for this fitting yet")
+        return HttpResponseBadRequest(_("No approved skillset configured for this fitting yet"))
 
     try:
         mastery_level = _parse_mastery_level(request.GET.get("mastery_level"))

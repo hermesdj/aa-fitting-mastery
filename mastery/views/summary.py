@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.translation import gettext as _
 from mastery.models import SummaryAudienceEntity, SummaryAudienceGroup
 from mastery.services.pilots.status_buckets import (
     BUCKET_ALMOST_ELITE,
@@ -113,6 +114,15 @@ def summary_list_view(request):
     progress_cache = {}
     progress_context = {}
 
+    # Build doctrine-id → priority map from already-prefetched doctrine_map FK (no extra DB query)
+    doctrine_priority_map: dict[int, int] = {}
+    for fitting_map in fitting_maps.values():
+        dm = getattr(fitting_map, "doctrine_map", None)
+        if dm is not None:
+            doc_id = getattr(dm, "doctrine_id", None)
+            if doc_id is not None:
+                doctrine_priority_map[doc_id] = int(getattr(dm, "priority", 0) or 0)
+
     doctrine_summaries = []
     for doctrine in doctrines:
         if search_query and search_query not in doctrine.name.lower():
@@ -125,10 +135,18 @@ def summary_list_view(request):
             member_groups=member_groups,
             progress_cache=progress_cache,
             progress_context=progress_context,
+            doctrine_priority=doctrine_priority_map.get(doctrine.id, 0),
         )
         if int(summary_item.get("configured_fittings", 0)) <= 0:
             continue
         doctrine_summaries += [summary_item]
+
+    doctrine_summaries.sort(
+        key=lambda item: (
+            -int(item.get("priority", 0) or 0),
+            (item["doctrine"].name or "").lower(),
+        )
+    )
 
     context = {
         "doctrine_summaries": doctrine_summaries,
@@ -153,7 +171,7 @@ def summary_doctrine_detail_view(request, doctrine_id):
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
 
     if selected_group is None:
-        return HttpResponseBadRequest("No summary group configured")
+        return HttpResponseBadRequest(_("No summary group configured"))
 
     doctrine = get_object_or_404(
         pilot_access_service.accessible_doctrines(request.user).prefetch_related("fittings__ship_type"),
@@ -167,12 +185,22 @@ def summary_doctrine_detail_view(request, doctrine_id):
     )
     progress_cache = {}
     progress_context = {}
+
+    # Derive doctrine priority from already-prefetched doctrine_map (no extra DB query)
+    _doctrine_priority: int = 0
+    for fitting_map in fitting_maps.values():
+        dm = getattr(fitting_map, "doctrine_map", None)
+        if dm is not None and getattr(dm, "doctrine_id", None) == doctrine.id:
+            _doctrine_priority = int(getattr(dm, "priority", 0) or 0)
+            break
+
     summary = _build_doctrine_summary(
         doctrine=doctrine,
         fitting_maps=fitting_maps,
         member_groups=member_groups,
         progress_cache=progress_cache,
         progress_context=progress_context,
+        doctrine_priority=_doctrine_priority,
     )
     for fit in summary["fittings"]:
         if fit.get("configured"):
@@ -204,7 +232,7 @@ def summary_fitting_detail_view(request, fitting_id):
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
 
     if selected_group is None:
-        return HttpResponseBadRequest("No summary group configured")
+        return HttpResponseBadRequest(_("No summary group configured"))
 
     fitting, fitting_map, doctrine = _get_accessible_fitting_or_404(request.user, fitting_id)
     missing_error = _missing_skillset_error(fitting_map)
@@ -238,6 +266,7 @@ def summary_fitting_detail_view(request, fitting_id):
             "fitting": fitting,
             "fitting_map": fitting_map,
             "doctrine": doctrine,
+            "doctrine_priority": 0 if doctrine is None else int(getattr(getattr(fitting_map, "doctrine_map", None), "priority", 0) or 0),
             "fitting_kpis": fitting_kpis,
             "user_rows": user_rows,
             "summary_groups": summary_groups,
@@ -264,33 +293,33 @@ def summary_settings_view(request):
             name = (request.POST.get("name") or "").strip()
             description = (request.POST.get("description") or "").strip()
             if not name:
-                return HttpResponseBadRequest("name is required")
+                return HttpResponseBadRequest(_("name is required"))
             SummaryAudienceGroup.objects.create(name=name, description=description)
-            messages.success(request, "Summary group created")
+            messages.success(request, _("Summary group created"))
             return redirect("mastery:summary_settings")
 
         if action == "delete_group":
             group = get_object_or_404(SummaryAudienceGroup, id=request.POST.get("group_id"))
             group.delete()
-            messages.success(request, "Summary group deleted")
+            messages.success(request, _("Summary group deleted"))
             return redirect("mastery:summary_settings")
 
         if action == "toggle_group_active":
             group = get_object_or_404(SummaryAudienceGroup, id=request.POST.get("group_id"))
             group.is_active = not group.is_active
             group.save(update_fields=["is_active"])
-            messages.success(request, "Summary group updated")
+            messages.success(request, _("Summary group updated"))
             return redirect(f"{redirect('mastery:summary_settings').url}?group_id={group.id}")
 
         if action == "add_entry":
             group = get_object_or_404(SummaryAudienceGroup, id=request.POST.get("group_id"))
             entity_type = request.POST.get("entity_type")
             if entity_type not in {SummaryAudienceEntity.TYPE_CORPORATION, SummaryAudienceEntity.TYPE_ALLIANCE}:
-                return HttpResponseBadRequest("invalid entity_type")
+                return HttpResponseBadRequest(_("invalid entity_type"))
             try:
                 entity_id = int(request.POST.get("entity_id"))
             except (TypeError, ValueError):
-                return HttpResponseBadRequest("invalid entity_id")
+                return HttpResponseBadRequest(_("invalid entity_id"))
             label = (request.POST.get("label") or "").strip()
 
             SummaryAudienceEntity.objects.update_or_create(
@@ -299,17 +328,17 @@ def summary_settings_view(request):
                 entity_id=entity_id,
                 defaults={"label": label},
             )
-            messages.success(request, "Entry saved")
+            messages.success(request, _("Entry saved"))
             return redirect(f"{redirect('mastery:summary_settings').url}?group_id={group.id}")
 
         if action == "delete_entry":
             entry = get_object_or_404(SummaryAudienceEntity, id=request.POST.get("entry_id"))
             group_id = entry.group_id
             entry.delete()
-            messages.success(request, "Entry deleted")
+            messages.success(request, _("Entry deleted"))
             return redirect(f"{redirect('mastery:summary_settings').url}?group_id={group_id}")
 
-        return HttpResponseBadRequest("Unsupported action")
+        return HttpResponseBadRequest(_("Unsupported action"))
 
     summary_groups, selected_group = _get_selected_summary_group(selected_group_id)
     corporation_options, alliance_options = _summary_entity_catalog()

@@ -21,6 +21,7 @@ from mastery.views.summary_helpers import (
     _annotate_member_detail_pilots,
             _is_approved_fitting_map,
             _missing_skillset_error,
+    _build_doctrine_summary,
     _build_doctrine_kpis,
     _build_fitting_kpis,
     _build_fitting_user_rows,
@@ -549,7 +550,7 @@ class TestDoctrineViews(SimpleTestCase):
         mock_prefetch_related.return_value = [doctrine_one, doctrine_two]
 
         first_qs = Mock()
-        first_qs.first.return_value = SimpleNamespace(default_mastery_level=3)
+        first_qs.first.return_value = SimpleNamespace(default_mastery_level=3, priority=8)
         second_qs = Mock()
         second_qs.first.return_value = None
         mock_doctrine_map_filter.side_effect = [first_qs, second_qs]
@@ -566,8 +567,10 @@ class TestDoctrineViews(SimpleTestCase):
         self.assertTrue(context["doctrines"][0]["initialized"])
         self.assertEqual(context["doctrines"][0]["configured"], 1)
         self.assertEqual(context["doctrines"][0]["default_mastery_level"], 3)
+        self.assertEqual(context["doctrines"][0]["priority"], 8)
         self.assertFalse(context["doctrines"][1]["initialized"])
         self.assertIsNone(context["doctrines"][1]["default_mastery_level"])
+        self.assertEqual(context["doctrines"][1]["priority"], 0)
 
     @patch("mastery.views.doctrine.render", return_value=HttpResponse("ok"))
     @patch("mastery.views.doctrine.FittingSkillsetMap.objects.select_related")
@@ -733,6 +736,127 @@ class TestDoctrineViews(SimpleTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.content.decode(), "invalid mastery")
+
+    def test_update_fitting_priority_requires_post(self):
+        request = self.factory.get("/fitting/1/priority/")
+        request.user = _view_user()
+
+        response = views.update_fitting_priority(request, fitting_id=1)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content.decode(), "POST required")
+
+    @patch("mastery.views.doctrine.messages")
+    @patch("mastery.views.doctrine.redirect", return_value=HttpResponse("redirect"))
+    @patch("mastery.views.doctrine.fitting_map_service.create_fitting_map")
+    @patch("mastery.views.doctrine.doctrine_map_service.create_doctrine_map")
+    @patch("mastery.views.doctrine.FittingSkillsetMap.objects.select_related")
+    @patch("mastery.views.doctrine.DoctrineSkillSetGroupMap.objects.filter")
+    @patch("mastery.views.doctrine.get_object_or_404")
+    def test_update_fitting_priority_creates_missing_map_and_redirects(
+        self,
+        mock_get_object_or_404,
+        mock_doctrine_map_filter,
+        mock_fitting_map_select_related,
+        mock_create_doctrine_map,
+        mock_create_fitting_map,
+        mock_redirect,
+        mock_messages,
+    ):
+        fitting = SimpleNamespace(id=55, ship_type=SimpleNamespace(name="Drake"))
+        doctrine = SimpleNamespace(id=9, name="Alpha")
+        doctrine_map = SimpleNamespace(id=3, doctrine=doctrine)
+        fitting_map = Mock(priority=0)
+        mock_get_object_or_404.side_effect = [fitting, doctrine]
+        mock_doctrine_map_filter.return_value.first.return_value = None
+        mock_fitting_map_select_related.return_value.filter.return_value.first.return_value = None
+        mock_create_doctrine_map.return_value = doctrine_map
+        mock_create_fitting_map.return_value = fitting_map
+
+        request = self.factory.post(
+            "/fitting/55/priority/",
+            data={"doctrine_id": "9", "priority": "7"},
+        )
+        request.user = _view_user()
+
+        response = views.update_fitting_priority(request, fitting_id=55)
+
+        self.assertEqual(response.status_code, 200)
+        mock_create_doctrine_map.assert_called_once_with(doctrine)
+        mock_create_fitting_map.assert_called_once_with(doctrine_map, fitting)
+        self.assertEqual(fitting_map.priority, 7)
+        fitting_map.save.assert_called_once_with(update_fields=["priority"])
+        mock_messages.success.assert_called_once()
+        mock_redirect.assert_called_once_with("mastery:doctrine_detail", doctrine_id=9)
+
+    @patch("mastery.views.doctrine._build_fitting_skills_ajax_response")
+    @patch("mastery.views.doctrine.FittingSkillsetMap.objects.select_related")
+    @patch("mastery.views.doctrine.DoctrineSkillSetGroupMap.objects.filter")
+    @patch("mastery.views.doctrine.get_object_or_404")
+    def test_update_fitting_priority_returns_ajax_fragment(
+        self,
+        mock_get_object_or_404,
+        mock_doctrine_map_filter,
+        mock_fitting_map_select_related,
+        mock_build_ajax,
+    ):
+        fitting = SimpleNamespace(id=55, ship_type=SimpleNamespace(name="Drake"))
+        doctrine = SimpleNamespace(id=9, name="Alpha")
+        doctrine_map = SimpleNamespace(id=3, doctrine=doctrine, priority=4)
+        fitting_map = Mock(priority=0)
+        mock_get_object_or_404.side_effect = [fitting, doctrine]
+        mock_doctrine_map_filter.return_value.first.return_value = doctrine_map
+        mock_fitting_map_select_related.return_value.filter.return_value.first.return_value = fitting_map
+        mock_build_ajax.return_value = JsonResponse({"status": "ok"})
+
+        request = self.factory.post(
+            "/fitting/55/priority/",
+            data={"doctrine_id": "9", "priority": "10"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        request.user = _view_user()
+
+        response = views.update_fitting_priority(request, fitting_id=55)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(fitting_map.priority, 10)
+        fitting_map.save.assert_called_once_with(update_fields=["priority"])
+        mock_build_ajax.assert_called_once_with(
+            request,
+            fitting=fitting,
+            doctrine=doctrine,
+            doctrine_map=doctrine_map,
+            fitting_map=fitting_map,
+            message="Fitting priority updated",
+        )
+
+    @patch("mastery.views.doctrine.FittingSkillsetMap.objects.select_related")
+    @patch("mastery.views.doctrine.DoctrineSkillSetGroupMap.objects.filter")
+    @patch("mastery.views.doctrine.get_object_or_404")
+    def test_update_fitting_priority_rejects_invalid_value(
+        self,
+        mock_get_object_or_404,
+        mock_doctrine_map_filter,
+        mock_fitting_map_select_related,
+    ):
+        fitting = SimpleNamespace(id=55, ship_type=SimpleNamespace(name="Drake"))
+        doctrine = SimpleNamespace(id=9, name="Alpha")
+        doctrine_map = SimpleNamespace(id=3, doctrine=doctrine)
+        fitting_map = Mock(priority=0)
+        mock_get_object_or_404.side_effect = [fitting, doctrine]
+        mock_doctrine_map_filter.return_value.first.return_value = doctrine_map
+        mock_fitting_map_select_related.return_value.filter.return_value.first.return_value = fitting_map
+
+        request = self.factory.post(
+            "/fitting/55/priority/",
+            data={"doctrine_id": "9", "priority": "11"},
+        )
+        request.user = _view_user()
+
+        response = views.update_fitting_priority(request, fitting_id=55)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.content.decode(), "Priority must be between 0 and 10.")
 
 
 # ---------------------------------------------------------------------------
@@ -1026,6 +1150,42 @@ class TestSummaryHelpers(SimpleTestCase):
         result = _annotate_member_detail_pilots([row], training_days=7)
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0]["near_required"][0]["is_trainable_soon"])
+
+    @patch("mastery.views.summary_helpers.DoctrineSkillSetGroupMap.objects.filter")
+    @patch("mastery.views.summary_helpers._build_fitting_user_rows")
+    def test_build_doctrine_summary_exposes_priority_and_sorts_fittings(
+        self,
+        mock_build_user_rows,
+        mock_doctrine_map_filter,
+    ):
+        doctrine = SimpleNamespace(id=1, name="Alpha", fittings=Mock())
+        fit_low = SimpleNamespace(id=10, name="Fit Low")
+        fit_high = SimpleNamespace(id=11, name="Fit High")
+        doctrine.fittings.all.return_value = [fit_low, fit_high]
+        mock_doctrine_map_filter.return_value.values_list.return_value.first.return_value = 8
+        mock_build_user_rows.return_value = []
+
+        summary = _build_doctrine_summary(
+            doctrine=doctrine,
+            fitting_maps={
+                fit_low.id: SimpleNamespace(
+                    priority=2,
+                    skillset=SimpleNamespace(id=101),
+                    status=FittingSkillsetMap.ApprovalStatus.APPROVED,
+                ),
+                fit_high.id: SimpleNamespace(
+                    priority=9,
+                    skillset=SimpleNamespace(id=102),
+                    status=FittingSkillsetMap.ApprovalStatus.APPROVED,
+                ),
+            },
+            member_groups=[],
+            progress_cache={},
+            progress_context={},
+        )
+
+        self.assertEqual(summary["priority"], 8)
+        self.assertEqual([row["fitting"].name for row in summary["fittings"]], ["Fit High", "Fit Low"])
 
     # -- _build_fitting_user_rows --------------------------------------------
 
@@ -1404,6 +1564,61 @@ class TestSummaryViews(SimpleTestCase):
         self.assertEqual(len(context["doctrine_summaries"]), 1)
         self.assertEqual(context["doctrine_summaries"][0]["doctrine"], doctrine_with_plan)
 
+    @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.summary._build_doctrine_summary")
+    @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
+    @patch("mastery.views.summary._approved_fitting_maps")
+    @patch("mastery.views.summary.pilot_access_service")
+    @patch("mastery.views.summary._get_selected_summary_group")
+    def test_summary_list_view_sorts_doctrines_by_priority(
+        self,
+        mock_get_group,
+        mock_pilot_access,
+        mock_approved_fitting_maps,
+        _mock_member_groups,
+        mock_build_doctrine_summary,
+        mock_render,
+    ):
+        selected_group = SimpleNamespace(id=1, name="Group", entries=Mock())
+        doctrine_low = SimpleNamespace(id=1, name="Alpha", fittings=Mock())
+        doctrine_high = SimpleNamespace(id=2, name="Zulu", fittings=Mock())
+        doctrine_low.fittings.all.return_value = []
+        doctrine_high.fittings.all.return_value = []
+        mock_get_group.return_value = ([selected_group], selected_group)
+        mock_pilot_access.accessible_doctrines.return_value.prefetch_related.return_value = [
+            doctrine_low,
+            doctrine_high,
+        ]
+        mock_approved_fitting_maps.return_value = {}
+        mock_build_doctrine_summary.side_effect = [
+            {
+                "doctrine": doctrine_low,
+                "configured_fittings": 1,
+                "priority": 1,
+                "fittings": [],
+                "active_characters_total": 0,
+                "kpis": {},
+            },
+            {
+                "doctrine": doctrine_high,
+                "configured_fittings": 1,
+                "priority": 9,
+                "fittings": [],
+                "active_characters_total": 0,
+                "kpis": {},
+            },
+        ]
+
+        req = self._req(path="/summary/")
+        response = views.summary_list_view(req)
+
+        self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        self.assertEqual(
+            [item["doctrine"].name for item in context["doctrine_summaries"]],
+            ["Zulu", "Alpha"],
+        )
+
     # -- summary_settings_view GET -------------------------------------------
 
     @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
@@ -1563,7 +1778,8 @@ class TestPilotViews(SimpleTestCase):
     ):
         fitting = SimpleNamespace(id=1, name="Fit", ship_type=SimpleNamespace(name="Drake"))
         skillset = SimpleNamespace(id=10)
-        fitting_map = SimpleNamespace(skillset=skillset, doctrine_map=None)
+        doctrine_map = SimpleNamespace(priority=7)
+        fitting_map = SimpleNamespace(skillset=skillset, doctrine_map=doctrine_map, priority=9)
         doctrine = SimpleNamespace(id=2)
         mock_fitting_404.return_value = (fitting, fitting_map, doctrine)
         mock_get_chars.return_value = []
@@ -1574,6 +1790,9 @@ class TestPilotViews(SimpleTestCase):
         req = self._req(path="/fitting/1/")
         response = views.pilot_fitting_detail_view(req, fitting_id=1)
         self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        self.assertEqual(context["fitting_priority"], 9)
+        self.assertEqual(context["doctrine_priority"], 7)
 
     @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
     @patch("mastery.views.pilot.pilot_progress_service")

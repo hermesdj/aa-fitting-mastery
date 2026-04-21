@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.1.8] - 2026-04-21
+
+### Added
+
+- Show doctrine priority directly in `Manage Skill Plans` doctrine list with the same visual badge scale used across mastery pages.
+
+### Changed
+
+- Harden i18n usage in JavaScript-driven templates by replacing fragile inline `{% translate %}` string injections with pre-translated template variables escaped for JS (`escapejs`), preventing locale-specific runtime syntax errors.
+- Improve fitting/summary pilot popovers to consistently render translated status labels (Elite / Almost elite / Can fly / Almost fit / Needs training) from status buckets.
+- Extend doctrine list context building so every doctrine row exposes its configured priority (`0` fallback when not initialized).
+- Complete `fr_FR` translations for priority labels/tooltips and priority update feedback messages.
+
+### Fixed
+
+- Hide the `Approve` button in the fitting skill plan editor when the current plan is already approved.
+- Fix Django template pluralization syntax in `fitting_skills_editor.html` (`blocktranslate count ... {% plural %}`), resolving `TemplateSyntaxError` at runtime.
+- Fix copy behavior for long recommended plans in the fitting skill editor by moving copy payload from large `data-*` attributes to a dedicated hidden source element and adding a robust clipboard fallback.
+- Fix copy feedback UX in both fitting and pilot views: buttons now reliably display a temporary `Copied!` state and restore their default labels.
+- Fix pilot copy button initial empty-label edge case by enforcing explicit default label sources (`aria-label` / `data-copy-default-label`) and defensive JS fallback initialization.
+
+### Tests
+
+- Run full plugin test suite: `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python runtests.py mastery -v 2` (**257 passed**).
+- Run focused pilot view regression suite: `python runtests.py mastery.tests.test_views.TestPilotViews -v 2` (**14 passed**).
+- Run lint quality gate: `pylint --load-plugins pylint_django mastery` (**10.00/10**).
+- Run duplicate-code audit: `pylint --load-plugins pylint_django --disable=all --enable=duplicate-code mastery/views mastery/services mastery/tests` (expected wrappers reported between `mastery/views/common.py` and `mastery/views/fitting.py`).
+
+### Upgrade Notes
+
+> ⚠️ **A database migration must be run for this update.**
+
+- Update package:
+  - `pip install -U aa-fitting-mastery`
+- Apply database changes (adds priority fields on doctrine/fitting map models via migration `0011_priority_fields`):
+  - `python manage.py migrate`
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services so Django code and Celery tasks reload:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+
 ## [0.1.7] - 2026-04-17
 
 ### Fixed

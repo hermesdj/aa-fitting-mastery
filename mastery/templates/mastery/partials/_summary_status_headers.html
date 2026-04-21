@@ -1,31 +1,33 @@
+{% load i18n %}
+
 <th class="text-success">
-    Elite{% if include_chars_suffix %} (chars){% endif %}
+    {% translate "Elite" %}{% if include_chars_suffix %} ({% translate "chars" %}){% endif %}
     {% if include_tooltips %}
-    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Can fly and recommended >= {{ status_thresholds.elite_recommended }}%"></span>
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="{% blocktranslate with pct=status_thresholds.elite_recommended %}Can fly and recommended >= {{ pct }}%{% endblocktranslate %}"></span>
     {% endif %}
 </th>
 <th class="text-primary">
-    Almost elite{% if include_chars_suffix %} (chars){% endif %}
+    {% translate "Almost elite" %}{% if include_chars_suffix %} ({% translate "chars" %}){% endif %}
     {% if include_tooltips %}
-    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Can fly and recommended > {{ status_thresholds.almost_elite_recommended }}%"></span>
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="{% blocktranslate with pct=status_thresholds.almost_elite_recommended %}Can fly and recommended > {{ pct }}%{% endblocktranslate %}"></span>
     {% endif %}
 </th>
 <th class="text-info">
-    Can fly{% if include_chars_suffix %} (chars){% endif %}
+    {% translate "Can fly" %}{% if include_chars_suffix %} ({% translate "chars" %}){% endif %}
     {% if include_tooltips %}
-    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Meets all required skills"></span>
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="{% translate 'Meets all required skills' %}"></span>
     {% endif %}
 </th>
 <th class="text-warning">
-    Almost fit{% if include_chars_suffix %} (chars){% endif %}
+    {% translate "Almost fit" %}{% if include_chars_suffix %} ({% translate "chars" %}){% endif %}
     {% if include_tooltips %}
-    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Not flyable and required > {{ status_thresholds.almost_fit_required }}%"></span>
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="{% blocktranslate with pct=status_thresholds.almost_fit_required %}Not flyable and required > {{ pct }}%{% endblocktranslate %}"></span>
     {% endif %}
 </th>
 <th class="text-danger">
-    Needs training{% if include_chars_suffix %} (chars){% endif %}
+    {% translate "Needs training" %}{% if include_chars_suffix %} ({% translate "chars" %}){% endif %}
     {% if include_tooltips %}
-    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="Not flyable and required <= {{ status_thresholds.almost_fit_required }}%"></span>
+    <span class="fas fa-question-circle small text-muted" data-bs-tooltip="aa-mastery" data-bs-title="{% blocktranslate with pct=status_thresholds.almost_fit_required %}Not flyable and required <= {{ pct }}%{% endblocktranslate %}"></span>
     {% endif %}
 </th>
 

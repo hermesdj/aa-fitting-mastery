@@ -7,8 +7,8 @@
 <div class="container mt-4">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div>
-            <h2 class="mb-1">Manage Skill Plans</h2>
-            <p class="text-muted mb-0">Doctrine-level overview and initialization status.</p>
+            <h2 class="mb-1">{% translate "Manage Skill Plans" %}</h2>
+            <p class="text-muted mb-0">{% translate "Doctrine-level overview and initialization status." %}</p>
         </div>
     </div>
 
@@ -16,7 +16,7 @@
         <div class="col-12 col-md-6">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="small text-muted mb-1">Doctrines</div>
+                    <div class="small text-muted mb-1">{% translate "Doctrines" %}</div>
                     <div class="display-6 fw-semibold">{{ doctrines|length }}</div>
                 </div>
             </div>
@@ -24,8 +24,8 @@
         <div class="col-12 col-md-6">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="small text-muted mb-1">Workflow</div>
-                    <div class="fw-semibold">Initialize missing plans, then sync doctrine after updates.</div>
+                    <div class="small text-muted mb-1">{% translate "Workflow" %}</div>
+                    <div class="fw-semibold">{% translate "Initialize missing plans, then sync doctrine after updates." %}</div>
                 </div>
             </div>
         </div>
@@ -33,19 +33,20 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center py-3">
-            <div class="fw-semibold">Doctrines</div>
-            <span class="badge bg-secondary">{{ doctrines|length }} total</span>
+            <div class="fw-semibold">{% translate "Doctrines" %}</div>
+            <span class="badge bg-secondary">{% blocktranslate with count=doctrines|length %}{{ count }} total{% endblocktranslate %}</span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead class="mastery-table-head">
                     <tr>
-                        <th>Name</th>
-                        <th>Default mastery</th>
-                        <th>Coverage</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th>{% translate "Name" %}</th>
+                        <th>{% translate "Priority" %}</th>
+                        <th>{% translate "Default mastery" %}</th>
+                        <th>{% translate "Coverage" %}</th>
+                        <th>{% translate "Status" %}</th>
+                        <th>{% translate "Actions" %}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -63,10 +64,16 @@
                             </a>
                         </td>
                         <td>
+                            {% include 'mastery/partials/_priority_badge.html' with priority=d.priority %}
+                            {% if d.priority == 0 %}
+                            <span class="text-muted small">P0</span>
+                            {% endif %}
+                        </td>
+                        <td>
                             {% if d.default_mastery_label %}
                             <span class="badge bg-info text-dark">{{ d.default_mastery_label }}</span>
                             {% else %}
-                            <span class="text-muted">Not set</span>
+                            <span class="text-muted">{% translate "Not set" %}</span>
                             {% endif %}
                         </td>
                         <td>
@@ -79,23 +86,23 @@
                         </td>
                         <td>
                             {% if d.initialized %}
-                            <span class="badge bg-success">Initialized</span>
+                            <span class="badge bg-success">{% translate "Initialized" %}</span>
                             {% else %}
-                            <span class="badge bg-warning text-dark">Not initialized</span>
+                            <span class="badge bg-warning text-dark">{% translate "Not initialized" %}</span>
                             {% endif %}
                         </td>
                         <td>
                             <div class="d-flex gap-2 flex-wrap">
-                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:doctrine_detail' d.id %}">Open</a>
+                                <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:doctrine_detail' d.id %}">{% translate "Open" %}</a>
                                 {% if not d.initialized %}
                                 <form method="POST" action="{% url 'mastery:generate_doctrine' d.id %}">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-primary">Initialize</button>
+                                    <button type="submit" class="btn btn-sm btn-primary">{% translate "Initialize" %}</button>
                                 </form>
                                 {% else %}
                                 <form method="POST" action="{% url 'mastery:sync_doctrine' d.id %}">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-primary">Sync</button>
+                                    <button type="submit" class="btn btn-sm btn-primary">{% translate "Sync" %}</button>
                                 </form>
                                 {% endif %}
                             </div>
@@ -103,7 +110,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-muted">No doctrines found.</td>
+                        <td colspan="6" class="text-muted">{% translate "No doctrines found." %}</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -112,5 +119,11 @@
         </div>
     </div>
 </div>
+
+<script>
+    $(document).ready(() => {
+        $('[data-bs-tooltip="aa-mastery"]').tooltip();
+    });
+</script>
 
 {% endblock %}

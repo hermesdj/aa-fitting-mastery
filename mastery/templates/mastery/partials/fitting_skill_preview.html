@@ -1,11 +1,12 @@
+{% load i18n %}
 {% load skill_render %}
 
 <div class="mb-3">
-    <div><strong>Effective mastery:</strong> {{ effective_mastery_label }}</div>
+    <div><strong>{% translate "Effective mastery:" %}</strong> {{ effective_mastery_label }}</div>
     <div class="small text-muted">
-        Doctrine default: {{ doctrine_default_mastery_label }}
+        {% translate "Doctrine default:" %} {{ doctrine_default_mastery_label }}
         {% if fitting_mastery_override is not None %}
-        · Saved fitting override: {{ fitting_mastery_override }}
+        · {% translate "Saved fitting override:" %} {{ fitting_mastery_override }}
         {% endif %}
     </div>
 </div>
@@ -27,9 +28,9 @@
                 </colgroup>
                 <thead class="mastery-table-head">
                 <tr>
-                    <th>Skill</th>
-                    <th>Required</th>
-                    <th>Recommended</th>
+                    <th>{% translate "Skill" %}</th>
+                    <th>{% translate "Required" %}</th>
+                    <th>{% translate "Recommended" %}</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -39,7 +40,7 @@
                     <td>
                         <span>{{ skill.skill_name }}</span>
                         {% if skill.is_manual %}
-                        <span class="badge text-bg-info ms-1">Manual</span>
+                        <span class="badge text-bg-info ms-1">{% translate "Manual" %}</span>
                         {% endif %}
                         {% if skill.skill_description %}
                         <button
@@ -48,7 +49,7 @@
                                 data-bs-tooltip="aa-mastery"
                                 data-bs-placement="top"
                                 data-bs-title="{{ skill.skill_description|striptags }}"
-                                aria-label="Skill description"
+                                aria-label="{% translate 'Skill description' %}"
                         >
                             <span class="badge rounded-pill text-bg-secondary">?</span>
                         </button>
@@ -66,7 +67,7 @@
 </div>
 {% endwith %}
 {% empty %}
-<div class="alert alert-info mb-0">No skills found for this fitting at the selected mastery level.</div>
+<div class="alert alert-info mb-0">{% translate "No skills found for this fitting at the selected mastery level." %}</div>
 {% endfor %}
 
 <script>

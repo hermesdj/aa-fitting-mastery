@@ -1,5 +1,6 @@
 from allianceauth import hooks
 from allianceauth.services.hooks import UrlHook, MenuItemHook
+from django.utils.translation import gettext_lazy as _
 
 from . import urls
 
@@ -7,7 +8,7 @@ class MasteryMenu(MenuItemHook):
     def __init__(self):
         MenuItemHook.__init__(
             self,
-            "Skill Planner",
+            _("Skill Planner"),
             "fas fa-chart-bar",
             "mastery:pilot_index",
             navactive=["mastery:"],

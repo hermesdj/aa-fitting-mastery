@@ -1,5 +1,6 @@
 """Snapshot of skills computed for a doctrine fitting."""
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from eve_sde.models import ItemType
 from fittings.models import Doctrine, Fitting
 
@@ -11,31 +12,31 @@ class DoctrineSkillSnapshot(models.Model):
     doctrine = models.ForeignKey(
         Doctrine,
         on_delete=models.DO_NOTHING,
-        verbose_name="doctrine",
+        verbose_name=_("doctrine"),
         to_field="id"
     )
     doctrine_name = models.CharField(
         max_length=NAMES_MAX_LENGTH,
-        verbose_name="doctrine name"
+        verbose_name=_("doctrine name")
     )
 
     fitting = models.ForeignKey(
         Fitting,
         on_delete=models.DO_NOTHING,
-        verbose_name="fitting",
+        verbose_name=_("fitting"),
         to_field="id",
         related_name="+"
     )
 
     fitting_name = models.CharField(
         max_length=NAMES_MAX_LENGTH,
-        verbose_name="fitting name"
+        verbose_name=_("fitting name")
     )
 
     ship_type = models.ForeignKey(
         ItemType,
         on_delete=models.DO_NOTHING,
-        verbose_name="ship type",
+        verbose_name=_("ship type"),
         to_field="id",
         related_name="+"
     )
@@ -46,18 +47,18 @@ class DoctrineSkillSnapshot(models.Model):
     skill_type = models.ForeignKey(
         ItemType,
         on_delete=models.DO_NOTHING,
-        verbose_name="skill type",
+        verbose_name=_("skill type"),
         to_field="id",
         related_name="+"
     )
 
     required_level = models.PositiveIntegerField(
         default=0,
-        verbose_name="required level"
+        verbose_name=_("required level")
     )
     recommended_level = models.PositiveIntegerField(
         default=0,
-        verbose_name="recommended level"
+        verbose_name=_("recommended level")
     )
 
     is_required = models.BooleanField(default=False)

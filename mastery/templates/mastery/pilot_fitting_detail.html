@@ -3,6 +3,7 @@
 {% load humanize %}
 {% load evelinks %}
 {% load l10n %}
+{% translate "Copied!" as copied_label %}
 
 {% block details %}
 <div class="container mt-4">
@@ -11,22 +12,26 @@
             <h2 class="mb-1 d-flex align-items-center gap-2">
                 <img src="{{ fitting.ship_type_type_id|type_render_url:32 }}" class="rounded" width="32" height="32" alt="{{ fitting.ship_type.name }}">
                 <span>{{ fitting.name }}</span>
+                {% include 'mastery/partials/_priority_badge.html' with priority=fitting_priority %}
             </h2>
-            <div class="text-muted">{{ fitting.ship_type.name }}{% if doctrine %} · Doctrine: {{ doctrine.name }}{% endif %}</div>
+            <div class="text-muted d-flex align-items-center gap-2 flex-wrap">
+                <span>{{ fitting.ship_type.name }}{% if doctrine %} · {% translate "Doctrine" %}: {{ doctrine.name }}{% endif %}</span>
+                {% if doctrine %}{% include 'mastery/partials/_priority_badge.html' with priority=doctrine_priority %}{% endif %}
+            </div>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:pilot_index' %}">
                 <span class="fas fa-arrow-left" aria-hidden="true"></span>
-                Back to Skill Mastery
+                {% translate "Back to Skill Mastery" %}
             </a>
             <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_fit' fitting.id %}">
                 <span class="fas fa-ship" aria-hidden="true"></span>
-                View fitting
+                {% translate "View fitting" %}
             </a>
             {% if doctrine %}
             <a class="btn btn-sm btn-outline-primary" href="{% url 'fittings:view_doctrine' doctrine.id %}">
                 <span class="fas fa-sitemap" aria-hidden="true"></span>
-                View doctrine
+                {% translate "View doctrine" %}
             </a>
             {% endif %}
             <button
@@ -38,12 +43,12 @@
                 data-fitting-name="{{ fitting.name|escape }}"
             >
                 <span class="fas fa-list-ul" aria-hidden="true"></span>
-                Preview skill plan
+                {% translate "Preview skill plan" %}
             </button>
             {% if perms.mastery.manage_fittings %}
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:fitting_skills' fitting.id %}">
                 <span class="fas fa-sliders-h" aria-hidden="true"></span>
-                Edit skill plan
+                {% translate "Edit skill plan" %}
             </a>
             {% endif %}
         </div>
@@ -52,8 +57,8 @@
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
-                Character readiness
-                <span class="small text-muted ms-2">{{ filtered_character_rows|length }}/{{ character_rows|length }} visible</span>
+                {% translate "Character readiness" %}
+                <span class="small text-muted ms-2">{% blocktranslate with visible=filtered_character_rows|length total=character_rows|length %}{{ visible }}/{{ total }} visible{% endblocktranslate %}</span>
             </div>
             <form method="get" class="d-flex flex-wrap align-items-end gap-2">
                 {% if selected_character %}<input type="hidden" name="character_id" value="{{ selected_character.id }}">{% endif %}
@@ -62,7 +67,7 @@
                 {% if summary_group_id %}<input type="hidden" name="group_id" value="{{ summary_group_id }}">{% endif %}
                 {% if summary_group_id and include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <label class="small text-muted mb-0" for="characterFilterSelect">Filter</label>
+                    <label class="small text-muted mb-0" for="characterFilterSelect">{% translate "Filter" %}</label>
                     <select id="characterFilterSelect" class="form-select form-select-sm" name="character_filter" onchange="this.form.submit()" style="width: 220px;">
                         {% for value, label in character_filter_choices %}
                         <option value="{{ value }}" {% if selected_character_filter == value %}selected{% endif %}>{{ label }}</option>
@@ -71,9 +76,9 @@
                 </div>
                 {% if summary_group_id %}
                 <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <label class="small text-muted mb-0" for="pilotActivityDaysSelect">Activity days</label>
+                    <label class="small text-muted mb-0" for="pilotActivityDaysSelect">{% translate "Activity days" %}</label>
                     <input id="pilotActivityDaysSelect" class="form-control form-control-sm" type="number" min="1" max="90" name="activity_days" value="{{ activity_days }}" style="width: 96px;">
-                    <button class="btn btn-sm btn-outline-primary" type="submit">Apply</button>
+                    <button class="btn btn-sm btn-outline-primary" type="submit">{% translate "Apply" %}</button>
                 </div>
                 {% endif %}
             </form>
@@ -90,11 +95,11 @@
                     </colgroup>
                     <thead class="mastery-table-head">
                     <tr>
-                        <th>Character</th>
-                        <th>Required</th>
-                        <th>Recommended</th>
-                        <th>Gap</th>
-                        <th>Details</th>
+                        <th>{% translate "Character" %}</th>
+                        <th>{% translate "Required" %}</th>
+                        <th>{% translate "Recommended" %}</th>
+                        <th>{% translate "Gap" %}</th>
+                        <th>{% translate "Details" %}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -129,17 +134,17 @@
                             <a class="btn btn-sm {% if row.is_selected %}btn-success{% else %}btn-outline-primary{% endif %}" href="{{ row.action_url }}">
                                 {% if row.is_selected %}
                                 <span class="fas fa-check-circle" aria-hidden="true"></span>
-                                Selected
+                                {% translate "Selected" %}
                                 {% else %}
                                 <span class="fas fa-crosshairs" aria-hidden="true"></span>
-                                Select
+                                {% translate "Select" %}
                                 {% endif %}
                             </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-muted">No characters match the current filter.</td>
+                        <td colspan="5" class="text-muted">{% translate "No characters match the current filter." %}</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -152,8 +157,8 @@
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>
-                <div class="small text-muted">Export mode (affects the whole view)</div>
-                <div class="fw-semibold">Active mode: {{ export_mode_label }}</div>
+                <div class="small text-muted">{% translate "Export mode (affects the whole view)" %}</div>
+                <div class="fw-semibold">{% translate "Active mode:" %} {{ export_mode_label }}</div>
             </div>
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="btn-group" role="group" aria-label="Export mode">
@@ -168,7 +173,7 @@
                     {% if summary_group_id %}<input type="hidden" name="group_id" value="{{ summary_group_id }}">{% endif %}
                     {% if summary_group_id %}<input type="hidden" name="activity_days" value="{{ activity_days }}">{% endif %}
                     {% if summary_group_id and include_inactive %}<input type="hidden" name="include_inactive" value="1">{% endif %}
-                    <label class="small text-muted" for="exportLanguageSelect" title="{{ export_language_scope_label|default:'Affects export' }}">Export language</label>
+                    <label class="small text-muted" for="exportLanguageSelect" title="{{ export_language_scope_label|default:'Affects export' }}">{% translate "Export language" %}</label>
                     <select id="exportLanguageSelect" class="form-select form-select-sm" name="export_language" onchange="this.form.submit()">
                         {% for value, label in export_language_choices %}
                         <option value="{{ value }}" {% if export_language == value %}selected{% endif %}>{{ label }}</option>
@@ -183,7 +188,7 @@
         <div class="col-12 col-md-6 col-xl-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="small text-muted mb-1">Selected pilot</div>
+                    <div class="small text-muted mb-1">{% translate "Selected pilot" %}</div>
                     <div class="d-flex align-items-center gap-2 mb-1">
                         <img src="{{ selected_character.eve_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ selected_character.eve_character.character_name }}">
                         <div class="fw-semibold">{{ selected_character.eve_character.character_name }}</div>
@@ -195,7 +200,7 @@
         <div class="col-12 col-md-6 col-xl-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="small text-muted mb-1">Coverage</div>
+                    <div class="small text-muted mb-1">{% translate "Coverage" %}</div>
                     <div class="display-6 fw-semibold">{% if selected_mode_stats %}{{ selected_mode_stats.coverage_pct }}%{% else %}0%{% endif %}</div>
                 </div>
             </div>
@@ -203,7 +208,7 @@
         <div class="col-12 col-md-6 col-xl-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="small text-muted mb-1">Missing SP</div>
+                    <div class="small text-muted mb-1">{% translate "Missing SP" %}</div>
                     <div class="display-6 fw-semibold">{% if selected_mode_stats %}{{ selected_mode_stats.total_missing_sp|intcomma }}{% else %}0{% endif %}</div>
                 </div>
             </div>
@@ -211,8 +216,8 @@
         <div class="col-12 col-md-6 col-xl-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
-                    <div class="small text-muted mb-1">Estimated training</div>
-                    <div class="fw-semibold">{% if selected_mode_stats and selected_mode_stats.total_missing_time is not None %}{{ selected_mode_stats.total_missing_time }}{% else %}<span class="text-muted">Unknown</span>{% endif %}</div>
+                    <div class="small text-muted mb-1">{% translate "Estimated training" %}</div>
+                    <div class="fw-semibold">{% if selected_mode_stats and selected_mode_stats.total_missing_time is not None %}{{ selected_mode_stats.total_missing_time }}{% else %}<span class="text-muted">{% translate "Unknown" %}</span>{% endif %}</div>
                 </div>
             </div>
         </div>
@@ -225,13 +230,13 @@
                 <div class="card-body py-3">
                     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
                         <div>
-                            <div class="small text-muted text-uppercase fw-semibold mb-1">Plan advisory</div>
-                            <div class="h5 mb-1">{{ export_mode_label }} training plan overview</div>
-                            <div class="small text-muted">Quick read on remap efficiency, injector fallback and the overall scope of the current plan.</div>
+                            <div class="small text-muted text-uppercase fw-semibold mb-1">{% translate "Plan advisory" %}</div>
+                            <div class="h5 mb-1">{% blocktranslate with label=export_mode_label %}{{ label }} training plan overview{% endblocktranslate %}</div>
+                            <div class="small text-muted">{% translate "Quick read on remap efficiency, injector fallback and the overall scope of the current plan." %}</div>
                         </div>
                         <div class="d-flex flex-wrap gap-2">
-                            <span class="badge rounded-pill text-bg-secondary px-3 py-2">{{ skill_plan_summary.line_count }} step{{ skill_plan_summary.line_count|pluralize }}</span>
-                            <span class="badge rounded-pill mastery-badge-neutral px-3 py-2">{{ skill_plan_summary.unique_skill_count }} skill{{ skill_plan_summary.unique_skill_count|pluralize }}</span>
+                            <span class="badge rounded-pill text-bg-secondary px-3 py-2">{% blocktranslate count count=skill_plan_summary.line_count %}{{ count }} step{% plural %}{{ count }} steps{% endblocktranslate %}</span>
+                            <span class="badge rounded-pill mastery-badge-neutral px-3 py-2">{% blocktranslate count count=skill_plan_summary.unique_skill_count %}{{ count }} skill{% plural %}{{ count }} skills{% endblocktranslate %}</span>
                             <span class="badge rounded-pill text-bg-primary px-3 py-2">{{ skill_plan_summary.total_missing_sp|intcomma }} SP</span>
                         </div>
                     </div>
@@ -242,8 +247,8 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="small text-muted text-uppercase fw-semibold">Neural remap advisory</div>
-                        <div class="fw-semibold">Best attribute focus for this plan</div>
+                        <div class="small text-muted text-uppercase fw-semibold">{% translate "Neural remap advisory" %}</div>
+                        <div class="fw-semibold">{% translate "Best attribute focus for this plan" %}</div>
                     </div>
                     {% if skill_plan_summary.optimal_remap %}
                     <span class="badge bg-primary">{{ skill_plan_summary.optimal_remap.primary_label }} / {{ skill_plan_summary.optimal_remap.secondary_label }}</span>
@@ -254,63 +259,63 @@
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-lg-5">
                             <div class="border rounded-3 p-3 h-100 mastery-surface-subtle">
-                                <div class="small text-muted text-uppercase fw-semibold mb-1">Recommended focus</div>
+                                <div class="small text-muted text-uppercase fw-semibold mb-1">{% translate "Recommended focus" %}</div>
                                 <div class="h5 mb-2">{{ skill_plan_summary.optimal_remap.primary_label }} / {{ skill_plan_summary.optimal_remap.secondary_label }}</div>
-                                <div class="small text-muted mb-0">This is the remap pairing that minimizes training time across the current exported plan.</div>
+                                <div class="small text-muted mb-0">{% translate "This is the remap pairing that minimizes training time across the current exported plan." %}</div>
                             </div>
                         </div>
                         <div class="col-12 col-lg-7">
                             <div class="border rounded-3 p-3 h-100">
-                                <div class="small text-muted text-uppercase fw-semibold mb-2">Training time comparison</div>
+                                <div class="small text-muted text-uppercase fw-semibold mb-2">{% translate "Training time comparison" %}</div>
                                 <div class="d-flex flex-column gap-2 small">
                                     {% if skill_plan_summary.optimal_remap.has_implant_bonus %}
                                     <div class="small text-muted">
-                                        Implant bonuses are included in both current and recommended simulations.
+                                        {% translate "Implant bonuses are included in both current and recommended simulations." %}
                                     </div>
                                     {% endif %}
                                     <div class="d-flex justify-content-between gap-3">
-                                        <span class="text-muted">Best-case with suggested remap</span>
+                                        <span class="text-muted">{% translate "Best-case with suggested remap" %}</span>
                                         <span class="fw-semibold text-nowrap">{{ skill_plan_summary.optimal_remap.estimated_time }}</span>
                                     </div>
                                     {% if skill_plan_summary.optimal_remap.current_time is not None %}
                                     <div class="d-flex justify-content-between gap-3">
-                                        <span class="text-muted">With current attributes</span>
+                                        <span class="text-muted">{% translate "With current attributes" %}</span>
                                         <span class="fw-semibold text-nowrap">{{ skill_plan_summary.optimal_remap.current_time }}</span>
                                     </div>
                                     <div class="d-flex justify-content-between gap-3 border-top pt-2">
-                                        <span class="text-muted">Potential time saved</span>
+                                        <span class="text-muted">{% translate "Potential time saved" %}</span>
                                         <span class="fw-semibold text-success text-nowrap">{{ skill_plan_summary.optimal_remap.time_saved }}</span>
                                     </div>
                                     {% else %}
-                                    <div class="text-muted">Current attribute data is unavailable, so only the optimal remap estimate can be shown.</div>
+                                    <div class="text-muted">{% translate "Current attribute data is unavailable, so only the optimal remap estimate can be shown." %}</div>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="small text-muted text-uppercase fw-semibold mb-2">Suggested remap values</div>
+                    <div class="small text-muted text-uppercase fw-semibold mb-2">{% translate "Suggested remap values" %}</div>
                     <div class="d-flex flex-wrap gap-2 mb-3">
                         {% for attribute in skill_plan_summary.optimal_remap.attributes %}
                         <span class="badge rounded-pill {% if attribute.is_primary %}text-bg-primary{% elif attribute.is_secondary %}text-bg-info{% else %}mastery-badge-neutral{% endif %} px-3 py-2">
                             {{ attribute.label }}
-                            <span class="opacity-75">Base</span> {{ attribute.base_value }}
+                            <span class="opacity-75">{% translate "Base" %}</span> {{ attribute.base_value }}
                             {% if skill_plan_summary.optimal_remap.has_implant_bonus %}
-                            · <span class="opacity-75">With implants</span> {{ attribute.effective_value }}
+                            · <span class="opacity-75">{% translate "With implants" %}</span> {{ attribute.effective_value }}
                             {% endif %}
                         </span>
                         {% endfor %}
                     </div>
 
                     {% if skill_plan_summary.optimal_remap.current_attributes_rows %}
-                    <div class="small text-muted text-uppercase fw-semibold mb-2">Current character attributes</div>
+                    <div class="small text-muted text-uppercase fw-semibold mb-2">{% translate "Current character attributes" %}</div>
                     <div class="d-flex flex-wrap gap-2">
                         {% for attribute in skill_plan_summary.optimal_remap.current_attributes_rows %}
                         <span class="badge rounded-pill mastery-badge-neutral px-3 py-2">
                             {{ attribute.label }}
-                            <span class="opacity-75">Base</span> {{ attribute.base_value }}
+                            <span class="opacity-75">{% translate "Base" %}</span> {{ attribute.base_value }}
                             {% if skill_plan_summary.optimal_remap.has_implant_bonus %}
-                            · <span class="opacity-75">With implants</span> {{ attribute.effective_value }}
+                            · <span class="opacity-75">{% translate "With implants" %}</span> {{ attribute.effective_value }}
                             {% endif %}
                         </span>
                         {% endfor %}
@@ -318,7 +323,7 @@
                     {% endif %}
 
                     {% if skill_plan_summary.optimal_remap.implant_bonus_rows %}
-                    <div class="small text-muted text-uppercase fw-semibold mt-3 mb-2">Detected implant bonuses</div>
+                    <div class="small text-muted text-uppercase fw-semibold mt-3 mb-2">{% translate "Detected implant bonuses" %}</div>
                     <div class="d-flex flex-wrap gap-2">
                         {% for attribute in skill_plan_summary.optimal_remap.implant_bonus_rows %}
                         <span class="badge rounded-pill mastery-sp-chip">{{ attribute.label }} +{{ attribute.value }}</span>
@@ -326,7 +331,7 @@
                     </div>
                     {% endif %}
                     {% else %}
-                    <div class="text-muted">Unable to determine an optimal remap for this plan.</div>
+                    <div class="text-muted">{% translate "Unable to determine an optimal remap for this plan." %}</div>
                     {% endif %}
                 </div>
             </div>
@@ -335,20 +340,20 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
-                        <div class="small text-muted text-uppercase fw-semibold">Injector fallback</div>
-                        <div class="fw-semibold">Large Skill Injectors</div>
+                        <div class="small text-muted text-uppercase fw-semibold">{% translate "Injector fallback" %}</div>
+                        <div class="fw-semibold">{% translate "Large Skill Injectors" %}</div>
                     </div>
                     {% if skill_plan_summary.injector_estimate.known %}
-                    <span class="badge bg-warning text-dark">Estimated</span>
+                    <span class="badge bg-warning text-dark">{% translate "Estimated" %}</span>
                     {% else %}
-                    <span class="badge bg-secondary">Unavailable</span>
+                    <span class="badge bg-secondary">{% translate "Unavailable" %}</span>
                     {% endif %}
                 </div>
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <img src="{{ skill_plan_summary.injector_estimate.large_skill_injector_type_id|type_icon_url:64 }}" class="rounded" width="64" height="64" alt="Large Skill Injector">
                         <div class="flex-grow-1">
-                            <div class="small text-muted text-uppercase fw-semibold">Estimated injectors for this {{ export_mode_label|lower }} plan</div>
+                            <div class="small text-muted text-uppercase fw-semibold">{% blocktranslate with mode=export_mode_label|lower %}Estimated injectors for this {{ mode }} plan{% endblocktranslate %}</div>
                             <div class="display-5 fw-semibold mb-0 lh-1">
                                 {% if skill_plan_summary.injector_estimate.known %}
                                 {{ skill_plan_summary.injector_estimate.count }}
@@ -358,9 +363,9 @@
                             </div>
                             <div class="small text-muted mt-1">
                                 {% if skill_plan_summary.injector_estimate.known %}
-                                Approximate fallback if you finish the plan with injectors only.
+                                {% translate "Approximate fallback if you finish the plan with injectors only." %}
                                 {% else %}
-                                Character total SP is missing, so the injector estimate cannot be derived.
+                                {% translate "Character total SP is missing, so the injector estimate cannot be derived." %}
                                 {% endif %}
                             </div>
                         </div>
@@ -368,37 +373,37 @@
 
                     <div class="list-group list-group-flush small mb-3">
                         <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Plan SP to cover</span>
+                            <span class="text-muted">{% translate "Plan SP to cover" %}</span>
                             <span class="fw-semibold text-nowrap">{{ skill_plan_summary.total_missing_sp|intcomma }} SP</span>
                         </div>
                         <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Unallocated SP available</span>
+                            <span class="text-muted">{% translate "Unallocated SP available" %}</span>
                             <span class="fw-semibold text-nowrap">{% if skill_plan_summary.current_unallocated_sp is not None %}{{ skill_plan_summary.current_unallocated_sp|intcomma }} SP{% else %}&mdash;{% endif %}</span>
                         </div>
                         <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Remaining after unallocated SP</span>
+                            <span class="text-muted">{% translate "Remaining after unallocated SP" %}</span>
                             <span class="fw-semibold text-nowrap">{{ skill_plan_summary.remaining_sp_after_unallocated|intcomma }} SP</span>
                         </div>
                         <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Current character total SP</span>
+                            <span class="text-muted">{% translate "Current character total SP" %}</span>
                             <span class="fw-semibold text-nowrap">{% if skill_plan_summary.current_total_sp is not None %}{{ skill_plan_summary.current_total_sp|intcomma }} SP{% else %}&mdash;{% endif %}</span>
                         </div>
                         {% if skill_plan_summary.injector_estimate.known %}
                         <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Current yield per injector</span>
+                            <span class="text-muted">{% translate "Current yield per injector" %}</span>
                             <span class="fw-semibold text-nowrap">{{ skill_plan_summary.injector_estimate.current_gain_per_injector|intcomma }} SP</span>
                         </div>
                         <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Injector SP applied</span>
+                            <span class="text-muted">{% translate "Injector SP applied" %}</span>
                             <span class="fw-semibold text-nowrap">{{ skill_plan_summary.injector_estimate.gained_sp|intcomma }} SP</span>
                         </div>
                         <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Projected total SP after injectors</span>
+                            <span class="text-muted">{% translate "Projected total SP after injectors" %}</span>
                             <span class="fw-semibold text-nowrap">{{ skill_plan_summary.injector_estimate.final_total_sp|intcomma }} SP</span>
                         </div>
                         {% if skill_plan_summary.injector_estimate.overage_sp %}
                         <div class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                            <span class="text-muted">Injector overage</span>
+                            <span class="text-muted">{% translate "Injector overage" %}</span>
                             <span class="fw-semibold text-nowrap">{{ skill_plan_summary.injector_estimate.overage_sp|intcomma }} SP</span>
                         </div>
                         {% endif %}
@@ -406,7 +411,7 @@
                     </div>
 
                     <div class="border rounded-3 p-3 mastery-surface-subtle small text-muted">
-                        <div class="fw-semibold text-body mb-2">LSI yield bands</div>
+                        <div class="fw-semibold text-body mb-2">{% translate "LSI yield bands" %}</div>
                         <div>&lt; 5M SP → 500k SP</div>
                         <div>5M–50M SP → 400k SP</div>
                         <div>50M–80M SP → 300k SP</div>
@@ -422,19 +427,19 @@
         <div class="col-12 col-xl-6">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>Missing skills · {{ selected_character.eve_character.character_name }}</span>
+                    <span>{% blocktranslate with name=selected_character.eve_character.character_name %}Missing skills · {{ name }}{% endblocktranslate %}</span>
                     <div class="d-flex gap-2">
-                        <span class="badge bg-danger" title="Missing required">Req {{ selected_progress.missing_required_count }}</span>
-                        <span class="badge bg-warning text-dark" title="Missing recommended">Rec {{ selected_progress.missing_recommended_count }}</span>
+                        <span class="badge bg-danger" title="{% translate 'Missing required' %}">Req {{ selected_progress.missing_required_count }}</span>
+                        <span class="badge bg-warning text-dark" title="{% translate 'Missing recommended' %}">Rec {{ selected_progress.missing_recommended_count }}</span>
                         <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#missingSkillsModal">
                             <span class="fas fa-list-ul" aria-hidden="true"></span>
-                            View full gap
+                            {% translate "View full gap" %}
                         </button>
                     </div>
                 </div>
                 <div class="card-body">
                     <div class="d-flex align-items-center justify-content-between mb-2">
-                        <div class="fw-semibold small text-muted">Required</div>
+                        <div class="fw-semibold small text-muted">{% translate "Required" %}</div>
                         <span class="badge bg-danger">{{ selected_progress.missing_required_count }}</span>
                     </div>
                     {% if selected_progress.missing_required %}
@@ -457,13 +462,13 @@
                         {% endfor %}
                     </div>
                     {% else %}
-                    <div class="text-success">All required skills met.</div>
+                    <div class="text-success">{% translate "All required skills met." %}</div>
                     {% endif %}
 
                     <hr>
 
                     <div class="d-flex align-items-center justify-content-between mb-2">
-                        <div class="fw-semibold small text-muted">Recommended</div>
+                        <div class="fw-semibold small text-muted">{% translate "Recommended" %}</div>
                         <span class="badge bg-warning text-dark">{{ selected_progress.missing_recommended_count }}</span>
                     </div>
                     {% if selected_progress.missing_recommended %}
@@ -486,7 +491,7 @@
                         {% endfor %}
                     </div>
                     {% else %}
-                    <div class="text-success">All recommended skills met.</div>
+                    <div class="text-success">{% translate "All recommended skills met." %}</div>
                     {% endif %}
                 </div>
             </div>
@@ -495,29 +500,36 @@
         <div class="col-12 col-xl-6">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>{{ export_mode_label }} gap and plan export</span>
+                    <span>{% blocktranslate with label=export_mode_label %}{{ label }} gap and plan export{% endblocktranslate %}</span>
                 </div>
                 <div class="card-body">
                     <div class="small mb-2">
-                        <strong>Missing SP:</strong> {% if selected_mode_stats %}{{ selected_mode_stats.total_missing_sp|intcomma }}{% else %}0{% endif %}
+                        <strong>{% translate "Missing SP:" %}</strong> {% if selected_mode_stats %}{{ selected_mode_stats.total_missing_sp|intcomma }}{% else %}0{% endif %}
                         {% if selected_mode_stats and selected_mode_stats.total_missing_time is not None %}
-                        · <strong>Estimated training:</strong> {{ selected_mode_stats.total_missing_time }}
+                        · <strong>{% translate "Estimated training:" %}</strong> {{ selected_mode_stats.total_missing_time }}
                         {% else %}
-                        · <strong>Estimated training:</strong> <span class="text-muted">Unknown (missing attribute data)</span>
+                        · <strong>{% translate "Estimated training:" %}</strong> <span class="text-muted">{% translate "Unknown (missing attribute data)" %}</span>
                         {% endif %}
                     </div>
 
-                    <label class="form-label small text-muted" for="skillPlanText">EVE clipboard text</label>
+                    <label class="form-label small text-muted" for="skillPlanText">{% translate "EVE clipboard text" %}</label>
                     <textarea id="skillPlanText" class="form-control form-control-sm" rows="10" readonly>{% for line in selected_export_lines %}{{ line }}
-{% empty %}No missing skills for this fitting.{% endfor %}</textarea>
+{% empty %}{% translate "No missing skills for this fitting." %}{% endfor %}</textarea>
                     <div class="d-flex flex-wrap gap-2 mt-2">
-                        <button type="button" class="btn btn-sm btn-primary" id="copySkillPlanBtn">
+                        <button
+                            type="button"
+                            class="btn btn-sm btn-primary"
+                            id="copySkillPlanBtn"
+                            aria-label="{% translate "Copy to clipboard" %}"
+                            data-copy-default-label="{% translate "Copy to clipboard" %}"
+                            data-copy-success-label="{{ copied_label }}"
+                        >
                             <span class="fas fa-copy" aria-hidden="true"></span>
-                            <span class="copy-btn-label">Copy to clipboard</span>
+                            <span class="copy-btn-label">{% translate "Copy to clipboard" %}</span>
                         </button>
                         <a class="btn btn-sm btn-outline-primary" href="{% url 'mastery:pilot_fitting_skillplan_export' fitting.id %}?character_id={{ selected_character.id }}&mode={{ export_mode }}&language={{ export_language }}&character_filter={{ selected_character_filter }}{% if summary_group_id %}&group_id={{ summary_group_id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}{% endif %}">
                             <span class="fas fa-download" aria-hidden="true"></span>
-                            Download .txt
+                            {% translate "Download .txt" %}
                         </a>
                     </div>
                 </div>
@@ -529,7 +541,7 @@
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="missingSkillsModalLabel">Missing skills · {{ selected_character.eve_character.character_name }}</h5>
+                    <h5 class="modal-title" id="missingSkillsModalLabel">{% translate "Missing skills" %} · {{ selected_character.eve_character.character_name }}</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -537,7 +549,7 @@
                         <div class="col-12 col-lg-6">
                             <div class="border rounded p-3 h-100">
                                 <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <div class="fw-semibold">Required</div>
+                                    <div class="fw-semibold">{% translate "Required" %}</div>
                                     <span class="badge bg-danger">{{ selected_progress.missing_required_count }}</span>
                                 </div>
                                 {% if selected_progress.missing_required %}
@@ -557,14 +569,14 @@
                                     {% endfor %}
                                 </div>
                                 {% else %}
-                                <div class="text-success small">No missing required skills.</div>
+                                <div class="text-success small">{% translate "No missing required skills." %}</div>
                                 {% endif %}
                             </div>
                         </div>
                         <div class="col-12 col-lg-6">
                             <div class="border rounded p-3 h-100">
                                 <div class="d-flex align-items-center justify-content-between mb-2">
-                                    <div class="fw-semibold">Recommended</div>
+                                    <div class="fw-semibold">{% translate "Recommended" %}</div>
                                     <span class="badge bg-warning text-dark">{{ selected_progress.missing_recommended_count }}</span>
                                 </div>
                                 {% if selected_progress.missing_recommended %}
@@ -584,7 +596,7 @@
                                     {% endfor %}
                                 </div>
                                 {% else %}
-                                <div class="text-success small">No missing recommended skills.</div>
+                                <div class="text-success small">{% translate "No missing recommended skills." %}</div>
                                 {% endif %}
                             </div>
                         </div>
@@ -774,25 +786,56 @@
 
 <script>
     $(document).ready(() => {
-        $('#copySkillPlanBtn').on('click', function () {
+        $('[data-bs-tooltip="aa-mastery"]').tooltip();
+        const copyBtn = $('#copySkillPlanBtn');
+        const copyBtnLabel = copyBtn.find('.copy-btn-label');
+        if (copyBtn.length && copyBtnLabel.length && !copyBtnLabel.text().trim()) {
+            const defaultText = (copyBtn.data('copy-default-label') || copyBtn.attr('aria-label') || 'Copy to clipboard').toString();
+            copyBtnLabel.text(defaultText);
+        }
+
+        $('#copySkillPlanBtn').on('click', async function () {
             const element = document.getElementById('skillPlanText');
             if (!element) {
                 return;
             }
-            element.select();
-            element.setSelectionRange(0, 99999);
-            try {
-                navigator.clipboard.writeText(element.value);
-            } catch (_) {
-                document.execCommand('copy');
-            }
+
             const btn = $(this);
             const label = btn.find('.copy-btn-label');
-            const original = label.text();
-            label.text('Copied!');
+            const original = (btn.data('copy-default-label') || label.text() || btn.attr('aria-label') || 'Copy to clipboard').toString();
+            const success = (btn.data('copy-success-label') || '{{ copied_label|escapejs }}' || 'Copied!').toString();
+            const setLabel = (text) => {
+                if (label.length) {
+                    label.text(text);
+                } else {
+                    btn.text(text);
+                }
+            };
+
+            let copied = false;
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                try {
+                    await navigator.clipboard.writeText(element.value);
+                    copied = true;
+                } catch (_error) {
+                    copied = false;
+                }
+            }
+
+            if (!copied) {
+                element.select();
+                element.setSelectionRange(0, element.value.length);
+                copied = document.execCommand('copy');
+            }
+
+            if (!copied) {
+                return;
+            }
+
+            setLabel(success);
             btn.prop('disabled', true);
             setTimeout(() => {
-                label.text(original);
+                setLabel(original);
                 btn.prop('disabled', false);
             }, 1500);
         });

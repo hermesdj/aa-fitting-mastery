@@ -18,7 +18,7 @@
     </button>
 
     <div id="pilot-popover-{{ bucket }}-{{ row_user_id }}-{{ pilot.character.id }}" class="d-none">
-        {% include 'mastery/partials/_pilot_popover_content.html' with pilot=pilot status_label=status_label focus_filter=focus_filter focus_btn=focus_btn fitting=fitting export_mode=export_mode selected_group=selected_group activity_days=activity_days include_inactive=include_inactive %}
+        {% include 'mastery/partials/_pilot_popover_content.html' with pilot=pilot status_label=status_label status_bucket=bucket focus_filter=focus_filter focus_btn=focus_btn fitting=fitting export_mode=export_mode selected_group=selected_group activity_days=activity_days include_inactive=include_inactive %}
     </div>
     {% empty %}
     <span class="small text-muted">-</span>

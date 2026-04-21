@@ -1,30 +1,33 @@
 {% extends 'mastery/base.html' %}
+{% load i18n %}
 {% load l10n %}
 {% load evelinks %}
+{% translate "Delete this group?" as delete_group_confirm %}
+{% translate "Delete this entry?" as delete_entry_confirm %}
 
 {% block details %}
 <div class="container mt-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h2 class="mb-0">Summary Group Settings</h2>
-        <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_list' %}">Back to summaries</a>
+        <h2 class="mb-0">{% translate "Summary Group Settings" %}</h2>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_list' %}">{% translate "Back to summaries" %}</a>
     </div>
 
     <div class="card border-0 shadow-sm mb-4">
-        <div class="card-header">Create group</div>
+        <div class="card-header">{% translate "Create group" %}</div>
         <div class="card-body">
             <form method="post" class="row g-2 align-items-end">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="create_group">
                 <div class="col-12 col-lg-4">
-                    <label class="form-label small text-muted" for="newGroupName">Name</label>
+                    <label class="form-label small text-muted" for="newGroupName">{% translate "Name" %}</label>
                     <input id="newGroupName" class="form-control" name="name" required>
                 </div>
                 <div class="col-12 col-lg-6">
-                    <label class="form-label small text-muted" for="newGroupDescription">Description</label>
+                    <label class="form-label small text-muted" for="newGroupDescription">{% translate "Description" %}</label>
                     <input id="newGroupDescription" class="form-control" name="description">
                 </div>
                 <div class="col-12 col-lg-2">
-                    <button class="btn btn-primary w-100" type="submit">Create</button>
+                    <button class="btn btn-primary w-100" type="submit">{% translate "Create" %}</button>
                 </div>
             </form>
         </div>
@@ -33,21 +36,21 @@
     <div class="row g-3">
         <div class="col-12 col-xl-4">
             <div class="card border-0 shadow-sm h-100">
-                <div class="card-header">Groups</div>
+                <div class="card-header">{% translate "Groups" %}</div>
                 <div class="list-group list-group-flush">
                     {% for group in summary_groups %}
                     <a class="list-group-item list-group-item-action {% if selected_group and selected_group.id == group.id %}active{% endif %}" href="{% url 'mastery:summary_settings' %}?group_id={{ group.id }}">
                         <div class="d-flex justify-content-between align-items-center">
                             <span>{{ group.name }}</span>
                             {% if group.is_active %}
-                            <span class="badge bg-success">Active</span>
+                            <span class="badge bg-success">{% translate "Active" %}</span>
                             {% else %}
-                            <span class="badge bg-secondary">Disabled</span>
+                            <span class="badge bg-secondary">{% translate "Disabled" %}</span>
                             {% endif %}
                         </div>
                     </a>
                     {% empty %}
-                    <div class="list-group-item text-muted">No groups yet.</div>
+                    <div class="list-group-item text-muted">{% translate "No groups yet." %}</div>
                     {% endfor %}
                 </div>
             </div>
@@ -63,30 +66,30 @@
                             {% csrf_token %}
                             <input type="hidden" name="action" value="toggle_group_active">
                             <input type="hidden" name="group_id" value="{{ selected_group.id }}">
-                            <button type="submit" class="btn btn-sm btn-outline-primary">{% if selected_group.is_active %}Disable{% else %}Enable{% endif %}</button>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">{% if selected_group.is_active %}{% translate "Disable" %}{% else %}{% translate "Enable" %}{% endif %}</button>
                         </form>
-                        <form method="post" onsubmit="return confirm('Delete this group?');">
+                        <form method="post" onsubmit="return confirm('{{ delete_group_confirm|escapejs }}');">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="delete_group">
                             <input type="hidden" name="group_id" value="{{ selected_group.id }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            <button type="submit" class="btn btn-sm btn-outline-danger">{% translate "Delete" %}</button>
                         </form>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="text-muted">{{ selected_group.description|default:'No description.' }}</div>
+                    <div class="text-muted">{% if selected_group.description %}{{ selected_group.description }}{% else %}{% translate "No description." %}{% endif %}</div>
                 </div>
             </div>
 
             <div class="card border-0 shadow-sm mb-3">
-                <div class="card-header">Add corporation/alliance</div>
+                <div class="card-header">{% translate "Add corporation/alliance" %}</div>
                 <div class="card-body">
                     <form method="post" class="row g-2 align-items-end">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="add_entry">
                         <input type="hidden" name="group_id" value="{{ selected_group.id }}">
                         <div class="col-12 col-md-3">
-                            <label class="form-label small text-muted" for="entryType">Type</label>
+                            <label class="form-label small text-muted" for="entryType">{% translate "Type" %}</label>
                             <select id="entryType" name="entity_type" class="form-select" required>
                                 {% for value, label in entity_type_choices %}
                                 <option value="{{ value }}">{{ label }}</option>
@@ -94,7 +97,7 @@
                             </select>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label small text-muted" for="entryEntityId">Entity</label>
+                            <label class="form-label small text-muted" for="entryEntityId">{% translate "Entity" %}</label>
                             <select id="entryEntityId" class="form-select" name="entity_id" required>
                                 {% for corp in corporation_options %}
                                 <option value="{{ corp.id|unlocalize }}" data-type="corporation">{{ corp.name }} - {{ corp.count }} chars</option>
@@ -105,27 +108,27 @@
                             </select>
                         </div>
                         <div class="col-12 col-md-4">
-                            <label class="form-label small text-muted" for="entryLabel">Label (optional)</label>
+                            <label class="form-label small text-muted" for="entryLabel">{% translate "Label (optional)" %}</label>
                             <input id="entryLabel" class="form-control" name="label">
                         </div>
                         <div class="col-12 col-md-2">
-                            <button class="btn btn-primary w-100" type="submit">Add</button>
+                            <button class="btn btn-primary w-100" type="submit">{% translate "Add" %}</button>
                         </div>
                     </form>
                 </div>
             </div>
 
             <div class="card border-0 shadow-sm">
-                <div class="card-header">Configured entries</div>
+                <div class="card-header">{% translate "Configured entries" %}</div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-sm align-middle mb-0">
                             <thead class="mastery-table-head">
                             <tr>
-                                <th>Type</th>
-                                <th>Entity</th>
-                                <th>Label</th>
-                                <th>Actions</th>
+                                <th>{% translate "Type" %}</th>
+                                <th>{% translate "Entity" %}</th>
+                                <th>{% translate "Label" %}</th>
+                                <th>{% translate "Actions" %}</th>
                             </tr>
                             </thead>
                             <tbody>
@@ -142,19 +145,19 @@
                                         <span>{{ row.entity_name }}</span>
                                     </div>
                                 </td>
-                                <td>{{ row.entry.label|default:'-' }}</td>
+                                <td>{% if row.entry.label %}{{ row.entry.label }}{% else %}-{% endif %}</td>
                                 <td>
-                                    <form method="post" onsubmit="return confirm('Delete this entry?');">
+                                    <form method="post" onsubmit="return confirm('{{ delete_entry_confirm|escapejs }}');">
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="delete_entry">
                                         <input type="hidden" name="entry_id" value="{{ row.entry.id|unlocalize }}">
-                                        <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                                        <button class="btn btn-sm btn-outline-danger" type="submit">{% translate "Delete" %}</button>
                                     </form>
                                 </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="4" class="text-muted">No entries configured yet.</td>
+                                <td colspan="4" class="text-muted">{% translate "No entries configured yet." %}</td>
                             </tr>
                             {% endfor %}
                             </tbody>
@@ -163,7 +166,7 @@
                 </div>
             </div>
             {% else %}
-            <div class="alert alert-info mb-0">Create a summary group to start configuring corporation/alliance audiences.</div>
+            <div class="alert alert-info mb-0">{% translate "Create a summary group to start configuring corporation/alliance audiences." %}</div>
             {% endif %}
         </div>
     </div>

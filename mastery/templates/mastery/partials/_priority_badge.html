@@ -1,0 +1,27 @@
+{% load i18n %}
+{% if priority == 10 %}
+<span class="badge bg-danger priority-badge"
+	data-bs-tooltip="aa-mastery"
+	data-bs-title="{% blocktranslate with p=priority %}Priority {{ p }} — maximum urgency{% endblocktranslate %}">
+	<span aria-hidden="true">★</span> P{{ priority }}
+</span>
+{% elif priority >= 7 %}
+<span class="badge bg-warning text-dark priority-badge"
+	data-bs-tooltip="aa-mastery"
+	data-bs-title="{% blocktranslate with p=priority %}Priority {{ p }} — high priority{% endblocktranslate %}">
+	P{{ priority }}
+</span>
+{% elif priority >= 4 %}
+<span class="badge bg-info text-dark priority-badge"
+	data-bs-tooltip="aa-mastery"
+	data-bs-title="{% blocktranslate with p=priority %}Priority {{ p }} — medium priority{% endblocktranslate %}">
+	P{{ priority }}
+</span>
+{% elif priority >= 1 %}
+<span class="badge bg-secondary priority-badge"
+	data-bs-tooltip="aa-mastery"
+	data-bs-title="{% blocktranslate with p=priority %}Priority {{ p }} — low priority{% endblocktranslate %}">
+	P{{ priority }}
+</span>
+{% endif %}
+

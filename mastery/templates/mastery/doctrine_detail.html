@@ -11,14 +11,14 @@
             <img src="{{ doctrine.icon_url }}" class="rounded" width="44" height="44" alt="{{ doctrine.name }}">
             <div>
                 <h2 class="mb-1">{{ doctrine.name }}</h2>
-                <div class="text-muted">Fitting mastery configuration for this doctrine</div>
+                <div class="text-muted">{% translate "Fitting mastery configuration for this doctrine" %}</div>
             </div>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:doctrine_list' %}">Back to doctrines</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:doctrine_list' %}">{% translate "Back to doctrines" %}</a>
             <form method="post" action="{% url 'mastery:sync_doctrine' doctrine.id %}">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-primary">Sync doctrine</button>
+                <button type="submit" class="btn btn-sm btn-primary">{% translate "Sync doctrine" %}</button>
             </form>
         </div>
     </div>
@@ -27,8 +27,8 @@
         <div class="card-body">
             <div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
                 <div>
-                    <h5 class="card-title mb-1">Doctrine default mastery</h5>
-                    <p class="text-muted mb-0">Applied to all fittings unless an override is set on a fitting.</p>
+                    <h5 class="card-title mb-1">{% translate "Doctrine default mastery" %}</h5>
+                    <p class="text-muted mb-0">{% translate "Applied to all fittings unless an override is set on a fitting." %}</p>
                 </div>
                 <form method="post" action="{% url 'mastery:update_doctrine_mastery' doctrine.id %}" class="d-flex align-items-center gap-2 flex-wrap">
                     {% csrf_token %}
@@ -37,7 +37,29 @@
                         <option value="{{ value }}" {% if doctrine_default_mastery_level == value %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
                     </select>
-                    <button type="submit" class="btn btn-primary text-nowrap px-3">Save &amp; sync doctrine</button>
+                    <button type="submit" class="btn btn-primary text-nowrap px-3">{% translate "Save & sync doctrine" %}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
+                <div>
+                    <h5 class="card-title mb-1">{% translate "Doctrine priority" %}</h5>
+                    <p class="text-muted mb-0">{% translate "Training priority for pilots (0 = default, no highlight; 10 = highest urgency)." %}</p>
+                </div>
+                <form method="post" action="{% url 'mastery:update_doctrine_priority' doctrine.id %}" class="d-flex align-items-center gap-2 flex-wrap">
+                    {% csrf_token %}
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="form-label mb-0 text-nowrap" for="doctrine-priority-input">{% translate "Priority" %}</label>
+                        <input type="number" id="doctrine-priority-input" name="priority" min="0" max="10" value="{{ doctrine_priority }}" class="form-control priority-number-input" style="width: 80px;">
+                        <div class="priority-preview-badge ms-1">
+                            {% include 'mastery/partials/_priority_badge.html' with priority=doctrine_priority %}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary text-nowrap">{% translate "Save priority" %}</button>
                 </form>
             </div>
         </div>
@@ -45,18 +67,18 @@
 
     <div class="card border-0 shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center py-3">
-            <div class="fw-semibold">Fittings</div>
-            <span class="badge bg-secondary">{{ fittings|length }} total</span>
+            <div class="fw-semibold">{% translate "Fittings" %}</div>
+            <span class="badge bg-secondary">{% blocktranslate with count=fittings|length %}{{ count }} total{% endblocktranslate %}</span>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead class="mastery-table-head">
                     <tr>
-                        <th>Fitting</th>
-                        <th>Status</th>
-                        <th>Approval</th>
-                        <th>Mastery</th>
+                        <th>{% translate "Fitting" %}</th>
+                        <th>{% translate "Status" %}</th>
+                        <th>{% translate "Approval" %}</th>
+                        <th>{% translate "Mastery" %}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -75,9 +97,9 @@
                         </td>
                         <td>
                             {% if f.configured %}
-                            <span class="badge bg-success">Configured</span>
+                            <span class="badge bg-success">{% translate "Configured" %}</span>
                             {% else %}
-                            <span class="badge bg-warning text-dark">Missing</span>
+                            <span class="badge bg-warning text-dark">{% translate "Missing" %}</span>
                             {% endif %}
                         </td>
                         <td class="approval-cell">
@@ -90,13 +112,13 @@
                                     <img src="{{ f.approved_by_actor.main_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ f.approved_by_actor.display_name }}">
                                     {% endif %}
                                     <div class="small lh-sm">
-                                        <div class="text-muted">Approved by</div>
+                                        <div class="text-muted">{% translate "Approved by" %}</div>
                                         <div class="fw-semibold text-body">{{ f.approved_by_actor.display_name }}</div>
                                     </div>
                                 </div>
                                 <div class="small text-muted">
                                     <span class="fas fa-clock me-1" aria-hidden="true"></span>
-                                    <span data-bs-tooltip="aa-mastery" data-bs-title="{{ f.approved_at|date:'Y-m-d H:i:s' }} UTC">{{ f.approved_at|timesince }} ago</span>
+                                    <span data-bs-tooltip="aa-mastery" data-bs-title="{{ f.approved_at|date:'Y-m-d H:i:s' }} UTC">{{ f.approved_at|timesince }} {% translate "ago" %}</span>
                                 </div>
                                 {% elif f.modified_by_actor and f.modified_at %}
                                 <div class="d-flex align-items-center gap-2 mt-1">
@@ -104,21 +126,21 @@
                                     <img src="{{ f.modified_by_actor.main_character|character_portrait_url:32 }}" class="rounded-circle" width="32" height="32" alt="{{ f.modified_by_actor.display_name }}">
                                     {% endif %}
                                     <div class="small lh-sm">
-                                        <div class="text-muted">Last updated by</div>
+                                        <div class="text-muted">{% translate "Last updated by" %}</div>
                                         <div class="fw-semibold text-body">{{ f.modified_by_actor.display_name }}</div>
                                     </div>
                                 </div>
                                 <div class="small text-muted">
                                     <span class="fas fa-clock me-1" aria-hidden="true"></span>
-                                    <span data-bs-tooltip="aa-mastery" data-bs-title="{{ f.modified_at|date:'Y-m-d H:i:s' }} UTC">{{ f.modified_at|timesince }} ago</span>
+                                    <span data-bs-tooltip="aa-mastery" data-bs-title="{{ f.modified_at|date:'Y-m-d H:i:s' }} UTC">{{ f.modified_at|timesince }} {% translate "ago" %}</span>
                                 </div>
                                 {% else %}
-                                <div class="small text-muted mt-1">No activity recorded yet.</div>
+                                <div class="small text-muted mt-1">{% translate "No activity recorded yet." %}</div>
                                 {% endif %}
                             </div>
                         </td>
                         <td class="mastery-cell">
-                            <div class="small text-muted mb-1">Effective mastery</div>
+                            <div class="small text-muted mb-1">{% translate "Effective mastery" %}</div>
                             <div class="mb-2">
                                 <span class="badge text-bg-primary">{{ f.effective_mastery_label }}</span>
                             </div>
@@ -129,18 +151,31 @@
                                 <input type="hidden" name="next" value="{% url 'mastery:doctrine_detail' doctrine.id %}">
                                 <div class="input-group input-group-sm mastery-apply-group">
                                     <select class="form-select" name="mastery_level" id="fitting-mastery-{{ f.id }}">
-                                        <option value="" {% if f.mastery_override is None %}selected{% endif %}>Use doctrine default ({{ doctrine_default_mastery_label }})</option>
+                                        <option value="" {% if f.mastery_override is None %}selected{% endif %}>{% blocktranslate with level=doctrine_default_mastery_label %}Use doctrine default ({{ level }}){% endblocktranslate %}</option>
                                         {% for value, label in mastery_choices %}
                                         <option value="{{ value }}" {% if f.mastery_override == value %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
                                     </select>
-                                    <button type="submit" class="btn btn-outline-primary">Apply</button>
+                                    <button type="submit" class="btn btn-outline-primary">{% translate "Apply" %}</button>
                                 </div>
                             </form>
 
-                            <div class="btn-group btn-group-sm mastery-actions-group" role="group" aria-label="Fitting mastery actions">
+                            <form method="post" action="{% url 'mastery:update_fitting_priority' f.id %}" class="mb-2">
+                                {% csrf_token %}
+                                <input type="hidden" name="doctrine_id" value="{{ doctrine.id }}">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">{% translate "Priority" %}</span>
+                                    <input type="number" name="priority" min="0" max="10" value="{{ f.priority }}" class="form-control priority-number-input" style="max-width: 70px;">
+                                    <button type="submit" class="btn btn-outline-secondary">{% translate "Set" %}</button>
+                                    <span class="input-group-text priority-preview-badge">
+                                        {% include 'mastery/partials/_priority_badge.html' with priority=f.priority %}
+                                    </span>
+                                </div>
+                            </form>
+
+                            <div class="btn-group btn-group-sm mastery-actions-group" role="group" aria-label="{% translate 'Fitting mastery actions' %}">
                                 <a class="btn btn-outline-secondary" href="{% url 'mastery:fitting_skills' f.id %}">
-                                    <span class="fas fa-sliders-h me-1" aria-hidden="true"></span>Edit
+                                    <span class="fas fa-sliders-h me-1" aria-hidden="true"></span>{% translate "Edit" %}
                                 </a>
                                 <button
                                     type="button"
@@ -151,14 +186,14 @@
                                     data-select-id="fitting-mastery-{{ f.id }}"
                                     data-fitting-name="{{ f.name|escape }}"
                                 >
-                                    <span class="fas fa-list-ul me-1" aria-hidden="true"></span>Preview
+                                    <span class="fas fa-list-ul me-1" aria-hidden="true"></span>{% translate "Preview" %}
                                 </button>
                             </div>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="4" class="text-muted">No fittings found in this doctrine.</td>
+                        <td colspan="4" class="text-muted">{% translate "No fittings found in this doctrine." %}</td>
                     </tr>
                     {% endfor %}
                     </tbody>
@@ -187,6 +222,10 @@
         min-width: 210px;
     }
 
+    .priority-number-input {
+        min-width: 60px;
+    }
+
     .mastery-actions-group {
         width: 100%;
     }
@@ -195,5 +234,11 @@
         flex: 1 1 0;
     }
 </style>
+
+<script>
+$(document).ready(() => {
+    $('[data-bs-tooltip="aa-mastery"]').tooltip();
+});
+</script>
 
 {% endblock %}

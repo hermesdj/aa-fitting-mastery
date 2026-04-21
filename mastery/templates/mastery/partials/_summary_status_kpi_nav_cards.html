@@ -1,37 +1,39 @@
+{% load i18n %}
+
 <div class="row g-2">
     <div class="col-6 col-md-4 col-lg-2">
         <a class="btn btn-sm w-100 text-start kpi-nav-btn" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=all">
-            <span class="d-block small text-muted">Flyable now (players)</span>
+            <span class="d-block small text-muted">{% translate "Flyable now (players)" %}</span>
             <span class="d-block fw-semibold">{{ fit.users_with_flyable }}/{{ fit.users_total }}</span>
         </a>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
         <a class="btn btn-sm w-100 text-start kpi-nav-btn" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=elite">
-            <span class="d-block small text-success fw-semibold">Elite</span>
+            <span class="d-block small text-success fw-semibold">{% translate "Elite" %}</span>
             <span class="d-block fw-semibold text-success">{{ fit.kpis.elite_characters }}</span>
         </a>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
         <a class="btn btn-sm w-100 text-start kpi-nav-btn" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=almost_elite">
-            <span class="d-block small text-primary fw-semibold">Almost elite</span>
+            <span class="d-block small text-primary fw-semibold">{% translate "Almost elite" %}</span>
             <span class="d-block fw-semibold text-primary">{{ fit.kpis.almost_elite_characters }}</span>
         </a>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
         <a class="btn btn-sm w-100 text-start kpi-nav-btn" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=can_fly">
-            <span class="d-block small text-info fw-semibold">Can fly</span>
+            <span class="d-block small text-info fw-semibold">{% translate "Can fly" %}</span>
             <span class="d-block fw-semibold text-info">{{ fit.kpis.can_fly_characters }}</span>
         </a>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
         <a class="btn btn-sm w-100 text-start kpi-nav-btn" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=almost_fit">
-            <span class="d-block small text-warning fw-semibold">Almost fit</span>
+            <span class="d-block small text-warning fw-semibold">{% translate "Almost fit" %}</span>
             <span class="d-block fw-semibold text-warning">{{ fit.kpis.almost_fit_characters }}</span>
         </a>
     </div>
     <div class="col-6 col-md-4 col-lg-2">
         <a class="btn btn-sm w-100 text-start kpi-nav-btn" href="{% url 'mastery:summary_fitting_detail' fit.fitting.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}&kpi_filter=needs_training">
-            <span class="d-block small text-danger fw-semibold">Needs training</span>
+            <span class="d-block small text-danger fw-semibold">{% translate "Needs training" %}</span>
             <span class="d-block fw-semibold text-danger">{{ fit.kpis.needs_training_characters }}</span>
         </a>
     </div>

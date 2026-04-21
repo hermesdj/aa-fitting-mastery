@@ -1,6 +1,7 @@
 {% load evelinks %}
 {% load humanize %}
 {% load l10n %}
+{% load i18n %}
 
 <button
     type="button"
@@ -21,23 +22,37 @@
             <img src="{{ character.eve_character|character_portrait_url:64 }}" class="rounded-circle" width="40" height="40" alt="{{ character.eve_character.character_name }}">
             <div>
                 <div class="small fw-semibold">{{ character.eve_character.character_name }}</div>
-                <div class="small text-muted">{{ status_label }}</div>
+                <div class="small text-muted">
+                    {% if status_bucket == 'elite' %}
+                    {% translate "Elite" %}
+                    {% elif status_bucket == 'almost_elite' %}
+                    {% translate "Almost elite" %}
+                    {% elif status_bucket == 'can_fly' %}
+                    {% translate "Can fly" %}
+                    {% elif status_bucket == 'almost_fit' %}
+                    {% translate "Almost fit" %}
+                    {% elif status_bucket == 'needs_training' %}
+                    {% translate "Needs training" %}
+                    {% else %}
+                    {{ status_label }}
+                    {% endif %}
+                </div>
             </div>
         </div>
 
-        <div class="small text-muted mb-1">Required {{ progress.required_pct }}% · {{ required_missing_sp|intcomma }} SP missing</div>
+        <div class="small text-muted mb-1">{% translate "Required" %} {{ progress.required_pct }}% · {{ required_missing_sp|intcomma }} {% translate "SP missing" %}</div>
         <div class="progress mb-2" style="height: 6px;">
             <div class="progress-bar bg-success" role="progressbar" style="width: {{ progress.required_pct|unlocalize }}%"></div>
         </div>
 
-        <div class="small text-muted mb-1">Recommended {{ progress.recommended_pct }}% · {{ recommended_missing_sp|intcomma }} SP missing</div>
+        <div class="small text-muted mb-1">{% translate "Recommended" %} {{ progress.recommended_pct }}% · {{ recommended_missing_sp|intcomma }} {% translate "SP missing" %}</div>
         <div class="progress mb-2" style="height: 6px;">
             <div class="progress-bar bg-primary" role="progressbar" style="width: {{ progress.recommended_pct|unlocalize }}%"></div>
         </div>
 
         {% if action_url %}
         <a class="btn btn-sm btn-outline-{{ action_btn|default:'primary' }} w-100" href="{{ action_url }}">
-            <span class="fas fa-external-link-alt me-1" aria-hidden="true"></span>{{ action_label|default:'Open pilot focus' }}
+            <span class="fas fa-external-link-alt me-1" aria-hidden="true"></span>{% if action_label %}{{ action_label }}{% else %}{% translate "Open pilot focus" %}{% endif %}
         </a>
         {% endif %}
     </div>

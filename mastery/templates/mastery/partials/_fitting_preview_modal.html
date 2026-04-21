@@ -1,12 +1,17 @@
+{% load i18n %}
+{% translate "Fitting skill preview" as fitting_preview_label %}
+{% translate "Loading preview..." as loading_preview_label %}
+{% translate "Failed to load preview." as failed_preview_label %}
+
 <div class="modal fade" id="fittingPreviewModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Fitting skill preview</h5>
+                <h5 class="modal-title">{{ fitting_preview_label }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body" id="fittingPreviewModalBody">
-                <div class="text-muted">Loading preview...</div>
+                <div class="text-muted">{{ loading_preview_label }}</div>
             </div>
         </div>
     </div>
@@ -20,6 +25,9 @@
         }
         const modalBody = document.getElementById('fittingPreviewModalBody');
         const modalTitle = modalElement.querySelector('.modal-title');
+        const previewTitleLabel = '{{ fitting_preview_label|escapejs }}';
+        const loadingPreviewHtml = '<div class="text-muted">{{ loading_preview_label|escapejs }}</div>';
+        const failedPreviewHtml = '<div class="text-danger">{{ failed_preview_label|escapejs }}</div>';
 
         modalElement.addEventListener('show.bs.modal', async (event) => {
             const button = event.relatedTarget;
@@ -35,8 +43,8 @@
                 previewUrl = `${previewUrl}${separator}mastery_level=${encodeURIComponent(masteryLevel)}`;
             }
 
-            modalTitle.textContent = `Fitting skill preview — ${button.dataset.fittingName}`;
-            modalBody.innerHTML = '<div class="text-muted">Loading preview...</div>';
+            modalTitle.textContent = `${previewTitleLabel} — ${button.dataset.fittingName}`;
+            modalBody.innerHTML = loadingPreviewHtml;
 
             try {
                 const response = await fetch(previewUrl, {
@@ -44,7 +52,7 @@
                 });
                 modalBody.innerHTML = await response.text();
             } catch (err) {
-                modalBody.innerHTML = '<div class="text-danger">Failed to load preview.</div>';
+                modalBody.innerHTML = failedPreviewHtml;
             }
         });
     })();

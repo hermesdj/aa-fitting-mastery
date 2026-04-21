@@ -1,5 +1,6 @@
 """Per-fitting, per-skill control overrides (blacklist, recommended level)."""
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from eve_sde.models import ItemType
 from fittings.models import Fitting
 
@@ -9,26 +10,26 @@ class FittingSkillControl(models.Model):
     fitting = models.ForeignKey(
         Fitting,
         on_delete=models.DO_NOTHING,
-        verbose_name="fitting",
+        verbose_name=_("fitting"),
         to_field="id"
     )
 
     skill_type = models.ForeignKey(
         ItemType,
         on_delete=models.DO_NOTHING,
-        verbose_name="skill type",
+        verbose_name=_("skill type"),
         to_field="id",
         related_name="+"
     )
 
     is_blacklisted = models.BooleanField(
         default=False,
-        verbose_name="is blacklisted"
+        verbose_name=_("is blacklisted")
     )
 
     is_suggested = models.BooleanField(
         default=False,
-        verbose_name="is suggested"
+        verbose_name=_("is suggested")
     )
 
     reason = models.CharField(
@@ -40,12 +41,12 @@ class FittingSkillControl(models.Model):
     recommended_level_override = models.PositiveIntegerField(
         null=True,
         blank=True,
-        verbose_name="recommended level override"
+        verbose_name=_("recommended level override")
     )
 
     is_manual = models.BooleanField(
         default=False,
-        verbose_name="is manual"
+        verbose_name=_("is manual")
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

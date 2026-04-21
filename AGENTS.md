@@ -137,7 +137,7 @@ But : guide concis et actionnable pour un agent IA qui prend en charge le plugin
   - `mastery/views/fitting.py`
   - `mastery/views/common.py`
 - Last validated quality snapshot in this workspace:
-  - tests: `176 passed`
+  - tests: `257 passed`
   - coverage: `71%` total
   - pylint: `10.00/10`
 - Intentional duplication note:

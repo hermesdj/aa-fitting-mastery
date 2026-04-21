@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils.translation import gettext as _, gettext_lazy
 
 from mastery.services.pilots.status_buckets import (
     BUCKET_ALMOST_ELITE,
@@ -30,6 +31,7 @@ from .common import (
     _parse_activity_days,
     _parse_export_language,
     _parse_export_mode,
+    DoctrineSkillSetGroupMap,
     pilot_access_service,
     pilot_progress_service,
 )
@@ -42,12 +44,12 @@ CHARACTER_FILTER_ALMOST_REQUIRED = "almost_required"
 CHARACTER_FILTER_ALMOST_ELITE = "almost_elite"
 CHARACTER_FILTER_NEEDS_TRAINING = "needs_training"
 CHARACTER_FILTER_CHOICES = [
-    (CHARACTER_FILTER_ALL, "All characters"),
-    (CHARACTER_FILTER_CAN_FLY, "Can fly now"),
-    (CHARACTER_FILTER_ELITE, "Elite (recommended 100%)"),
-    (CHARACTER_FILTER_ALMOST_REQUIRED, "Almost fit"),
-    (CHARACTER_FILTER_ALMOST_ELITE, "Almost elite"),
-    (CHARACTER_FILTER_NEEDS_TRAINING, "Needs training"),
+    (CHARACTER_FILTER_ALL, gettext_lazy("All characters")),
+    (CHARACTER_FILTER_CAN_FLY, gettext_lazy("Can fly now")),
+    (CHARACTER_FILTER_ELITE, gettext_lazy("Elite (recommended 100%)")),
+    (CHARACTER_FILTER_ALMOST_REQUIRED, gettext_lazy("Almost fit")),
+    (CHARACTER_FILTER_ALMOST_ELITE, gettext_lazy("Almost elite")),
+    (CHARACTER_FILTER_NEEDS_TRAINING, gettext_lazy("Needs training")),
 ]
 
 INDEX_STATUS_FILTER_CHOICES = bucket_choice_list(include_all=True, all_label="All")
@@ -182,6 +184,19 @@ def index(request):
     fitting_maps = _approved_fitting_maps()
     progress_context = {}
 
+    # Build a doctrine-id → priority lookup from the mapping table (lazy, built on demand)
+    from mastery.models import DoctrineSkillSetGroupMap as _DMap
+    _doctrine_priority_map_cache: dict | None = None
+
+    def _get_doctrine_priority_map():
+        nonlocal _doctrine_priority_map_cache
+        if _doctrine_priority_map_cache is None:
+            _doctrine_priority_map_cache = {
+                row["doctrine_id"]: row["priority"]
+                for row in _DMap.objects.values("doctrine_id", "priority")
+            }
+        return _doctrine_priority_map_cache
+
     doctrine_cards = []
     configured_fittings_count = 0
     flyable_fittings_count = 0
@@ -283,6 +298,7 @@ def index(request):
                     "fitting": fitting,
                     "is_configured": True,
                     "skillset": fitting_map.skillset,
+                    "priority": fitting_map.priority,
                     "characters": character_rows,
                     "best_required_pct": max(
                         (row["progress"]["required_pct"] for row in character_rows), default=0
@@ -301,12 +317,16 @@ def index(request):
             )
 
         if fitting_cards:
+            doctrine_priority = _get_doctrine_priority_map().get(doctrine.id, 0)
             doctrine_cards.append(
                 {
                     "doctrine": doctrine,
-                    "fittings": sorted(fitting_cards, key=lambda x: x["fitting"].name.lower()),
+                    "priority": doctrine_priority,
+                    "fittings": sorted(fitting_cards, key=lambda x: (-x["priority"], x["fitting"].name.lower())),
                 }
             )
+
+    doctrine_cards.sort(key=lambda x: (-x["priority"], x["doctrine"].name.lower()))
 
     context = {
         "doctrine_cards": doctrine_cards,
@@ -341,7 +361,7 @@ def pilot_fitting_detail_view(request, fitting_id):
     raw_group_id = request.GET.get("group_id")
     summary_group = _get_summary_group_by_id(raw_group_id)
     if request.user.has_perm("mastery.doctrine_summary") and raw_group_id and summary_group is None:
-        return HttpResponseBadRequest("Invalid summary group")
+        return HttpResponseBadRequest(_("Invalid summary group"))
     member_characters = list(
         _get_pilot_detail_characters(
             request.user,
@@ -459,6 +479,8 @@ def pilot_fitting_detail_view(request, fitting_id):
     context = {
         "fitting": fitting,
         "doctrine": doctrine,
+        "fitting_priority": int(getattr(fitting_map, "priority", 0) or 0),
+        "doctrine_priority": int(getattr(getattr(fitting_map, "doctrine_map", None), "priority", 0) or 0),
         "skillset": fitting_map.skillset,
         "character_rows": character_rows,
         "filtered_character_rows": filtered_character_rows,
@@ -473,7 +495,7 @@ def pilot_fitting_detail_view(request, fitting_id):
         "selected_export_lines": export_lines,
         "skill_plan_summary": skill_plan_summary,
         "export_language": export_language,
-        "export_language_scope_label": "Affects export and selected missing-skill labels",
+        "export_language_scope_label": _("Affects export and selected missing-skill labels"),
         "export_language_choices": pilot_progress_service.export_language_choices(),
         "summary_group_id": None if summary_group is None else summary_group.id,
         "activity_days": activity_days,
@@ -486,26 +508,26 @@ def pilot_fitting_detail_view(request, fitting_id):
 @permissions_required('mastery.basic_access')
 def pilot_fitting_skillplan_export_view(request, fitting_id):
     """Pilot fitting skillplan export view."""
-    fitting, fitting_map, _ = _get_accessible_fitting_or_404(request.user, fitting_id)
+    fitting, fitting_map, _doctrine = _get_accessible_fitting_or_404(request.user, fitting_id)
     missing_error = _missing_skillset_error(fitting_map)
     if missing_error:
         return HttpResponseBadRequest(missing_error)
 
     character_id = request.GET.get("character_id")
     if not character_id:
-        return HttpResponseBadRequest("character_id is required")
+        return HttpResponseBadRequest(_("character_id is required"))
 
     try:
         character_id = int(character_id)
     except (TypeError, ValueError):
-        return HttpResponseBadRequest("invalid character_id")
+        return HttpResponseBadRequest(_("invalid character_id"))
 
     raw_group_id = request.GET.get("group_id")
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
     include_inactive = request.GET.get("include_inactive") == "1"
     summary_group = _get_summary_group_by_id(raw_group_id)
     if request.user.has_perm("mastery.doctrine_summary") and raw_group_id and summary_group is None:
-        return HttpResponseBadRequest("Invalid summary group")
+        return HttpResponseBadRequest(_("Invalid summary group"))
     available_characters = _get_pilot_detail_characters(
         request.user,
         summary_group=summary_group,
@@ -517,7 +539,7 @@ def pilot_fitting_skillplan_export_view(request, fitting_id):
     else:
         character = next((obj for obj in available_characters if obj.id == character_id), None)
     if character is None:
-        return HttpResponseBadRequest("character not found")
+        return HttpResponseBadRequest(_("character not found"))
 
     export_mode = _parse_export_mode(request.GET.get("mode"))
     export_language = _parse_export_language(request.GET.get("language"))
@@ -533,7 +555,7 @@ def pilot_fitting_skillplan_export_view(request, fitting_id):
         character=character,
         language=export_language,
     )
-    content = "\n".join(lines) if lines else "No missing skills for this fitting."
+    content = "\n".join(lines) if lines else _("No missing skills for this fitting.")
 
     response = HttpResponse(content, content_type="text/plain; charset=utf-8")
     response[

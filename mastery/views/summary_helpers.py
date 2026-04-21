@@ -9,10 +9,11 @@ from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from fittings.models import Doctrine, Fitting
 from memberaudit.models import Character
 
-from mastery.models import FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
+from mastery.models import DoctrineSkillSetGroupMap, FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
 from mastery.services.pilots.status_buckets import (
     BUCKET_ALMOST_ELITE,
     BUCKET_ALMOST_FIT,
@@ -53,9 +54,9 @@ def _approved_fitting_maps() -> dict:
 def _missing_skillset_error(fitting_map) -> str | None:
     """Return a user-facing error when fitting map/skillset is missing or not approved."""
     if not fitting_map or not getattr(fitting_map, "skillset", None):
-        return "No skillset configured for this fitting yet"
+        return str(_("No skillset configured for this fitting yet"))
     if not _is_approved_fitting_map(fitting_map):
-        return "No approved skillset configured for this fitting yet"
+        return str(_("No approved skillset configured for this fitting yet"))
     return None
 
 
@@ -558,6 +559,7 @@ def _build_doctrine_summary(
     member_groups: list,
     progress_cache: dict,
     progress_context: dict | None = None,
+    doctrine_priority: int | None = None,
 ) -> dict:
     fittings = []
     users_with_any_flyable = set()
@@ -568,6 +570,14 @@ def _build_doctrine_summary(
             continue
         seen_fit_ids.add(fitting.id)
         unique_fittings.append(fitting)
+
+    if doctrine_priority is None:
+        doctrine_priority = int(
+            DoctrineSkillSetGroupMap.objects.filter(doctrine=doctrine)
+            .values_list("priority", flat=True)
+            .first()
+            or 0
+        )
 
     for fitting in unique_fittings:
         fitting_map = fitting_maps.get(fitting.id)
@@ -592,6 +602,7 @@ def _build_doctrine_summary(
             {
                 "fitting": fitting,
                 "fitting_map": fitting_map,
+                "priority": int(getattr(fitting_map, "priority", 0) or 0),
                 "configured": True,
                 "users_total": len(user_rows),
                 "users_with_flyable": sum(1 for row in user_rows if row["flyable_count"] > 0),
@@ -602,9 +613,16 @@ def _build_doctrine_summary(
             }
         )
 
+    fittings.sort(
+        key=lambda item: (
+            -int(item.get("priority", 0) or 0),
+            (getattr(item["fitting"], "name", None) or "").lower(),
+        )
+    )
     configured_fittings = [obj for obj in fittings if obj["configured"]]
     return {
         "doctrine": doctrine,
+        "priority": doctrine_priority,
         "fittings": fittings,
         "fittings_total": len(unique_fittings),
         "configured_fittings": len(configured_fittings),

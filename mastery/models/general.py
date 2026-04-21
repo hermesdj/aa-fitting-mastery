@@ -1,5 +1,6 @@
 """General / miscellaneous mastery models."""
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class General(models.Model):
@@ -13,8 +14,8 @@ class General(models.Model):
         managed = False
         default_permissions = ()
         permissions = (
-            ("basic_access", "Can access the Fitting Mastery app"),
-            ("manage_fittings", "Can manage fitting skill plans"),
-            ("doctrine_summary", "Can view doctrine summaries"),
-            ("manage_summary_groups", "Can manage doctrine summary groups"),
+            ("basic_access", _("Can access the Fitting Mastery app")),
+            ("manage_fittings", _("Can manage fitting skill plans")),
+            ("doctrine_summary", _("Can view doctrine summaries")),
+            ("manage_summary_groups", _("Can manage doctrine summary groups")),
         )

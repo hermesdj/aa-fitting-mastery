@@ -8,14 +8,14 @@
 <div class="container mt-4">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
-            <h2 class="mb-1">Doctrine Coverage Summary</h2>
-            <div class="text-muted">Global view for leadership and FCs</div>
+            <h2 class="mb-1">{% translate "Doctrine Coverage Summary" %}</h2>
+            <div class="text-muted">{% translate "Global view for leadership and FCs" %}</div>
         </div>
         <div class="d-flex gap-2">
-            <span class="badge bg-secondary">{{ member_count }} members</span>
-            <span class="badge bg-info text-dark">{{ active_character_count }} active characters</span>
+            <span class="badge bg-secondary">{% blocktranslate with count=member_count %}{{ count }} members{% endblocktranslate %}</span>
+            <span class="badge bg-info text-dark">{% blocktranslate with count=active_character_count %}{{ count }} active characters{% endblocktranslate %}</span>
             {% if perms.mastery.manage_summary_groups %}
-            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_settings' %}">Summary settings</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'mastery:summary_settings' %}">{% translate "Summary settings" %}</a>
             {% endif %}
         </div>
     </div>
@@ -24,11 +24,11 @@
         <div class="card-body">
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-lg-5">
-                    <label class="form-label small text-muted" for="summarySearchInput">Search doctrine / fitting / ship</label>
+                    <label class="form-label small text-muted" for="summarySearchInput">{% translate "Search doctrine / fitting / ship" %}</label>
                     <input id="summarySearchInput" class="form-control" type="text" name="q" value="{{ search_query }}" placeholder="Armor, Cerb, Muninn...">
                 </div>
                 <div class="col-12 col-sm-6 col-lg-2">
-                    <label class="form-label small text-muted" for="summaryGroupInput">Audience group</label>
+                    <label class="form-label small text-muted" for="summaryGroupInput">{% translate "Audience group" %}</label>
                     <select id="summaryGroupInput" class="form-select" name="group_id">
                         {% for group in summary_groups %}
                         <option value="{{ group.id }}" {% if selected_group and selected_group.id == group.id %}selected{% endif %}>{{ group.name }}</option>
@@ -36,18 +36,18 @@
                     </select>
                 </div>
                 <div class="col-12 col-sm-6 col-lg-3">
-                    <label class="form-label small text-muted" for="activityDaysInput">Activity window (days)</label>
+                    <label class="form-label small text-muted" for="activityDaysInput">{% translate "Activity window (days)" %}</label>
                     <input id="activityDaysInput" class="form-control" type="number" min="1" max="90" name="activity_days" value="{{ activity_days }}">
                 </div>
                 <div class="col-12 col-sm-6 col-lg-2">
                     <div class="form-check mt-4">
                         <input class="form-check-input" type="checkbox" id="includeInactiveInput" name="include_inactive" value="1" {% if include_inactive %}checked{% endif %}>
-                        <label class="form-check-label" for="includeInactiveInput">Include inactive</label>
+                        <label class="form-check-label" for="includeInactiveInput">{% translate "Include inactive" %}</label>
                     </div>
                 </div>
                 <div class="col-12 col-lg-2 d-flex gap-2">
-                    <button class="btn btn-primary w-100" type="submit">Apply</button>
-                    <a class="btn btn-outline-secondary" href="{% url 'mastery:summary_list' %}">Reset</a>
+                    <button class="btn btn-primary w-100" type="submit">{% translate "Apply" %}</button>
+                    <a class="btn btn-outline-secondary" href="{% url 'mastery:summary_list' %}">{% translate "Reset" %}</a>
                 </div>
             </div>
         </div>
@@ -55,26 +55,26 @@
 
     {% if not selected_group %}
     <div class="alert alert-warning">
-        No summary audience group is configured yet.
+        {% translate "No summary audience group is configured yet." %}
         {% if perms.mastery.manage_summary_groups %}
-        <a href="{% url 'mastery:summary_settings' %}">Create one in summary settings</a>.
+        <a href="{% url 'mastery:summary_settings' %}">{% translate "Create one in summary settings" %}</a>.
         {% endif %}
     </div>
     {% endif %}
 
     {% if selected_group %}
     <div class="card border-0 shadow-sm">
-        <div class="card-header">Doctrines</div>
+        <div class="card-header">{% translate "Doctrines" %}</div>
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead class="mastery-summary-thead">
                     <tr>
-                        <th>Doctrine</th>
-                        <th>Flyable now (players)</th>
+                        <th>{% translate "Doctrine" %}</th>
+                        <th>{% translate "Flyable now (players)" %}</th>
                         {% include 'mastery/partials/_summary_status_headers.html' with include_tooltips=1 include_chars_suffix=0 %}
-                        <th>Avg recommended</th>
-                        <th>Configured fits</th>
+                        <th>{% translate "Avg recommended" %}</th>
+                        <th>{% translate "Configured fits" %}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -84,8 +84,11 @@
                             <div class="d-flex align-items-center gap-2">
                                 <img src="{{ item.doctrine.icon_url }}" class="rounded" width="32" height="32" alt="{{ item.doctrine.name }}">
                                 <div>
-                                    <a class="fw-semibold text-body text-decoration-none mastery-doctrine-link" href="{% url 'mastery:summary_doctrine_detail' item.doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">{{ item.doctrine.name }}</a>
-                                    <div class="small text-muted">{{ item.active_characters_total }} active characters</div>
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <a class="fw-semibold text-body text-decoration-none mastery-doctrine-link" href="{% url 'mastery:summary_doctrine_detail' item.doctrine.id %}?group_id={{ selected_group.id }}&activity_days={{ activity_days }}{% if include_inactive %}&include_inactive=1{% endif %}">{{ item.doctrine.name }}</a>
+                                        {% include 'mastery/partials/_priority_badge.html' with priority=item.priority %}
+                                    </div>
+                                    <div class="small text-muted">{% blocktranslate with count=item.active_characters_total %}{{ count }} active characters{% endblocktranslate %}</div>
                                 </div>
                             </div>
                         </td>
@@ -105,7 +108,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="10" class="text-muted">No doctrines available for this filter scope.</td>
+                        <td colspan="10" class="text-muted">{% translate "No doctrines available for this filter scope." %}</td>
                     </tr>
                     {% endfor %}
                     </tbody>

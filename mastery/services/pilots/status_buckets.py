@@ -1,5 +1,7 @@
 """Shared status-bucket helpers for pilot and summary views."""
 
+from django.utils.translation import gettext_lazy as _
+
 from mastery import app_settings
 
 BUCKET_ELITE = "elite"
@@ -17,11 +19,11 @@ BUCKET_ORDER = [
 ]
 
 BUCKET_LABELS = {
-    BUCKET_ELITE: "Elite",
-    BUCKET_ALMOST_ELITE: "Almost elite",
-    BUCKET_CAN_FLY: "Can fly",
-    BUCKET_ALMOST_FIT: "Almost fit",
-    BUCKET_NEEDS_TRAINING: "Needs training",
+    BUCKET_ELITE: _("Elite"),
+    BUCKET_ALMOST_ELITE: _("Almost elite"),
+    BUCKET_CAN_FLY: _("Can fly"),
+    BUCKET_ALMOST_FIT: _("Almost fit"),
+    BUCKET_NEEDS_TRAINING: _("Needs training"),
 }
 
 BUCKET_RANK = {

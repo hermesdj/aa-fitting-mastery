@@ -31,6 +31,7 @@ urlpatterns = [
     path("doctrines/<int:doctrine_id>/generate/", views.generate_doctrine, name="generate_doctrine"),
     path("doctrines/<int:doctrine_id>/sync/", views.sync_doctrine, name="sync_doctrine"),
     path("doctrines/<int:doctrine_id>/mastery/", views.update_doctrine_mastery, name="update_doctrine_mastery"),
+    path("doctrines/<int:doctrine_id>/priority/", views.update_doctrine_priority, name="update_doctrine_priority"),
 
     # Fittings
     path("fitting/<int:fitting_id>/skills/", views.fitting_skills_view, name="fitting_skills"),
@@ -68,5 +69,6 @@ urlpatterns = [
         name="update_skill_group_controls",
     ),
     path("fitting/<int:fitting_id>/mastery/", views.update_fitting_mastery, name="update_fitting_mastery"),
+    path("fitting/<int:fitting_id>/priority/", views.update_fitting_priority, name="update_fitting_priority"),
     path("fitting/<int:fitting_id>/blacklist/", views.toggle_skill_blacklist_view, name="toggle_skill_blacklist_view"),
 ]

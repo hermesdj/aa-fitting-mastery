@@ -5,6 +5,7 @@ from datetime import timedelta
 import heapq
 
 from django.core.exceptions import ObjectDoesNotExist
+from django.utils.translation import gettext_lazy as _
 
 from eve_sde.models import ItemType
 from eve_sde.models import TypeDogma
@@ -31,11 +32,11 @@ class PilotProgressService:
         168: "willpower",
     }
     ATTRIBUTE_DISPLAY = {
-        "charisma": "Charisma",
-        "intelligence": "Intelligence",
-        "memory": "Memory",
-        "perception": "Perception",
-        "willpower": "Willpower",
+        "charisma": _("Charisma"),
+        "intelligence": _("Intelligence"),
+        "memory": _("Memory"),
+        "perception": _("Perception"),
+        "willpower": _("Willpower"),
     }
     ATTRIBUTE_ORDER = ("charisma", "intelligence", "memory", "perception", "willpower")
     REMAP_MIN_ATTRIBUTE = 17
@@ -58,18 +59,18 @@ class PilotProgressService:
     ROMAN_LEVEL = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V"}
     REQUIRED_SKILL_ATTRIBUTES = SHARED_REQUIRED_SKILL_ATTRIBUTES
     EXPORT_LANGUAGE_CHOICES = [
-        ("en", "English"),
-        ("fr", "French"),
-        ("de", "German"),
-        ("es", "Spanish"),
-        ("it", "Italian"),
-        ("nl", "Dutch"),
-        ("pl", "Polish"),
-        ("ru", "Russian"),
-        ("uk", "Ukrainian"),
-        ("ja", "Japanese"),
-        ("ko", "Korean"),
-        ("zh", "Chinese"),
+        ("en", _("English")),
+        ("fr", _("French")),
+        ("de", _("German")),
+        ("es", _("Spanish")),
+        ("it", _("Italian")),
+        ("nl", _("Dutch")),
+        ("pl", _("Polish")),
+        ("ru", _("Russian")),
+        ("uk", _("Ukrainian")),
+        ("ja", _("Japanese")),
+        ("ko", _("Korean")),
+        ("zh", _("Chinese")),
     ]
 
     def __init__(self):
@@ -236,7 +237,7 @@ class PilotProgressService:
     @classmethod
     def _attribute_label(cls, attribute_name: str | None) -> str:
         if not attribute_name:
-            return "Unknown"
+            return str(_("Unknown"))
         return cls.ATTRIBUTE_DISPLAY.get(attribute_name, attribute_name.replace("_", " ").title())
 
     @classmethod
@@ -598,8 +599,8 @@ class PilotProgressService:
     def export_mode_choices(cls) -> list[tuple[str, str]]:
         """Return available export modes for plan generation."""
         return [
-            (cls.EXPORT_MODE_REQUIRED, "Required"),
-            (cls.EXPORT_MODE_RECOMMENDED, "Recommended"),
+            (cls.EXPORT_MODE_REQUIRED, _("Required")),
+            (cls.EXPORT_MODE_RECOMMENDED, _("Recommended")),
         ]
 
     @classmethod
@@ -662,14 +663,14 @@ class PilotProgressService:
         almost_fit_threshold = float(app_settings.MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT)
 
         if can_fly and recommended_pct >= elite_threshold:
-            return "Elite", "success"
+            return str(_("Elite")), "success"
         if can_fly and recommended_pct > almost_elite_threshold:
-            return "Almost elite", "primary"
+            return str(_("Almost elite")), "primary"
         if can_fly:
-            return "Can fly", "info"
+            return str(_("Can fly")), "info"
         if required_pct > almost_fit_threshold:
-            return "Almost fit", "warning"
-        return "Needs training", "danger"
+            return str(_("Almost fit")), "warning"
+        return str(_("Needs training")), "danger"
 
     def _collect_plan_targets(
         self, source: list[dict]

@@ -1,4 +1,5 @@
 """Shared view dependencies and service singletons."""
+from django.utils.translation import gettext_lazy as _
 
 from mastery.services.doctrine.doctrine_map_service import DoctrineMapService
 from mastery.services.doctrine.doctrine_skill_service import DoctrineSkillService
@@ -9,11 +10,11 @@ from mastery.services.skills import SkillSuggestionService
 from mastery.services.skills.skill_control_service import SkillControlService
 
 MASTERY_LEVEL_LABELS = {
-    0: "I - Basic",
-    1: "II - Standard",
-    2: "III - Improved",
-    3: "IV - Advanced",
-    4: "V - Elite",
+    0: _("I - Basic"),
+    1: _("II - Standard"),
+    2: _("III - Improved"),
+    3: _("IV - Advanced"),
+    4: _("V - Elite"),
 }
 MASTERY_LEVEL_CHOICES = list(MASTERY_LEVEL_LABELS.items())
 

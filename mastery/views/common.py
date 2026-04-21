@@ -9,6 +9,7 @@ from django.contrib import messages
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
+from django.utils.translation import gettext_lazy as _
 from eve_sde.models import ItemType, TypeDogma
 from fittings.models import Doctrine, Fitting
 
@@ -51,9 +52,9 @@ from .summary_helpers import (  # noqa: E402 – must follow deps import
 )
 
 APPROVAL_STATUS_LABELS = {
-    FittingSkillsetMap.ApprovalStatus.IN_PROGRESS: "In progress",
-    FittingSkillsetMap.ApprovalStatus.NOT_APPROVED: "Not approved",
-    FittingSkillsetMap.ApprovalStatus.APPROVED: "Approved",
+    FittingSkillsetMap.ApprovalStatus.IN_PROGRESS: _("In progress"),
+    FittingSkillsetMap.ApprovalStatus.NOT_APPROVED: _("Not approved"),
+    FittingSkillsetMap.ApprovalStatus.APPROVED: _("Approved"),
 }
 
 APPROVAL_STATUS_BADGE_CLASSES = {
@@ -373,6 +374,8 @@ def _build_fitting_preview_context(
         "fitting": fitting,
         "doctrine_map": doctrine_map,
         "fitting_map": fitting_map,
+        "doctrine_priority": int(getattr(doctrine_map, "priority", 0) or 0),
+        "fitting_priority": int(getattr(fitting_map, "priority", 0) or 0) if fitting_map else 0,
         "grouped_skills": _group_preview_skills(all_rows),
         "effective_mastery_level": effective_mastery_level,
         "effective_mastery_label": _get_mastery_label(effective_mastery_level),

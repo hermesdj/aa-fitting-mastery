@@ -13,6 +13,8 @@ from .doctrine import (
     generate_doctrine,
     sync_doctrine,
     update_doctrine_mastery,
+    update_doctrine_priority,
+    update_fitting_priority,
 )
 from .fitting import (
     add_manual_skill_view,
@@ -67,7 +69,9 @@ __all__ = [
     "toggle_skill_blacklist_view",
     "update_fitting_approval_status_view",
     "update_doctrine_mastery",
+    "update_doctrine_priority",
     "update_fitting_mastery",
+    "update_fitting_priority",
     "update_skill_group_controls_view",
     "update_skill_recommended_view",
 ]
