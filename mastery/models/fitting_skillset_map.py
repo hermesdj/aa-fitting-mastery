@@ -100,3 +100,16 @@ class FittingSkillsetMap(models.Model):
     class Meta:
         """Model metadata (ordering, indexes and constraints)."""
         unique_together = ("fitting_id", "skillset_id")
+
+    def __str__(self) -> str:
+        """Readable label for admin selects and FK displays."""
+        fitting_name = getattr(self.fitting, "name", "") if getattr(self, "fitting", None) else ""
+        skillset_name = getattr(self.skillset, "name", "") if getattr(self, "skillset", None) else ""
+
+        if fitting_name and skillset_name and fitting_name != skillset_name:
+            return f"{fitting_name} [{skillset_name}]"
+        if fitting_name:
+            return str(fitting_name)
+        if skillset_name:
+            return str(skillset_name)
+        return f"Fitting map #{getattr(self, 'pk', '?')}"

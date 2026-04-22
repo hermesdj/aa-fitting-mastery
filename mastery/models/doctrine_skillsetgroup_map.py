@@ -36,3 +36,16 @@ class DoctrineSkillSetGroupMap(models.Model):
     class Meta:
         """Model metadata (ordering, indexes and constraints)."""
         unique_together = ("doctrine_id", "skillset_group_id")
+
+    def __str__(self) -> str:
+        """Readable label for admin selects and FK displays."""
+        doctrine_name = getattr(self.doctrine, "name", "") if getattr(self, "doctrine", None) else ""
+        group_name = getattr(self.skillset_group, "name", "") if getattr(self, "skillset_group", None) else ""
+
+        if doctrine_name and group_name and doctrine_name != group_name:
+            return f"{doctrine_name} [{group_name}]"
+        if doctrine_name:
+            return str(doctrine_name)
+        if group_name:
+            return str(group_name)
+        return f"Doctrine map #{getattr(self, 'pk', '?')}"

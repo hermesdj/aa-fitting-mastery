@@ -34,6 +34,8 @@ INSTALLED_APPS += [
     "memberaudit",
     "fittings",
     "mastery",
+    # Optional: Secure Groups integration
+    "securegroups",
 ]
 
 # Enter credentials to use MySQL/MariaDB. Comment out to use sqlite3

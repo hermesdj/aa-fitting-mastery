@@ -1,5 +1,7 @@
 """Settings for Fitting Mastery."""
 
+from django.apps import apps
+
 from app_utils.app_settings import clean_setting
 
 MASTERY_PLAN_ESTIMATE_SP_PER_HOUR = clean_setting(
@@ -24,3 +26,7 @@ MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT = clean_setting(
 
 MASTERY_DEFAULT_SKILLS = clean_setting("MASTERY_DEFAULT_SKILLS", [])
 """Optional list of globally injected default skills for all generated skill plans."""
+
+def securegroups_installed() -> bool:
+    """Return True when allianceauth-secure-groups is installed."""
+    return apps.is_installed("securegroups")

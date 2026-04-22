@@ -3,6 +3,16 @@ from allianceauth.services.hooks import UrlHook, MenuItemHook
 from django.utils.translation import gettext_lazy as _
 
 from . import urls
+from .app_settings import securegroups_installed
+
+
+if securegroups_installed():
+    from .secure_groups import (
+        MasteryDoctrineReadinessFilter,
+        MasteryFittingEliteFilter,
+        MasteryFittingProgressFilter,
+        MasteryFittingStatusFilter,
+    )
 
 class MasteryMenu(MenuItemHook):
     def __init__(self):
@@ -28,3 +38,16 @@ def register_menu():
 @hooks.register("url_hook")
 def register_urls():
     return UrlHook(urls, "fitting-mastery", r"^fitting-mastery/")
+
+
+if securegroups_installed():
+    @hooks.register("secure_group_filters")
+    def register_secure_group_filters() -> list:
+        """Expose mastery Smart Filter models to allianceauth-secure-groups."""
+        return [
+            MasteryFittingStatusFilter,
+            MasteryFittingProgressFilter,
+            MasteryDoctrineReadinessFilter,
+            MasteryFittingEliteFilter,
+        ]
+

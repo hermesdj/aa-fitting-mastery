@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.2.0] - 2026-04-22
+
+### Added
+
+- Add optional Secure Groups hook registration in `mastery/auth_hooks.py` via `@hooks.register("secure_group_filters")` when `securegroups` is installed, so mastery smart filters are discoverable by allianceauth-secure-groups.
+- Add readable labels for secure-groups FK selectors by implementing `__str__` on `FittingSkillsetMap` and `DoctrineSkillSetGroupMap`.
+- Add focused regression tests for Secure Groups integration and model labels (`test_secure_groups.py`, `test_model_labels.py`).
+
+### Changed
+
+- Refactor optional app detection to the Alliance Auth pattern using `apps.is_installed("securegroups")` through `securegroups_installed()` in `mastery/app_settings.py`.
+- Replace broad import-time `try/except ImportError` guards in `mastery/apps.py`, `mastery/admin.py`, and `mastery/models/__init__.py` with explicit feature gates.
+- Harden secure-group character resolution to use Member Audit ownership lookups based on `Character.objects.owned_by_user(...)` and `eve_character__character_ownership` joins.
+- Keep `minimum_status="can_fly"` evaluation strict while adding a defensive fallback to mastery progress (`can_fly` + `required_pct == 100`) to mitigate observed Member Audit false negatives on required-skill checks.
+
+### Fixed
+
+- Fix Smart Group filters returning empty results because Member Audit character lookups were using invalid relationship paths.
+- Fix Smart Group admin UX showing opaque FK labels like `FittingSkillsetMap object (1)` by exposing fitting/doctrine names.
+- Fix inconsistent secure-group audit behavior for `can_fly` and doctrine readiness when Member Audit required-skill checks are stale or misclassified.
+
+### Tests
+
+- Run full plugin suite:
+  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python runtests.py mastery -v 2` (**297 passed**).
+- Run lint quality gate:
+  - `pylint --load-plugins pylint_django mastery` (**10.00/10**).
+
+### Upgrade Notes
+
+- Update package:
+  - `pip install -U aa-fitting-mastery==0.2.0`
+- Apply database changes (adds secure group filters via migration `0012_masterydoctrinereadinessfilter_and_more`):
+  - `python manage.py migrate`
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+
 ## [0.1.9] - 2026-04-21
 
 ### Added
