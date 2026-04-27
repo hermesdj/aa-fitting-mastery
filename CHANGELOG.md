@@ -27,13 +27,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Fix Smart Group filters returning empty results because Member Audit character lookups were using invalid relationship paths.
 - Fix Smart Group admin UX showing opaque FK labels like `FittingSkillsetMap object (1)` by exposing fitting/doctrine names.
 - Fix inconsistent secure-group audit behavior for `can_fly` and doctrine readiness when Member Audit required-skill checks are stale or misclassified.
+- Fix doctrine coverage audience-group membership so a user is included when any owned character matches the configured corporation/alliance scope, instead of implicitly depending on the main character.
+- Fix summary/detail readiness aggregation to keep evaluating all owned characters for an eligible user, preserving alt-based coverage and best-character selection in doctrine/fitting reports.
 
 ### Tests
 
 - Run full plugin suite:
-  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python runtests.py mastery -v 2` (**297 passed**).
+  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python runtests.py mastery -v 2` (**302 passed**).
+- Run focused summary/view regression suite:
+  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python runtests.py mastery.tests.test_views -v 2` (**97 passed**).
 - Run lint quality gate:
   - `pylint --load-plugins pylint_django mastery` (**10.00/10**).
+- Add focused regression coverage in `mastery/tests/test_views.py` for summary audience matching via alts, owned-character grouping, and best-character selection in doctrine coverage.
 
 ### Upgrade Notes
 

@@ -61,32 +61,50 @@ def _missing_skillset_error(fitting_map) -> str | None:
 
 
 def _get_member_characters(user):
-    return Character.objects.filter(
-        eve_character__character_ownership__user=user,
-    ).select_related("eve_character").order_by("eve_character__character_name")
+    return Character.objects.owned_by_user(user).select_related(
+        "eve_character",
+        "online_status",
+    ).order_by("eve_character__character_name")
 
 
-def _summary_group_users(summary_group):
+def _summary_group_entry_ids(summary_group) -> tuple[list[int], list[int]]:
+    """Return corporation and alliance IDs configured on a summary audience group."""
+    entries = list(summary_group.entries.all())
     corp_ids = [
         entry.entity_id
-        for entry in summary_group.entries.all()
+        for entry in entries
         if entry.entity_type == SummaryAudienceEntity.TYPE_CORPORATION
     ]
     alliance_ids = [
         entry.entity_id
-        for entry in summary_group.entries.all()
+        for entry in entries
         if entry.entity_type == SummaryAudienceEntity.TYPE_ALLIANCE
     ]
+    return corp_ids, alliance_ids
+
+
+def _summary_group_users(summary_group):
+    """Return users eligible for a summary group via any owned character match."""
+    corp_ids, alliance_ids = _summary_group_entry_ids(summary_group)
     if not corp_ids and not alliance_ids:
         return User.objects.none()
 
-    filters = Q()
+    character_filters = Q()
     if corp_ids:
-        filters |= Q(profile__main_character__corporation_id__in=corp_ids)
+        character_filters |= Q(eve_character__corporation_id__in=corp_ids)
     if alliance_ids:
-        filters |= Q(profile__main_character__alliance_id__in=alliance_ids)
+        character_filters |= Q(eve_character__alliance_id__in=alliance_ids)
 
-    return User.objects.filter(profile__main_character__isnull=False).filter(filters).distinct()
+    eligible_user_ids = (
+        Character.objects.filter(
+            character_filters,
+            eve_character__character_ownership__user_id__isnull=False,
+        )
+        .values_list("eve_character__character_ownership__user_id", flat=True)
+        .distinct()
+    )
+
+    return User.objects.filter(id__in=eligible_user_ids).distinct()
 
 
 def _get_summary_group_by_id(group_id_raw: str):
@@ -240,7 +258,7 @@ def _build_member_groups_for_summary(summary_group, activity_days: int, include_
             owner.id,
             {
                 "user": owner,
-                "main_character": getattr(owner.profile, "main_character", None),
+                "main_character": getattr(getattr(owner, "profile", None), "main_character", None),
                 "characters": [],
                 "active_count": 0,
                 "total_count": 0,

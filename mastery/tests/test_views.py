@@ -19,18 +19,21 @@ from mastery.views import _build_fitting_skills_ajax_response, _group_preview_sk
 from mastery.views.summary_helpers import (
     _approved_fitting_maps,
     _annotate_member_detail_pilots,
-            _is_approved_fitting_map,
-            _missing_skillset_error,
+    _build_member_groups_for_summary,
     _build_doctrine_summary,
     _build_doctrine_kpis,
     _build_fitting_kpis,
     _build_fitting_user_rows,
+    _get_member_characters,
     _get_pilot_detail_characters,
     _get_selected_summary_group,
     _get_summary_group_by_id,
+    _is_approved_fitting_map,
+    _missing_skillset_error,
     _parse_activity_days,
     _parse_training_days,
     _summary_entity_catalog,
+    _summary_group_users,
 )
 
 
@@ -940,6 +943,170 @@ class TestSummaryHelpers(SimpleTestCase):
         groups, selected = _get_selected_summary_group(None)
         self.assertEqual(groups, [])
         self.assertIsNone(selected)
+
+    @patch("mastery.views.summary_helpers.User.objects.filter")
+    @patch("mastery.views.summary_helpers.Character.objects.filter")
+    def test_summary_group_users_uses_any_owned_character_for_audience_matching(
+        self,
+        mock_character_filter,
+        mock_user_filter,
+    ):
+        entry_corp = SimpleNamespace(entity_type="corporation", entity_id=99000123)
+        entry_alliance = SimpleNamespace(entity_type="alliance", entity_id=99000999)
+        summary_group = SimpleNamespace(entries=SimpleNamespace(all=lambda: [entry_corp, entry_alliance]))
+
+        character_qs = Mock()
+        values_list_qs = Mock()
+        mock_character_filter.return_value = character_qs
+        character_qs.values_list.return_value = values_list_qs
+        values_list_qs.distinct.return_value = [10, 20]
+
+        user_qs = Mock()
+        mock_user_filter.return_value = user_qs
+        user_qs.distinct.return_value = "eligible-users"
+
+        result = _summary_group_users(summary_group)
+
+        self.assertEqual(result, "eligible-users")
+        self.assertEqual(mock_character_filter.call_count, 1)
+        call_args, call_kwargs = mock_character_filter.call_args
+        self.assertEqual(call_kwargs, {"eve_character__character_ownership__user_id__isnull": False})
+        self.assertEqual(len(call_args), 1)
+        query_repr = str(call_args[0])
+        self.assertIn("eve_character__corporation_id__in", query_repr)
+        self.assertIn("eve_character__alliance_id__in", query_repr)
+        self.assertNotIn("profile__main_character", query_repr)
+        mock_user_filter.assert_called_once_with(id__in=[10, 20])
+
+    @patch("mastery.views.summary_helpers.Character.objects.owned_by_user")
+    def test_get_member_characters_uses_memberaudit_owned_by_user_manager(self, mock_owned_by_user):
+        user = SimpleNamespace(id=55)
+        owned_qs = Mock()
+        mock_owned_by_user.return_value = owned_qs
+        owned_qs.select_related.return_value.order_by.return_value = "member-characters"
+
+        result = _get_member_characters(user)
+
+        self.assertEqual(result, "member-characters")
+        mock_owned_by_user.assert_called_once_with(user)
+        owned_qs.select_related.assert_called_once_with("eve_character", "online_status")
+        owned_qs.select_related.return_value.order_by.assert_called_once_with(
+            "eve_character__character_name"
+        )
+
+    @patch("mastery.views.summary_helpers.Character.objects.filter")
+    @patch("mastery.views.summary_helpers._summary_group_users")
+    @patch("mastery.views.summary_helpers.timezone.now")
+    def test_build_member_groups_for_summary_keeps_all_owned_characters_for_user_matched_by_alt(
+        self,
+        mock_now,
+        mock_group_users,
+        mock_character_filter,
+    ):
+        now = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
+        mock_now.return_value = now
+        user = SimpleNamespace(
+            id=7,
+            username="pilot7",
+            profile=SimpleNamespace(
+                main_character=SimpleNamespace(character_name="Main Outside Audience"),
+            ),
+        )
+        eligible_users = Mock()
+        eligible_users.exists.return_value = True
+        eligible_users.__iter__ = Mock(return_value=iter([user]))
+        mock_group_users.return_value = eligible_users
+        main_character = SimpleNamespace(
+            id=101,
+            eve_character=SimpleNamespace(
+                character_name="Main Outside Audience",
+                character_ownership=SimpleNamespace(user=user),
+            ),
+            online_status=SimpleNamespace(last_login=now - timedelta(days=1), last_logout=None),
+        )
+        matching_alt = SimpleNamespace(
+            id=202,
+            eve_character=SimpleNamespace(
+                character_name="Alt In Audience",
+                character_ownership=SimpleNamespace(user=user),
+            ),
+            online_status=SimpleNamespace(last_login=now - timedelta(days=2), last_logout=None),
+        )
+        mock_character_filter.return_value.select_related.return_value = [main_character, matching_alt]
+
+        groups = _build_member_groups_for_summary(
+            summary_group=SimpleNamespace(id=3),
+            activity_days=14,
+            include_inactive=False,
+        )
+
+        self.assertEqual(len(groups), 1)
+        group = groups[0]
+        self.assertEqual(group["user"], user)
+        self.assertEqual(group["main_character"].character_name, "Main Outside Audience")
+        self.assertEqual(
+            [character.id for character in group["characters"]],
+            [101, 202],
+        )
+        self.assertEqual(group["active_count"], 2)
+        self.assertEqual(group["total_count"], 2)
+        mock_character_filter.assert_called_once_with(
+            eve_character__character_ownership__user__in=eligible_users,
+        )
+
+    @patch("mastery.views.summary_helpers.pilot_progress_service")
+    def test_build_fitting_user_rows_uses_best_alt_character_progress_for_user(self, mock_progress_service):
+        main_progress = {
+            "can_fly": False,
+            "recommended_pct": 40.0,
+            "required_pct": 80.0,
+        }
+        alt_progress = {
+            "can_fly": True,
+            "recommended_pct": 100.0,
+            "required_pct": 100.0,
+        }
+        mock_progress_service.build_for_character.side_effect = [main_progress, alt_progress]
+
+        main_character = SimpleNamespace(id=11)
+        alt_character = SimpleNamespace(id=22)
+        fitting_map = SimpleNamespace(skillset=SimpleNamespace(id=99))
+        member_groups = [
+            {
+                "user": SimpleNamespace(id=5),
+                "main_character": SimpleNamespace(character_name="Main Outside Audience"),
+                "characters": [main_character, alt_character],
+                "total_count": 2,
+                "last_seen": None,
+            }
+        ]
+
+        rows = _build_fitting_user_rows(
+            fitting_map=fitting_map,
+            member_groups=member_groups,
+            progress_cache={},
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["best_character"].id, 22)
+        self.assertTrue(rows[0]["best_progress"]["can_fly"])
+        self.assertEqual(rows[0]["flyable_count"], 1)
+
+    @patch("mastery.views.summary_helpers.User.objects.none")
+    @patch("mastery.views.summary_helpers.Character.objects.filter")
+    def test_summary_group_users_returns_none_when_group_has_no_entries(
+        self,
+        mock_character_filter,
+        mock_user_none,
+    ):
+        mock_user_none.return_value = "empty-users"
+        summary_group = SimpleNamespace(entries=SimpleNamespace(all=lambda: []))
+
+        result = _summary_group_users(summary_group)
+
+        self.assertEqual(result, "empty-users")
+        mock_character_filter.assert_not_called()
+        mock_user_none.assert_called_once_with()
 
     @patch("mastery.views.summary_helpers.Character.objects.filter")
     @patch("mastery.views.summary_helpers._summary_group_users")
