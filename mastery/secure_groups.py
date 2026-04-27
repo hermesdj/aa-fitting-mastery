@@ -340,6 +340,7 @@ class MasteryFittingStatusFilter(FilterBase):  # type: ignore[valid-type,misc]
         return results
 
     def process_filter(self, user: User) -> bool:
+        """Return True when the user satisfies the configured fitting status rule."""
         characters = _get_memberaudit_characters(user)
         if not characters:
             return False
@@ -358,6 +359,7 @@ class MasteryFittingStatusFilter(FilterBase):  # type: ignore[valid-type,misc]
         return any(results)
 
     def audit_filter(self, users) -> dict:
+        """Return per-user audit results with pass/fail and best status message."""
         output: dict = defaultdict(lambda: {"check": False, "message": ""})
         try:
             skillset = self.fitting_map.skillset
@@ -453,6 +455,7 @@ class MasteryFittingProgressFilter(FilterBase):  # type: ignore[valid-type,misc]
         return f"{self.name}: {self.description}"
 
     def process_filter(self, user: User) -> bool:
+        """Return True when any owned character reaches the minimum progress threshold."""
         characters = _get_memberaudit_characters(user)
         if not characters:
             return False
@@ -466,6 +469,7 @@ class MasteryFittingProgressFilter(FilterBase):  # type: ignore[valid-type,misc]
         return max_pct >= float(self.minimum_progress_pct)
 
     def audit_filter(self, users) -> dict:
+        """Return per-user progress audit with best character and completion percent."""
         output: dict = defaultdict(lambda: {"check": False, "message": ""})
         try:
             skillset = self.fitting_map.skillset
@@ -567,6 +571,7 @@ class MasteryDoctrineReadinessFilter(FilterBase):  # type: ignore[valid-type,mis
         return flyable_count, flyable_names
 
     def process_filter(self, user: User) -> bool:
+        """Return True when the user can fly at least the configured doctrine fitting count."""
         characters = _get_memberaudit_characters(user)
         if not characters:
             return False
@@ -579,6 +584,7 @@ class MasteryDoctrineReadinessFilter(FilterBase):  # type: ignore[valid-type,mis
         return count >= self.minimum_fittings
 
     def audit_filter(self, users) -> dict:
+        """Return per-user doctrine readiness audit with flyable fitting details."""
         output: dict = defaultdict(lambda: {"check": False, "message": ""})
         fitting_maps = self._get_fitting_maps()
         total = len(fitting_maps)
@@ -645,6 +651,7 @@ class MasteryFittingEliteFilter(FilterBase):  # type: ignore[valid-type,misc]
         return f"{self.name}: {self.description}"
 
     def process_filter(self, user: User) -> bool:
+        """Return True when at least one owned character is in the Elite bucket."""
         characters = _get_memberaudit_characters(user)
         if not characters:
             return False
@@ -664,6 +671,7 @@ class MasteryFittingEliteFilter(FilterBase):  # type: ignore[valid-type,misc]
         return False
 
     def audit_filter(self, users) -> dict:
+        """Return per-user elite audit with best character progress context."""
         output: dict = defaultdict(lambda: {"check": False, "message": ""})
         try:
             skillset = self.fitting_map.skillset

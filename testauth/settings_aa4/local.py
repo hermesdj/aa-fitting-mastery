@@ -3,7 +3,7 @@
 
 # Every setting in base.py can be overloaded by redefining it here.
 from .base import *  # pylint: disable=wildcard-import,unused-wildcard-import
-from django.apps import apps as django_apps
+import importlib.util
 
 # These are required for Django to function properly. Don't touch.
 ROOT_URLCONF = "testauth.urls"
@@ -38,7 +38,7 @@ INSTALLED_APPS += [
 ]
 
 # Optional: Secure Groups integration (only if installed in environment)
-if django_apps.is_installed("securegroups"):
+if importlib.util.find_spec("securegroups") is not None:
     INSTALLED_APPS.append("securegroups")
 
 # Enter credentials to use MySQL/MariaDB. Comment out to use sqlite3
