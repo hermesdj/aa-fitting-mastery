@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.2.1] - 2026-04-28
+
+### Added
+
+- Add optional corporation/alliance scoping fields to all Secure Groups mastery skill-plan filters:
+  - `MasteryFittingStatusFilter`
+  - `MasteryFittingProgressFilter`
+  - `MasteryDoctrineReadinessFilter`
+  - `MasteryFittingEliteFilter`
+- Add database migration `0013_masterydoctrinereadinessfilter_alliances_and_more` to persist the new M2M scope fields.
+- Add regression tests for entity-scope behavior and same-character matching semantics in `mastery/tests/test_secure_groups.py`.
+
+### Changed
+
+- Enforce "same character" matching in Secure Groups filters: entity scope (corporation/alliance) and skill-plan condition are now evaluated on the same character.
+- Update Secure Groups admin configuration to expose `corporations` and `alliances` with `filter_horizontal` on all mastery skill-plan filters.
+
+### Tests
+
+- Verify migration state:
+  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python -m django makemigrations --check --dry-run mastery` (**No changes detected**).
+- Run focused Secure Groups suite:
+  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python -u runtests.py mastery.tests.test_secure_groups -v 2` (**34 passed**).
+- Run full plugin suite:
+  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python -u runtests.py mastery -v 2` (**307 passed**).
+- Run lint quality gate:
+  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local pylint --load-plugins pylint_django mastery` (**10.00/10**).
+
+### Upgrade Notes
+
+- Update package:
+  - `pip install -U aa-fitting-mastery==0.2.1`
+- Apply database changes:
+  - `python manage.py migrate`
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+
 ## [0.2.0] - 2026-04-22
 
 ### Added

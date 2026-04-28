@@ -130,6 +130,60 @@ def _character_id(character):
         return None
 
 
+def _selected_corporation_ids(filter_obj) -> set[int]:
+    """Return selected corporation IDs from a filter object as a set."""
+    try:
+        return set(filter_obj.corporations.values_list("corporation_id", flat=True))
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _selected_alliance_ids(filter_obj) -> set[int]:
+    """Return selected alliance IDs from a filter object as a set."""
+    try:
+        return set(filter_obj.alliances.values_list("alliance_id", flat=True))
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def _character_matches_entity_scope(
+    character,
+    corporation_ids: set[int],
+    alliance_ids: set[int],
+) -> bool:
+    """Return True when character matches selected corp/alliance scope.
+
+    Matching rule is OR across scope lists:
+    - character corporation in selected corporations OR
+    - character alliance in selected alliances
+    """
+    if not corporation_ids and not alliance_ids:
+        return True
+
+    try:
+        corp_id = character.eve_character.corporation_id
+        alliance_id = character.eve_character.alliance_id
+    except Exception:  # noqa: BLE001
+        return False
+
+    return (corp_id in corporation_ids) or (alliance_id in alliance_ids)
+
+
+def _filter_characters_by_entity_scope(filter_obj, characters: list) -> list:
+    """Filter characters by optional corporation/alliance scope on a filter."""
+    corporation_ids = _selected_corporation_ids(filter_obj)
+    alliance_ids = _selected_alliance_ids(filter_obj)
+
+    if not corporation_ids and not alliance_ids:
+        return characters
+
+    return [
+        character
+        for character in characters
+        if _character_matches_entity_scope(character, corporation_ids, alliance_ids)
+    ]
+
+
 def _can_fly_db(character, skillset_id: int) -> bool:
     """
     Return whether *character* can fly a skillset using only a DB query
@@ -302,6 +356,24 @@ class MasteryFittingStatusFilter(FilterBase):  # type: ignore[valid-type,misc]
             "By default, any single qualifying character is sufficient."
         ),
     )
+    corporations = models.ManyToManyField(
+        "eveonline.EveCorporationInfo",
+        blank=True,
+        related_name="mastery_status_filters",
+        verbose_name=_("corporations"),
+        help_text=_(
+            "Optional scope. If set, only characters in these corporations are considered."
+        ),
+    )
+    alliances = models.ManyToManyField(
+        "eveonline.EveAllianceInfo",
+        blank=True,
+        related_name="mastery_status_filters",
+        verbose_name=_("alliances"),
+        help_text=_(
+            "Optional scope. If set, only characters in these alliances are considered."
+        ),
+    )
 
     class Meta:
         verbose_name = _("Smart Filter: Mastery — Fitting Status")
@@ -341,7 +413,7 @@ class MasteryFittingStatusFilter(FilterBase):  # type: ignore[valid-type,misc]
 
     def process_filter(self, user: User) -> bool:
         """Return True when the user satisfies the configured fitting status rule."""
-        characters = _get_memberaudit_characters(user)
+        characters = _filter_characters_by_entity_scope(self, _get_memberaudit_characters(user))
         if not characters:
             return False
 
@@ -374,7 +446,7 @@ class MasteryFittingStatusFilter(FilterBase):  # type: ignore[valid-type,misc]
         ) if self.minimum_status == "can_fly" else {}
 
         for user in users:
-            characters = user_chars.get(user.id, [])
+            characters = _filter_characters_by_entity_scope(self, user_chars.get(user.id, []))
             if not characters:
                 output[user.id] = {"check": False, "message": str(_("No registered characters"))}
                 continue
@@ -445,6 +517,24 @@ class MasteryFittingProgressFilter(FilterBase):  # type: ignore[valid-type,misc]
             "By default, the recommended skills plan is used."
         ),
     )
+    corporations = models.ManyToManyField(
+        "eveonline.EveCorporationInfo",
+        blank=True,
+        related_name="mastery_progress_filters",
+        verbose_name=_("corporations"),
+        help_text=_(
+            "Optional scope. If set, only characters in these corporations are considered."
+        ),
+    )
+    alliances = models.ManyToManyField(
+        "eveonline.EveAllianceInfo",
+        blank=True,
+        related_name="mastery_progress_filters",
+        verbose_name=_("alliances"),
+        help_text=_(
+            "Optional scope. If set, only characters in these alliances are considered."
+        ),
+    )
 
     class Meta:
         verbose_name = _("Smart Filter: Mastery — Fitting Progress")
@@ -456,7 +546,7 @@ class MasteryFittingProgressFilter(FilterBase):  # type: ignore[valid-type,misc]
 
     def process_filter(self, user: User) -> bool:
         """Return True when any owned character reaches the minimum progress threshold."""
-        characters = _get_memberaudit_characters(user)
+        characters = _filter_characters_by_entity_scope(self, _get_memberaudit_characters(user))
         if not characters:
             return False
 
@@ -480,7 +570,7 @@ class MasteryFittingProgressFilter(FilterBase):  # type: ignore[valid-type,misc]
         pct_key = "required_pct" if self.use_required_plan else "recommended_pct"
 
         for user in users:
-            characters = user_chars.get(user.id, [])
+            characters = _filter_characters_by_entity_scope(self, user_chars.get(user.id, []))
             if not characters:
                 output[user.id] = {"check": False, "message": str(_("No registered characters"))}
                 continue
@@ -533,6 +623,24 @@ class MasteryDoctrineReadinessFilter(FilterBase):  # type: ignore[valid-type,mis
             "toward the minimum. Fittings in 'In progress' or 'Not approved' are skipped."
         ),
     )
+    corporations = models.ManyToManyField(
+        "eveonline.EveCorporationInfo",
+        blank=True,
+        related_name="mastery_doctrine_filters",
+        verbose_name=_("corporations"),
+        help_text=_(
+            "Optional scope. If set, only characters in these corporations are considered."
+        ),
+    )
+    alliances = models.ManyToManyField(
+        "eveonline.EveAllianceInfo",
+        blank=True,
+        related_name="mastery_doctrine_filters",
+        verbose_name=_("alliances"),
+        help_text=_(
+            "Optional scope. If set, only characters in these alliances are considered."
+        ),
+    )
 
     class Meta:
         verbose_name = _("Smart Filter: Mastery — Doctrine Readiness")
@@ -572,7 +680,7 @@ class MasteryDoctrineReadinessFilter(FilterBase):  # type: ignore[valid-type,mis
 
     def process_filter(self, user: User) -> bool:
         """Return True when the user can fly at least the configured doctrine fitting count."""
-        characters = _get_memberaudit_characters(user)
+        characters = _filter_characters_by_entity_scope(self, _get_memberaudit_characters(user))
         if not characters:
             return False
 
@@ -597,7 +705,7 @@ class MasteryDoctrineReadinessFilter(FilterBase):  # type: ignore[valid-type,mis
         user_chars = _user_to_characters_map(users)
 
         for user in users:
-            characters = user_chars.get(user.id, [])
+            characters = _filter_characters_by_entity_scope(self, user_chars.get(user.id, []))
             if not characters:
                 output[user.id] = {
                     "check": False,
@@ -641,6 +749,24 @@ class MasteryFittingEliteFilter(FilterBase):  # type: ignore[valid-type,misc]
         verbose_name=_("fitting skill plan"),
         related_name="+",
     )
+    corporations = models.ManyToManyField(
+        "eveonline.EveCorporationInfo",
+        blank=True,
+        related_name="mastery_elite_filters",
+        verbose_name=_("corporations"),
+        help_text=_(
+            "Optional scope. If set, only characters in these corporations are considered."
+        ),
+    )
+    alliances = models.ManyToManyField(
+        "eveonline.EveAllianceInfo",
+        blank=True,
+        related_name="mastery_elite_filters",
+        verbose_name=_("alliances"),
+        help_text=_(
+            "Optional scope. If set, only characters in these alliances are considered."
+        ),
+    )
 
     class Meta:
         verbose_name = _("Smart Filter: Mastery — Fitting Elite")
@@ -652,7 +778,7 @@ class MasteryFittingEliteFilter(FilterBase):  # type: ignore[valid-type,misc]
 
     def process_filter(self, user: User) -> bool:
         """Return True when at least one owned character is in the Elite bucket."""
-        characters = _get_memberaudit_characters(user)
+        characters = _filter_characters_by_entity_scope(self, _get_memberaudit_characters(user))
         if not characters:
             return False
 
@@ -681,7 +807,7 @@ class MasteryFittingEliteFilter(FilterBase):  # type: ignore[valid-type,misc]
         user_chars = _user_to_characters_map(users)
 
         for user in users:
-            characters = user_chars.get(user.id, [])
+            characters = _filter_characters_by_entity_scope(self, user_chars.get(user.id, []))
             if not characters:
                 output[user.id] = {"check": False, "message": str(_("No registered characters"))}
                 continue

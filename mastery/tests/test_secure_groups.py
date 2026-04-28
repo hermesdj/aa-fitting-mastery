@@ -30,9 +30,18 @@ def _make_user(uid: int = 1) -> Mock:
     return user
 
 
-def _make_character(name: str = "Pilot One", char_id: int = 10):
+def _make_character(
+    name: str = "Pilot One",
+    char_id: int = 10,
+    corp_id: int = 1001,
+    alliance_id: int | None = 2001,
+):
     char = Mock()
     char.id = char_id
+    char.eve_character.character_name = name
+    char.eve_character.corporation_id = corp_id
+    char.eve_character.alliance_id = alliance_id
+    char.eve_character.character_ownership.user_id = 1
     char.character_ownership.character.character_name = name
     char.character_ownership.user_id = 1
     return char
@@ -104,6 +113,19 @@ def _elite_self():
     return SimpleNamespace(
         fitting_map=SimpleNamespace(skillset=_make_skillset()),
     )
+
+
+def _set_scope(ns, corporation_ids=None, alliance_ids=None):
+    """Attach fake M2M managers for corporations / alliances to a fake filter instance."""
+    corporation_ids = corporation_ids or []
+    alliance_ids = alliance_ids or []
+    ns.corporations = SimpleNamespace(
+        values_list=lambda *_args, **_kwargs: corporation_ids,
+    )
+    ns.alliances = SimpleNamespace(
+        values_list=lambda *_args, **_kwargs: alliance_ids,
+    )
+    return ns
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -186,6 +208,19 @@ class TestMasteryFittingStatusFilter(SimpleTestCase):
         ns = _status_self(minimum_status="can_fly", check_all=True)
         self.assertTrue(MasteryFittingStatusFilter.process_filter(ns, _make_user()))
 
+    @patch(f"{_SG}._get_memberaudit_characters")
+    @patch(f"{_SG}._can_fly_db", return_value=False)
+    def test_process_filter_applies_scope_on_same_character(self, _cf, mock_chars):
+        """Filter must evaluate can-fly only on characters that match corp/alliance scope."""
+        from mastery.secure_groups import MasteryFittingStatusFilter
+
+        scoped_char = _make_character("Scoped", 10, corp_id=111)
+        non_scoped_char = _make_character("Other", 11, corp_id=222)
+        mock_chars.return_value = [scoped_char, non_scoped_char]
+
+        ns = _set_scope(_status_self(minimum_status="can_fly"), corporation_ids=[111])
+        self.assertFalse(MasteryFittingStatusFilter.process_filter(ns, _make_user()))
+
     @patch(f"{_SG}._user_to_characters_map")
     @patch(f"{_SG}._bulk_can_fly_map")
     @patch(f"{_SG}.BUCKET_RANK", {"can_fly": 3, "elite": 5, "needs_training": 1})
@@ -249,6 +284,22 @@ class TestMasteryFittingProgressFilter(SimpleTestCase):
         ns = _progress_self(use_required=True)
         MasteryFittingProgressFilter.process_filter(ns, _make_user())
         self.assertTrue(mock_pct.call_args.args[2])
+
+    @patch(f"{_SG}._get_memberaudit_characters")
+    @patch(f"{_SG}._best_pct_for_characters", return_value=(90.0, "Scoped"))
+    def test_process_filter_progress_applies_scope(self, mock_pct, mock_chars):
+        """Progress evaluation must only use characters matching configured scope."""
+        from mastery.secure_groups import MasteryFittingProgressFilter
+
+        scoped_char = _make_character("Scoped", 10, corp_id=111)
+        non_scoped_char = _make_character("Other", 11, corp_id=222)
+        mock_chars.return_value = [scoped_char, non_scoped_char]
+
+        ns = _set_scope(_progress_self(minimum_pct=80), corporation_ids=[111])
+        self.assertTrue(MasteryFittingProgressFilter.process_filter(ns, _make_user()))
+        scoped_characters = mock_pct.call_args.args[0]
+        self.assertEqual(len(scoped_characters), 1)
+        self.assertEqual(scoped_characters[0].id, 10)
 
     @patch(f"{_SG}._user_to_characters_map")
     @patch(f"{_SG}._build_progress")
@@ -332,6 +383,20 @@ class TestMasteryDoctrineReadinessFilter(SimpleTestCase):
         self.assertTrue(result[1]["check"])
         self.assertIn("Test Fitting", result[1]["message"])
 
+    @patch(f"{_SG}._get_memberaudit_characters")
+    @patch(f"{_SG}._can_fly_db", return_value=False)
+    def test_process_filter_doctrine_applies_scope(self, _cf, mock_chars):
+        """Doctrine readiness must be computed on scope-matching characters only."""
+        from mastery.secure_groups import MasteryDoctrineReadinessFilter
+
+        scoped_char = _make_character("Scoped", 10, corp_id=111)
+        non_scoped_char = _make_character("Other", 11, corp_id=222)
+        mock_chars.return_value = [scoped_char, non_scoped_char]
+
+        ns = _set_scope(_doctrine_self(minimum=1), corporation_ids=[111])
+        ns._get_fitting_maps = lambda: [_make_fitting_map()]
+        self.assertFalse(MasteryDoctrineReadinessFilter.process_filter(ns, _make_user()))
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # MasteryFittingEliteFilter
@@ -396,6 +461,23 @@ class TestMasteryFittingEliteFilter(SimpleTestCase):
         self.assertFalse(result[1]["check"])
         self.assertIn("80.0%", result[1]["message"])
 
+    @patch(f"{_SG}._get_memberaudit_characters")
+    @patch(f"{_SG}._build_progress")
+    @patch(f"{_SG}.bucket_for_progress")
+    @patch(f"{_SG}.BUCKET_ELITE", "elite")
+    def test_process_filter_elite_applies_scope(self, mock_bucket, mock_progress, mock_chars):
+        """Elite check must run on scope-matching characters only."""
+        from mastery.secure_groups import MasteryFittingEliteFilter
+
+        scoped_char = _make_character("Scoped", 10, corp_id=111)
+        non_scoped_char = _make_character("Other", 11, corp_id=222)
+        mock_chars.return_value = [scoped_char, non_scoped_char]
+        mock_progress.return_value = _make_progress(recommended_pct=70.0)
+        mock_bucket.return_value = "can_fly"
+
+        ns = _set_scope(_elite_self(), corporation_ids=[111])
+        self.assertFalse(MasteryFittingEliteFilter.process_filter(ns, _make_user()))
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Internal helper unit tests
@@ -443,6 +525,18 @@ class TestSecureGroupHelpers(SimpleTestCase):
         result = _character_name(_BadChar())
         self.assertIsInstance(result, str)
         self.assertEqual(result, "bad_char_fallback")
+
+    def test_filter_characters_by_entity_scope_uses_or_logic(self):
+        from mastery.secure_groups import _filter_characters_by_entity_scope
+
+        char_a = _make_character("A", 1, corp_id=111, alliance_id=999)
+        char_b = _make_character("B", 2, corp_id=222, alliance_id=333)
+        char_c = _make_character("C", 3, corp_id=444, alliance_id=555)
+
+        filter_obj = _set_scope(SimpleNamespace(), corporation_ids=[111, 222], alliance_ids=[555])
+        scoped = _filter_characters_by_entity_scope(filter_obj, [char_a, char_b, char_c])
+
+        self.assertEqual({char.id for char in scoped}, {1, 2, 3})
 
 
 
