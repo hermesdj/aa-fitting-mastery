@@ -1,11 +1,16 @@
 """Summary/reporting views for doctrine readiness."""
 import csv
+from datetime import timezone as dt_timezone
+from time import perf_counter
 
 from allianceauth.authentication.decorators import permissions_required
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import connection
 from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.dateparse import parse_datetime
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from mastery.models import SummaryAudienceEntity, SummaryAudienceGroup
 from mastery.services.pilots.status_buckets import (
@@ -29,6 +34,7 @@ from .common import (
     _get_selected_summary_group,
     _parse_activity_days,
     _parse_export_mode,
+    _prime_summary_character_skills_cache_context,
     _summary_entity_catalog,
     _missing_skillset_error,
     pilot_access_service,
@@ -36,6 +42,116 @@ from .common import (
 )
 
 _MEMBER_COVERAGE_FILTERS = {value for value, _label in bucket_choice_list(include_all=True)}
+_SUMMARY_DEBUG_METRICS_SESSION_KEY = "mastery_p2_metrics_debug_snapshots"
+_SUMMARY_DEBUG_METRICS_DEFAULT_PER_SOURCE_LIMIT = 5
+_SUMMARY_DEBUG_METRICS_PER_SOURCE_LIMITS = {
+    # Legacy alias kept for compatibility with older snapshots/emitters.
+    "summary_view": 5,
+    "summary_list": 5,
+    "summary_doctrine_detail": 5,
+    "summary_fitting_detail": 5,
+}
+
+
+def _summary_debug_snapshot_limit_for_source(source: str) -> int:
+    """Return retention limit for one snapshot source."""
+    normalized_source = str(source or "").strip() or "unknown"
+    configured = _SUMMARY_DEBUG_METRICS_PER_SOURCE_LIMITS.get(
+        normalized_source,
+        _SUMMARY_DEBUG_METRICS_DEFAULT_PER_SOURCE_LIMIT,
+    )
+    return max(1, int(configured))
+
+
+def _summary_debug_enabled(request) -> bool:
+    """Return whether request-scoped summary debug metrics should be collected."""
+    return bool(request.user.has_perm("mastery.manage_fittings"))
+
+
+def _start_summary_debug_trace(request) -> dict | None:
+    """Capture request-scoped baseline values for summary debug instrumentation."""
+    if not request.user.has_perm("mastery.manage_fittings"):
+        return None
+
+    return {
+        "started_at": perf_counter(),
+        "sql_queries_start": len(getattr(connection, "queries", [])),
+    }
+
+
+def _summary_phase_metrics(progress_context: dict | None, phase_name: str, metric_name: str) -> dict:
+    """Return a mutable phase metrics bucket inside a progress context."""
+    if progress_context is None:
+        return {}
+    return progress_context.setdefault(phase_name, {}).setdefault(metric_name, {})
+
+
+def _store_summary_metrics_debug_snapshot(
+    request,
+    source: str,
+    progress_context: dict | None,
+    trace: dict | None = None,
+) -> None:
+    """Persist the latest summary debug metrics in session for plugin admins."""
+    if progress_context is None:
+        return
+    if not _summary_debug_enabled(request):
+        return
+
+    session = getattr(request, "session", None)
+    if session is None:
+        return
+
+    summary_view_metrics = _summary_phase_metrics(progress_context, "p0_metrics", "summary_view")
+    if trace is not None:
+        summary_view_metrics.setdefault(
+            "view_total_ms",
+            round((perf_counter() - float(trace.get("started_at", 0.0))) * 1000, 2),
+        )
+        summary_view_metrics.setdefault(
+            "sql_query_count",
+            max(0, len(getattr(connection, "queries", [])) - int(trace.get("sql_queries_start", 0))),
+        )
+
+    metrics = {
+        key: value
+        for key, value in progress_context.items()
+        if key.endswith("_metrics") and isinstance(value, dict) and value
+    }
+    if not metrics:
+        return
+
+    snapshot = {
+        "captured_at": timezone.now().isoformat(),
+        "source": source,
+        "metrics": metrics,
+    }
+    snapshots = list(session.get(_SUMMARY_DEBUG_METRICS_SESSION_KEY, []))
+    snapshots.append(snapshot)
+
+    # Keep an independent retention window per source (no shared global cap).
+    retained_reversed = []
+    retained_counts: dict[str, int] = {}
+    for row in reversed(snapshots):
+        row_source = str(row.get("source") or "unknown")
+        source_limit = _summary_debug_snapshot_limit_for_source(row_source)
+        current_count = retained_counts.get(row_source, 0)
+        if current_count >= source_limit:
+            continue
+        retained_counts[row_source] = current_count + 1
+        retained_reversed.append(row)
+
+    retained_reversed.reverse()
+    session[_SUMMARY_DEBUG_METRICS_SESSION_KEY] = retained_reversed
+
+
+def _store_p2_metrics_debug_snapshot(request, source: str, progress_context: dict | None) -> None:
+    """Backward-compatible wrapper for storing summary debug snapshots."""
+    _store_summary_metrics_debug_snapshot(
+        request=request,
+        source=source,
+        progress_context=progress_context,
+    )
 
 def _summary_fitting_member_coverage_csv_response(fitting, user_rows):
     response = HttpResponse(content_type="text/csv; charset=utf-8")
@@ -98,6 +214,7 @@ def _summary_fitting_member_coverage_csv_response(fitting, user_rows):
 @permissions_required('mastery.doctrine_summary')
 def summary_list_view(request):
     """Summary list view."""
+    debug_trace = _start_summary_debug_trace(request)
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
     include_inactive = request.GET.get("include_inactive") == "1"
     search_query = (request.GET.get("q") or "").strip().lower()
@@ -113,6 +230,10 @@ def summary_list_view(request):
     fitting_maps = _approved_fitting_maps()
     progress_cache = {}
     progress_context = {}
+    _prime_summary_character_skills_cache_context(
+        member_groups=member_groups,
+        cache_context=progress_context,
+    )
 
     # Build doctrine-id → priority map from already-prefetched doctrine_map FK (no extra DB query)
     doctrine_priority_map: dict[int, int] = {}
@@ -141,6 +262,21 @@ def summary_list_view(request):
             continue
         doctrine_summaries += [summary_item]
 
+    _summary_phase_metrics(progress_context, "p0_metrics", "summary_view").update(
+        {
+            "member_groups": len(member_groups),
+            "active_characters_total": sum(group["active_count"] for group in member_groups),
+            "progress_cache_entries": len(progress_cache),
+            "visible_doctrines": len(doctrine_summaries),
+        }
+    )
+    _store_summary_metrics_debug_snapshot(
+        request=request,
+        source="summary_list",
+        progress_context=progress_context,
+        trace=debug_trace,
+    )
+
     doctrine_summaries.sort(
         key=lambda item: (
             -int(item.get("priority", 0) or 0),
@@ -166,6 +302,7 @@ def summary_list_view(request):
 @permissions_required('mastery.doctrine_summary')
 def summary_doctrine_detail_view(request, doctrine_id):
     """Summary doctrine detail view."""
+    debug_trace = _start_summary_debug_trace(request)
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
     include_inactive = request.GET.get("include_inactive") == "1"
     summary_groups, selected_group = _get_selected_summary_group(request.GET.get("group_id"))
@@ -185,6 +322,10 @@ def summary_doctrine_detail_view(request, doctrine_id):
     )
     progress_cache = {}
     progress_context = {}
+    _prime_summary_character_skills_cache_context(
+        member_groups=member_groups,
+        cache_context=progress_context,
+    )
 
     # Derive doctrine priority from already-prefetched doctrine_map (no extra DB query)
     _doctrine_priority: int = 0
@@ -202,9 +343,22 @@ def summary_doctrine_detail_view(request, doctrine_id):
         progress_context=progress_context,
         doctrine_priority=_doctrine_priority,
     )
-    for fit in summary["fittings"]:
-        if fit.get("configured"):
-            fit["kpis"] = _build_fitting_kpis(fit.get("user_rows", []))
+
+    _summary_phase_metrics(progress_context, "p0_metrics", "summary_view").update(
+        {
+            "member_groups": len(member_groups),
+            "active_characters_total": sum(group["active_count"] for group in member_groups),
+            "progress_cache_entries": len(progress_cache),
+            "configured_fittings": int(summary.get("configured_fittings", 0) or 0),
+            "fittings_total": int(summary.get("fittings_total", 0) or 0),
+        }
+    )
+    _store_summary_metrics_debug_snapshot(
+        request=request,
+        source="summary_doctrine_detail",
+        progress_context=progress_context,
+        trace=debug_trace,
+    )
 
     return render(
         request,
@@ -223,6 +377,7 @@ def summary_doctrine_detail_view(request, doctrine_id):
 @permissions_required('mastery.doctrine_summary')
 def summary_fitting_detail_view(request, fitting_id):
     """Summary fitting detail view."""
+    debug_trace = _start_summary_debug_trace(request)
     activity_days = _parse_activity_days(request.GET.get("activity_days"), default=14)
     include_inactive = request.GET.get("include_inactive") == "1"
     export_mode = _parse_export_mode(request.GET.get("export_mode"))
@@ -247,14 +402,34 @@ def summary_fitting_detail_view(request, fitting_id):
 
     progress_cache = {}
     progress_context = {}
+    _prime_summary_character_skills_cache_context(
+        member_groups=member_groups,
+        cache_context=progress_context,
+    )
     user_rows = _build_fitting_user_rows(
         fitting_map=fitting_map,
         member_groups=member_groups,
         progress_cache=progress_cache,
         progress_context=progress_context,
     )
-    fitting_kpis = _build_fitting_kpis(user_rows)
     user_rows = _annotate_member_detail_pilots(user_rows)
+    fitting_kpis = _build_fitting_kpis(user_rows)
+
+    _summary_phase_metrics(progress_context, "p0_metrics", "summary_view").update(
+        {
+            "member_groups": len(member_groups),
+            "active_characters_total": sum(group["active_count"] for group in member_groups),
+            "progress_cache_entries": len(progress_cache),
+            "user_rows": len(user_rows),
+            "flyable_now_users": int(fitting_kpis.get("flyable_now_users", 0) or 0),
+        }
+    )
+    _store_summary_metrics_debug_snapshot(
+        request=request,
+        source="summary_fitting_detail",
+        progress_context=progress_context,
+        trace=debug_trace,
+    )
 
     if request.GET.get("format") == "csv":
         return _summary_fitting_member_coverage_csv_response(fitting=fitting, user_rows=user_rows)
@@ -380,5 +555,70 @@ def summary_settings_view(request):
             "entity_type_choices": SummaryAudienceEntity.TYPE_CHOICES,
             "corporation_options": corporation_options,
             "alliance_options": alliance_options,
+        },
+    )
+
+
+@login_required
+@permissions_required('mastery.manage_fittings')
+def summary_p2_metrics_debug_view(request):
+    """Display request snapshots of summary optimization metrics for plugin admins."""
+    raw_snapshots = list(getattr(request, "session", {}).get(_SUMMARY_DEBUG_METRICS_SESSION_KEY, []))
+    raw_snapshots.reverse()
+
+    snapshots = []
+    grouped_sources: dict[str, dict] = {}
+    for index, snapshot in enumerate(raw_snapshots, start=1):
+        normalized = dict(snapshot)
+        metrics = normalized.get("metrics") or {}
+        p0_metrics = (metrics.get("p0_metrics") or {}).get("summary_view") or {}
+
+        try:
+            priority_score_ms = int(round(float(p0_metrics.get("view_total_ms") or 0)))
+        except (TypeError, ValueError):
+            priority_score_ms = 0
+
+        captured_at = normalized.get("captured_at")
+        captured_at_human = str(captured_at or "")
+        captured_at_short = captured_at_human
+        if captured_at:
+            parsed_dt = parse_datetime(str(captured_at))
+            if parsed_dt is not None:
+                if timezone.is_naive(parsed_dt):
+                    parsed_dt = timezone.make_aware(parsed_dt, dt_timezone.utc)
+                parsed_utc = parsed_dt.astimezone(dt_timezone.utc)
+                captured_at_human = parsed_utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+                captured_at_short = parsed_utc.strftime("%d %b %H:%M")
+
+        normalized["priority_score_ms"] = priority_score_ms
+        normalized["priority_rank"] = index
+        normalized["captured_at_human"] = captured_at_human
+        normalized["captured_at_short"] = captured_at_short
+        snapshots.append(normalized)
+
+        source_name = str(normalized.get("source") or "unknown")
+        source_group = grouped_sources.setdefault(
+            source_name,
+            {
+                "source": source_name,
+                "snapshots": [],
+                "max_priority_score_ms": 0,
+            },
+        )
+        source_group["snapshots"].append(normalized)
+        source_group["max_priority_score_ms"] = max(
+            int(source_group["max_priority_score_ms"]),
+            int(priority_score_ms),
+        )
+
+    snapshot_sources = list(grouped_sources.values())
+
+    return render(
+        request,
+        "mastery/summary_p2_metrics_debug.html",
+        {
+            "snapshots": snapshots,
+            "snapshot_sources": snapshot_sources,
+            "snapshot_count": len(snapshots),
         },
     )

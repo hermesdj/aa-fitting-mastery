@@ -2,6 +2,7 @@ from .doctrine_skill_snapshot import *
 from .fitting_skill_control import *
 from .general import *
 from .sde_version import *
+from .sde_clone_grade_skill import *
 from .ship_mastery import *
 from .certificate_skill import *
 from .ship_mastery_certificate import *

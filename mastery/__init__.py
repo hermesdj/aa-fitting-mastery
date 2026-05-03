@@ -3,5 +3,5 @@
 default_app_config = "mastery.apps.MasteryConfig"  # pylint: disable=invalid-name
 
 __appname__ = "mastery"
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __title__ = "Fitting Mastery"

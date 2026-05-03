@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.2.2] - 2026-05-03
+
+### Added
+
+- Add database migration `0014_sdeclonegradeskill` to store canonical Alpha max skill levels by skill type.
+- Add `mastery/services/summary_cache.py` with `get_cached_progress`, `set_cached_progress`, `invalidate_progress_cache_for_skillset`, and `get_skillset_cache_version` utilities.
+- Add `MASTERY_SUMMARY_PROGRESS_CACHE_TTL` setting (default: 600 seconds; set to 0 to disable P3 cache).
+- Add P3 instrumentation bucket `p3_metrics.shared_progress_cache` (cache hits, misses, writes, stale fallbacks, hit ratio) visible in the Summary Debug Metrics admin page.
+- Add translated clone-grade tooltip copy (`Alpha clone compatible` / `Requires Omega clone`) to the unified badge partial and locale catalogs.
+
+### Changed
+
+- Rework doctrine/fitting summary KPI cards to focus on character-level readiness in a single responsive row: remove the duplicated `Flyable now (players)` card from detail KPI cards and keep `Flyable now (characters)` ratio alongside status buckets.
+- Keep player-level flyable information in contextual headers (`X/Y members have a flyable alt`) for doctrine and fitting detail views.
+- Update Lot B analysis/checklists in `docs/_0_2_2_analysis.md` to match the implemented UI behavior.
+- Persist SDE `cloneGrades.yaml` data in database during SDE imports (same flow as `masteries.yaml` and `certificates.yaml`) through new model `SdeCloneGradeSkill`.
+- Add automatic fallback/backfill: if an instance is already on the latest SDE version but clone-grade rows are missing, command/task now run import instead of skipping.
+- Complete Lot C Alpha/Omega integration across the fitting skill editor and member-facing pilot views: compute clone-grade eligibility per skill row (`required_requires_omega`, `recommended_requires_omega`, `requires_omega`), expose plan-level Alpha compatibility KPIs, and reuse a unified clone-grade badge across editor, preview, pilot detail, and pilot index pages.
+- Show recommended-plan clone compatibility directly on pilot-facing fitting titles and only mark Omega-required target levels in missing-skill lists and gap modals.
+- Replace the pilot-index text badge (`At least one pilot can fly` / `Training required`) with the clone-grade badge to reduce visual noise in doctrine rows.
+- Redesign the Summary Debug Metrics page into a KPI-oriented layout with grouped source tabs, nested snapshot tabs, human-readable timestamps, visual `Nouveau` / `Ancien` snapshot cues, and bounded snapshot retention per source instead of a shared global cap.
+- Use compact Greek symbols (`α` / `ω`) in clone-grade badges while keeping accessible labels and translated tooltips for screen readers and hover UX.
+- Implement P3 shared inter-request progress cache: doctrine summary views now cache pilot×skillset progress results in Django's cache backend (default TTL 10 min, configurable via `MASTERY_SUMMARY_PROGRESS_CACHE_TTL`), invalidated automatically on skillset regeneration.
+
+### Fixed
+
+- Fix `VariableDoesNotExist` on the Summary Debug Metrics page when partial snapshots omit `progress_cache_misses`.
+- Fix repeated dark-mode contrast issues on Summary Debug Metrics cards, headers, and vertical navigation pills.
+- Fix clone-grade badge styling drift outside the fitting editor by making the unified badge partial carry its final Alpha/Omega colors directly.
+- Fix migration drift on `SdeCloneGradeSkill` by explicitly naming the `max_alpha_level` index to match the generated migration state.
+- Fix full-plugin regression coverage for `PilotProgressService.build_for_character(...)` request cache reuse by mocking Alpha cap loading in the service test.
+
+### i18n
+
+- Add `Flyable now (characters)` to `en` and `fr_FR` locale catalogs.
+- Add translated clone-grade tooltip strings to `en` and `fr_FR` catalogs and compile updated `django.mo` files.
+
+### Tests
+
+- Verify migration state:
+  - `DJANGO_SETTINGS_MODULE=testauth.settings_aa4.local python -m django makemigrations --check --dry-run mastery` (**No changes detected in app 'mastery'**).
+- Run focused clone-grade/service regression coverage:
+  - `python -u runtests.py mastery.tests.test_pilot_progress_service_lot3 -v 2` (**77 passed**).
+- Run focused pilot/summary/view regression suite:
+  - `python -u runtests.py mastery.tests.test_views -v 1` (**129 passed**).
+- Run full plugin suite:
+  - `python -u runtests.py mastery -v 1` (**350 passed**).
+- Run lint quality gate:
+  - `pylint --load-plugins pylint_django mastery` (**10.00/10**).
+- Build release artifacts:
+  - `flit build` (validated in the project virtualenv / WSL release environment).
+
+### Upgrade Notes
+
+- Update package:
+  - `pip install -U aa-fitting-mastery==0.2.2`
+- Apply database changes:
+  - `python manage.py migrate`
+- If your instance was already marked as up to date on SDE before this change, run one import cycle to ensure clone-grade backfill is present:
+  - `python manage.py import_sde_masteries`
+- Rebuild static assets:
+  - `python manage.py collectstatic --noinput`
+- Restart services:
+  - web service
+  - Celery worker(s)
+  - Celery beat
+
 ## [0.2.1] - 2026-04-28
 
 ### Added

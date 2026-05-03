@@ -261,6 +261,13 @@
                 <div class="small text-muted mb-1">{% translate "Required plan from 0" %}</div>
                 <div class="fw-semibold">{{ required_plan_total_sp|intcomma }} SP</div>
                 <div class="small text-muted">{% translate "Estimated training:" %} {{ required_plan_total_time }} @ {{ plan_estimate_sp_per_hour|intcomma }} SP/h</div>
+                <div class="small mt-2 d-flex flex-wrap align-items-center gap-2">
+                    <span class="text-muted">{% translate "Alpha compatibility:" %}</span>
+                    {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=required_plan_omega_skill_count %}
+                    <span class="text-muted">
+                        {{ required_plan_omega_skill_count }}/{{ required_plan_skill_count }} {% translate "skills require Omega" %}
+                    </span>
+                </div>
             </div>
         </div>
     </div>
@@ -270,7 +277,14 @@
                 <div class="small text-muted mb-1">{% translate "Recommended plan from 0" %}</div>
                 <div class="fw-semibold">{{ recommended_plan_total_sp|intcomma }} SP</div>
                 <div class="small text-muted">{% translate "Estimated training:" %} {{ recommended_plan_total_time }} @ {{ plan_estimate_sp_per_hour|intcomma }} SP/h</div>
-                <div class="mt-2">
+                <div class="small mt-2 d-flex flex-wrap align-items-center gap-2">
+                    <span class="text-muted">{% translate "Alpha compatibility:" %}</span>
+                    {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=recommended_plan_omega_skill_count %}
+                    <span class="text-muted">
+                        {{ recommended_plan_omega_skill_count }}/{{ recommended_plan_skill_count }} {% translate "skills require Omega" %}
+                    </span>
+                </div>
+                <div class="mt-2 d-flex flex-wrap align-items-center gap-2">
                     <textarea
                         id="recommended-plan-copy-source-{{ fitting.id|unlocalize }}"
                         class="d-none"
@@ -288,6 +302,15 @@
                     >
                         {% translate "Copy recommended plan" %}{% if recommended_plan_copy_line_count %} ({{ recommended_plan_copy_line_count }} {% translate "lines" %}){% endif %}
                     </button>
+                    {% if can_make_recommended_plan_alpha_compatible %}
+                    <form method="post" action="{% url 'mastery:make_recommended_plan_alpha_compatible' fitting.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{% url 'mastery:fitting_skills' fitting.id %}">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">
+                            {% translate "Make Skill Plan Alpha Compatible" %}
+                        </button>
+                    </form>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -405,7 +428,7 @@
                         </thead>
                         <tbody>
                         {% for skill in skills %}
-                        <tr class="{% if skill.is_blacklisted %}table-danger is-blacklisted-row{% elif skill.is_suggested %}table-warning{% endif %}">
+                        <tr class="{% if skill.is_blacklisted %}table-danger is-blacklisted-row{% endif %}">
                             <td>
                                 <div class="d-flex align-items-center flex-wrap gap-1 mb-1 skill-title-row">
                                     <span class="fw-semibold skill-name-text">{{ skill.skill_name }}</span>
@@ -430,8 +453,22 @@
                                     {% endif %}
                                 </div>
                             </td>
-                            <td>{{ skill.required_level|skill_render }}</td>
-                            <td>{{ skill.recommended_level|skill_render }}</td>
+                            <td>
+                                <div class="d-flex flex-wrap align-items-center gap-1">
+                                    <span>{{ skill.required_level|skill_render }}</span>
+                                    {% if skill.required_level > 0 %}
+                                    {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=skill.required_requires_omega size='sm' %}
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex flex-wrap align-items-center gap-1">
+                                    <span>{{ skill.recommended_level|skill_render }}</span>
+                                    {% if skill.recommended_level > 0 %}
+                                    {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=skill.recommended_requires_omega size='sm' %}
+                                    {% endif %}
+                                </div>
+                            </td>
                             <td class="edit-rec-col">
                                 <form method="post" action="{% url 'mastery:update_skill_recommended' fitting.id %}"
                                     class="rec-edit-form">

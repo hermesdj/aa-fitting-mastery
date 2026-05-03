@@ -12,6 +12,11 @@
             <h2 class="mb-1 d-flex align-items-center gap-2">
                 <img src="{{ fitting.ship_type_type_id|type_render_url:32 }}" class="rounded" width="32" height="32" alt="{{ fitting.ship_type.name }}">
                 <span>{{ fitting.name }}</span>
+                {% if recommended_plan_alpha_compatible %}
+                {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=False %}
+                {% else %}
+                {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True %}
+                {% endif %}
                 {% include 'mastery/partials/_priority_badge.html' with priority=fitting_priority %}
             </h2>
             <div class="text-muted d-flex align-items-center gap-2 flex-wrap">
@@ -454,6 +459,9 @@
                                 <span class="badge mastery-level-badge">{{ skill.current_level }}</span>
                                 <span class="text-muted small">→</span>
                                 <span class="badge mastery-level-badge-target">{{ skill.target_level }}</span>
+                                {% if skill.target_requires_omega %}
+                                {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True size='sm' %}
+                                {% endif %}
                                 {% if skill.missing_sp %}
                                 <span class="badge mastery-sp-chip">{{ skill.missing_sp|intcomma }} SP</span>
                                 {% endif %}
@@ -483,6 +491,9 @@
                                 <span class="badge mastery-level-badge">{{ skill.current_level }}</span>
                                 <span class="text-muted small">→</span>
                                 <span class="badge mastery-level-badge-target">{{ skill.target_level }}</span>
+                                {% if skill.target_requires_omega %}
+                                {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True size='sm' %}
+                                {% endif %}
                                 {% if skill.missing_sp %}
                                 <span class="badge mastery-sp-chip">{{ skill.missing_sp|intcomma }} SP</span>
                                 {% endif %}
@@ -501,8 +512,21 @@
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>{% blocktranslate with label=export_mode_label %}{{ label }} gap and plan export{% endblocktranslate %}</span>
+                    {% if recommended_plan_alpha_compatible %}
+                    {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=False %}
+                    {% else %}
+                    {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True %}
+                    {% endif %}
                 </div>
                 <div class="card-body">
+                    <div class="small text-muted mb-2 d-flex align-items-center gap-2 flex-wrap">
+                        <span>{% translate "Recommended plan clone requirement:" %}</span>
+                        {% if recommended_plan_omega_skill_count %}
+                        <span>{% blocktranslate with omega=recommended_plan_omega_skill_count total=recommended_plan_skill_count %}{{ omega }}/{{ total }} recommended skills require Omega{% endblocktranslate %}</span>
+                        {% else %}
+                        <span>{% translate "Recommended plan remains Alpha compatible." %}</span>
+                        {% endif %}
+                    </div>
                     <div class="small mb-2">
                         <strong>{% translate "Missing SP:" %}</strong> {% if selected_mode_stats %}{{ selected_mode_stats.total_missing_sp|intcomma }}{% else %}0{% endif %}
                         {% if selected_mode_stats and selected_mode_stats.total_missing_time is not None %}
@@ -564,6 +588,9 @@
                                             <span class="badge mastery-level-badge">{{ skill.current_level }}</span>
                                             <span class="text-muted small">→</span>
                                             <span class="badge mastery-level-badge-target">{{ skill.target_level }}</span>
+                                            {% if skill.target_requires_omega %}
+                                            {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True size='sm' %}
+                                            {% endif %}
                                         </div>
                                     </div>
                                     {% endfor %}
@@ -591,6 +618,9 @@
                                             <span class="badge mastery-level-badge">{{ skill.current_level }}</span>
                                             <span class="text-muted small">→</span>
                                             <span class="badge mastery-level-badge-target">{{ skill.target_level }}</span>
+                                            {% if skill.target_requires_omega %}
+                                            {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True size='sm' %}
+                                            {% endif %}
                                         </div>
                                     </div>
                                     {% endfor %}

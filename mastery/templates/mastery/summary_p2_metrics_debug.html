@@ -1,0 +1,378 @@
+{% extends 'mastery/base.html' %}
+{% load i18n %}
+{% load l10n %}
+
+{% block details %}
+<div class="container mt-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h2 class="mb-1">{% translate "Summary Debug Metrics" %}</h2>
+            <div class="text-muted">{% translate "KPI-first view of optimization metrics grouped by phase" %}</div>
+        </div>
+        <span class="badge bg-secondary">{% blocktranslate with count=snapshot_count %}{{ count }} snapshots{% endblocktranslate %}</span>
+    </div>
+
+    {% if snapshots %}
+    <div class="alert alert-info d-flex flex-wrap align-items-center gap-2 py-2 px-3 mb-3" role="status">
+        <span class="fw-semibold">{% translate "Reading tip:" %}</span>
+        <span>{% translate "select a snapshot in the left column; higher ms badges usually deserve first attention" %}</span>
+    </div>
+
+    <div class="row g-3 mastery-debug-snapshots">
+        <div class="col-12 col-xl-3">
+            <div class="nav nav-pills flex-xl-column mastery-debug-tabs" role="tablist" aria-orientation="vertical">
+                {% for source_group in snapshot_sources %}
+                <button
+                    class="nav-link {% if forloop.first %}active{% endif %}"
+                    id="summary-debug-source-tab-{{ forloop.counter }}"
+                    data-bs-toggle="tab"
+                    data-bs-target="#summary-debug-source-pane-{{ forloop.counter }}"
+                    type="button"
+                    role="tab"
+                    aria-controls="summary-debug-source-pane-{{ forloop.counter }}"
+                    aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                >
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <span class="fw-semibold text-start">{{ source_group.source }}</span>
+                        <span class="badge mastery-priority-badge {% if source_group.max_priority_score_ms >= 1500 %}bg-danger{% elif source_group.max_priority_score_ms >= 800 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                            {{ source_group.max_priority_score_ms|default:0 }} ms
+                        </span>
+                    </div>
+                    <div class="small text-muted text-start">
+                        {% blocktranslate with count=source_group.snapshots|length %}{{ count }} snapshots{% endblocktranslate %}
+                    </div>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-9">
+            <div class="tab-content">
+                {% for source_group in snapshot_sources %}
+                <div
+                    class="tab-pane fade {% if forloop.first %}show active{% endif %}"
+                    id="summary-debug-source-pane-{{ forloop.counter }}"
+                    role="tabpanel"
+                    aria-labelledby="summary-debug-source-tab-{{ forloop.counter }}"
+                >
+                    <div class="nav nav-pills mastery-debug-subtabs mb-3" role="tablist" aria-orientation="horizontal">
+                        {% for snapshot in source_group.snapshots %}
+                        <button
+                            class="nav-link {% if forloop.first %}active{% endif %}"
+                            id="summary-debug-subtab-{{ forloop.parentloop.counter }}-{{ forloop.counter }}"
+                            data-bs-toggle="tab"
+                            data-bs-target="#summary-debug-subpane-{{ forloop.parentloop.counter }}-{{ forloop.counter }}"
+                            type="button"
+                            role="tab"
+                            aria-controls="summary-debug-subpane-{{ forloop.parentloop.counter }}-{{ forloop.counter }}"
+                            aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                        >
+                            <span class="fw-semibold">{{ snapshot.captured_at_short }}</span>
+                            {% if forloop.first %}
+                            <span class="ms-1 badge bg-success mastery-age-badge">{% translate "Nouveau" %}</span>
+                            {% elif forloop.last and source_group.snapshots|length > 1 %}
+                            <span class="ms-1 badge bg-secondary mastery-age-badge">{% translate "Ancien" %}</span>
+                            {% endif %}
+                            <span class="ms-1 badge {% if snapshot.priority_score_ms >= 1500 %}bg-danger{% elif snapshot.priority_score_ms >= 800 %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                                {{ snapshot.priority_score_ms|default:0 }} ms
+                            </span>
+                        </button>
+                        {% endfor %}
+                    </div>
+
+                    <div class="tab-content">
+                        {% for snapshot in source_group.snapshots %}
+                        {% with p0=snapshot.metrics.p0_metrics.summary_view p2=snapshot.metrics.p2_metrics.character_skills p3=snapshot.metrics.p3_metrics.shared_progress_cache %}
+                        <div
+                            class="tab-pane fade {% if forloop.first %}show active{% endif %}"
+                            id="summary-debug-subpane-{{ forloop.parentloop.counter }}-{{ forloop.counter }}"
+                            role="tabpanel"
+                            aria-labelledby="summary-debug-subtab-{{ forloop.parentloop.counter }}-{{ forloop.counter }}"
+                        >
+        <div class="card border-0 shadow-sm">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="fw-semibold d-flex flex-wrap align-items-center gap-2">
+                    <span>{{ snapshot.source }}</span>
+                    <span class="badge text-bg-light border">#{{ forloop.counter }}</span>
+                </div>
+                <code class="small" data-bs-tooltip="aa-mastery" data-bs-title="{{ snapshot.captured_at }}">{{ snapshot.captured_at_human }}</code>
+            </div>
+            <div class="card-body d-flex flex-column gap-4">
+                <div class="row g-2">
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="mastery-debug-kpi p-2 rounded border h-100">
+                            <div class="small text-muted">{% translate "View total" %}</div>
+                            <div class="fw-semibold">{{ p0.view_total_ms|default:0 }} ms</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="mastery-debug-kpi p-2 rounded border h-100">
+                            <div class="small text-muted">{% translate "SQL queries" %}</div>
+                            <div class="fw-semibold">{{ p0.sql_query_count|default:0 }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="mastery-debug-kpi p-2 rounded border h-100">
+                            <div class="small text-muted">{% translate "Progress calls" %}</div>
+                            <div class="fw-semibold">{{ p0.progress_calls|default:0 }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="mastery-debug-kpi p-2 rounded border h-100">
+                            <div class="small text-muted">{% translate "P0 hit ratio" %}</div>
+                            <div class="fw-semibold">
+                                {% with p0_hits=p0.progress_cache_hits|default:0 p0_misses=p0.progress_cache_misses|default:0 %}
+                                {% with total=p0_hits|add:p0_misses %}
+                                {% if total %}
+                                    {% widthratio p0_hits total 100 %}%
+                                {% else %}
+                                    —
+                                {% endif %}
+                                {% endwith %}
+                                {% endwith %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="mastery-debug-kpi p-2 rounded border h-100">
+                            <div class="small text-muted">{% translate "P2 rows loaded" %}</div>
+                            <div class="fw-semibold">{{ p2.prime_rows_loaded|default:0 }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4 col-xl-2">
+                        <div class="mastery-debug-kpi p-2 rounded border h-100">
+                            <div class="small text-muted">{% translate "P3 hit ratio" %}</div>
+                            <div class="fw-semibold">
+                                {% with p3_hits=p3.cache_hits|default:0 p3_misses=p3.cache_misses|default:0 %}
+                                {% with total=p3_hits|add:p3_misses %}
+                                {% if total %}
+                                    {% widthratio p3_hits total 100 %}%
+                                {% else %}
+                                    —
+                                {% endif %}
+                                {% endwith %}
+                                {% endwith %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-12 col-xl-4">
+                        <div class="card h-100 border-0 mastery-debug-phase-card">
+                            <div class="card-header py-2 fw-semibold">{% translate "Phase P0 - Baseline" %}</div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm align-middle mb-0">
+                                    <tbody>
+                                    <tr><th class="w-50">{% translate "View total (ms)" %}</th><td class="text-end">{{ p0.view_total_ms|default:0 }}</td></tr>
+                                    <tr><th>{% translate "SQL queries" %}</th><td class="text-end">{{ p0.sql_query_count|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Progress calls" %}</th><td class="text-end">{{ p0.progress_calls|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Progress cache hits" %}</th><td class="text-end">{{ p0.progress_cache_hits|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Progress cache misses" %}</th><td class="text-end">{{ p0.progress_cache_misses|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Progress cache entries" %}</th><td class="text-end">{{ p0.progress_cache_entries|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Member groups" %}</th><td class="text-end">{{ p0.member_groups|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Active characters" %}</th><td class="text-end">{{ p0.active_characters_total|default:0 }}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-4">
+                        <div class="card h-100 border-0 mastery-debug-phase-card">
+                            <div class="card-header py-2 fw-semibold">{% translate "Phase P2 - Character skills batching" %}</div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm align-middle mb-0">
+                                    <tbody>
+                                    <tr><th class="w-50">{% translate "Prime calls" %}</th><td class="text-end">{{ p2.prime_calls|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Prime character ids" %}</th><td class="text-end">{{ p2.prime_character_ids_total|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Prime already cached" %}</th><td class="text-end">{{ p2.prime_already_cached|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Prime uncached" %}</th><td class="text-end">{{ p2.prime_uncached|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Rows loaded" %}</th><td class="text-end">{{ p2.prime_rows_loaded|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Cache hits" %}</th><td class="text-end">{{ p2.cache_hits|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Cache misses" %}</th><td class="text-end">{{ p2.cache_misses|default:0 }}</td></tr>
+                                    <tr><th>{% translate "DB loads" %}</th><td class="text-end">{{ p2.db_loads|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Skills loaded" %}</th><td class="text-end">{{ p2.skills_loaded|default:0 }}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-xl-4">
+                        <div class="card h-100 border-0 mastery-debug-phase-card">
+                            <div class="card-header py-2 fw-semibold">{% translate "Phase P3 - Shared progress cache" %}</div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm align-middle mb-0">
+                                    <tbody>
+                                    <tr><th class="w-50">{% translate "Cache hits" %}</th><td class="text-end">{{ p3.cache_hits|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Cache misses" %}</th><td class="text-end">{{ p3.cache_misses|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Cache writes" %}</th><td class="text-end">{{ p3.cache_writes|default:0 }}</td></tr>
+                                    <tr><th>{% translate "Stale fallbacks" %}</th><td class="text-end">{{ p3.stale_fallbacks|default:0 }}</td></tr>
+                                    <tr>
+                                        <th>{% translate "Hit ratio" %}</th>
+                                        <td class="text-end">
+                                            {% with p3_hits=p3.cache_hits|default:0 p3_misses=p3.cache_misses|default:0 %}
+                                            {% with total=p3_hits|add:p3_misses %}
+                                            {% if total %}
+                                                {% widthratio p3_hits total 100 %}%
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                            {% endwith %}
+                                            {% endwith %}
+                                        </td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+                        </div>
+                        {% endwith %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info mb-0">
+        {% translate "No summary debug metrics captured yet. Visit summary pages to generate snapshots." %}
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .mastery-debug-tabs {
+        gap: 0.5rem;
+    }
+
+    .mastery-debug-tabs .nav-link {
+        text-align: left;
+        border: 1px solid var(--bs-border-color, #dee2e6);
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+    }
+
+    .mastery-debug-tabs .nav-link.active {
+        background: var(--bs-tertiary-bg, #f1f3f5);
+        color: var(--bs-emphasis-color, var(--bs-body-color));
+        border-color: var(--bs-border-color, #dee2e6);
+    }
+
+    .mastery-debug-tabs .nav-link .text-muted {
+        color: var(--bs-secondary-color) !important;
+    }
+
+    .mastery-debug-subtabs {
+        gap: 0.5rem;
+    }
+
+    .mastery-age-badge {
+        vertical-align: middle;
+    }
+
+    .mastery-debug-subtabs .nav-link {
+        border: 1px solid var(--bs-border-color, #dee2e6);
+        background: var(--bs-body-bg);
+        color: var(--bs-body-color);
+    }
+
+    .mastery-debug-subtabs .nav-link.active {
+        background: var(--bs-tertiary-bg, #f1f3f5);
+        color: var(--bs-emphasis-color, var(--bs-body-color));
+        border-color: var(--bs-border-color, #dee2e6);
+    }
+
+    html[data-bs-theme="dark"] .mastery-debug-tabs .nav-link,
+    body[data-bs-theme="dark"] .mastery-debug-tabs .nav-link,
+    html[data-theme*="dark"] .mastery-debug-tabs .nav-link,
+    body[data-theme*="dark"] .mastery-debug-tabs .nav-link {
+        background: #212529;
+        color: #e9ecef;
+        border-color: #495057;
+    }
+
+    html[data-bs-theme="dark"] .mastery-debug-tabs .nav-link.active,
+    body[data-bs-theme="dark"] .mastery-debug-tabs .nav-link.active,
+    html[data-theme*="dark"] .mastery-debug-tabs .nav-link.active,
+    body[data-theme*="dark"] .mastery-debug-tabs .nav-link.active {
+        background: #343a40 !important;
+        color: #f8f9fa !important;
+        border-color: #6c757d !important;
+    }
+
+    html[data-bs-theme="dark"] .mastery-debug-tabs .nav-link.active .text-muted,
+    body[data-bs-theme="dark"] .mastery-debug-tabs .nav-link.active .text-muted,
+    html[data-theme*="dark"] .mastery-debug-tabs .nav-link.active .text-muted,
+    body[data-theme*="dark"] .mastery-debug-tabs .nav-link.active .text-muted {
+        color: #ced4da !important;
+    }
+
+    html[data-bs-theme="dark"] .mastery-debug-subtabs .nav-link,
+    body[data-bs-theme="dark"] .mastery-debug-subtabs .nav-link,
+    html[data-theme*="dark"] .mastery-debug-subtabs .nav-link,
+    body[data-theme*="dark"] .mastery-debug-subtabs .nav-link {
+        background: #212529;
+        color: #e9ecef;
+        border-color: #495057;
+    }
+
+    html[data-bs-theme="dark"] .mastery-debug-subtabs .nav-link.active,
+    body[data-bs-theme="dark"] .mastery-debug-subtabs .nav-link.active,
+    html[data-theme*="dark"] .mastery-debug-subtabs .nav-link.active,
+    body[data-theme*="dark"] .mastery-debug-subtabs .nav-link.active {
+        background: #343a40 !important;
+        color: #f8f9fa !important;
+        border-color: #6c757d !important;
+    }
+
+    .mastery-debug-snapshots .mastery-debug-kpi {
+        background: var(--bs-body-bg);
+        border-color: var(--bs-border-color) !important;
+    }
+
+    .mastery-debug-snapshots .mastery-debug-phase-card .card-header {
+        background: var(--bs-tertiary-bg, #f1f3f5);
+        border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+        color: var(--bs-emphasis-color, var(--bs-body-color));
+    }
+
+    html[data-bs-theme="dark"] .mastery-debug-snapshots .mastery-debug-phase-card .card-header,
+    body[data-bs-theme="dark"] .mastery-debug-snapshots .mastery-debug-phase-card .card-header,
+    html[data-theme*="dark"] .mastery-debug-snapshots .mastery-debug-phase-card .card-header,
+    body[data-theme*="dark"] .mastery-debug-snapshots .mastery-debug-phase-card .card-header {
+        background: #343a40;
+        color: #e9ecef;
+        border-bottom-color: #495057;
+    }
+
+    .mastery-debug-snapshots .table > tbody > tr > th {
+        font-weight: 500;
+        color: var(--bs-secondary-color);
+    }
+
+    .mastery-debug-snapshots .table > tbody > tr > td {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+    }
+
+    @media (max-width: 1199.98px) {
+        .mastery-debug-tabs {
+            flex-direction: row !important;
+            overflow-x: auto;
+            padding-bottom: 0.25rem;
+        }
+
+        .mastery-debug-tabs .nav-link {
+            min-width: 260px;
+            white-space: normal;
+        }
+    }
+</style>
+{% endblock %}

@@ -461,6 +461,43 @@ class TestBuildSkillProgressRows(SimpleTestCase):
         self.assertEqual(result["missing_required"], [])
         self.assertEqual(len(result["missing_recommended"]), 1)
 
+    def test_marks_missing_target_as_omega_when_above_alpha_cap(self):
+        svc = self._svc()
+        skill = _make_skill(10, "Shield Operation", required_level=2, recommended_level=5)
+        result = svc._build_skill_progress_rows(
+            [skill],
+            {},
+            {10: {"rank": 1, "primary_attribute": None, "secondary_attribute": None}},
+            alpha_caps={10: 4},
+        )
+        self.assertFalse(result["missing_required"][0]["target_requires_omega"])
+        self.assertTrue(result["missing_recommended"][0]["target_requires_omega"])
+
+
+class TestSummarizePlanCloneRequirements(SimpleTestCase):
+    def test_counts_recommended_omega_requirements(self):
+        clone_service = MagicMock()
+        clone_service.get_alpha_caps.return_value = {10: 5, 20: 3}
+        svc = PilotProgressService(clone_grade_service=clone_service)
+        skillset = SimpleNamespace(
+            id=42,
+            skills=SimpleNamespace(
+                select_related=lambda *_args, **_kwargs: SimpleNamespace(
+                    all=lambda: [
+                        _make_skill(10, "Alpha Friendly", recommended_level=4),
+                        _make_skill(20, "Omega Needed", recommended_level=5),
+                        _make_skill(30, "No Recommended", recommended_level=0),
+                    ]
+                )
+            ),
+        )
+
+        result = svc.summarize_plan_clone_requirements(skillset)
+
+        self.assertEqual(result["recommended_plan_skill_count"], 2)
+        self.assertEqual(result["recommended_plan_omega_skill_count"], 1)
+        self.assertFalse(result["recommended_plan_alpha_compatible"])
+
 
 # ---------------------------------------------------------------------------
 # large_skill_injector_gain

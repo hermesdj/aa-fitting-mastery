@@ -24,6 +24,7 @@
             <div class="text-muted d-flex align-items-center gap-2 flex-wrap">
                 <span>{{ fitting.ship_type.name }}{% if doctrine %} · {% translate "Doctrine" %}: {{ doctrine.name }}{% endif %}</span>
                 {% if doctrine %}{% include 'mastery/partials/_priority_badge.html' with priority=doctrine_priority %}{% endif %}
+                <span>· {% blocktranslate with flyable=fitting_kpis.flyable_now_users total=fitting_kpis.users_total %}{{ flyable }}/{{ total }} members have a flyable alt{% endblocktranslate %}</span>
             </div>
         </div>
         <div class="d-flex gap-2 flex-wrap">

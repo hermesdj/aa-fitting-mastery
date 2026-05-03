@@ -27,6 +27,12 @@ MASTERY_STATUS_ALMOST_FIT_REQUIRED_PCT = clean_setting(
 MASTERY_DEFAULT_SKILLS = clean_setting("MASTERY_DEFAULT_SKILLS", [])
 """Optional list of globally injected default skills for all generated skill plans."""
 
+MASTERY_SUMMARY_PROGRESS_CACHE_TTL = clean_setting(
+    "MASTERY_SUMMARY_PROGRESS_CACHE_TTL", 600, min_value=0
+)
+"""TTL in seconds for the P3 shared progress cache (character × skillset).
+Set to 0 to disable inter-request caching entirely (useful for development)."""
+
 def securegroups_installed() -> bool:
     """Return True when allianceauth-secure-groups is installed."""
     return apps.is_installed("securegroups")

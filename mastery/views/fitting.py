@@ -62,6 +62,28 @@ def _regenerate_fitting_plan(doctrine_map, fitting, user):
     )
 
 
+def _alpha_conversion_adjustments(skill_rows: list[dict]) -> tuple[bool, list[tuple[int, int]]]:
+    """Return convertibility and per-skill target levels for Alpha conversion."""
+    adjustments: list[tuple[int, int]] = []
+    for row in skill_rows:
+        if row.get("is_blacklisted"):
+            continue
+
+        if bool(row.get("required_requires_omega")):
+            return False, []
+
+        skill_type_id = int(row.get("skill_type_id", 0) or 0)
+        recommended_level = int(row.get("recommended_level", 0) or 0)
+        max_alpha_level = int(row.get("max_alpha_level", 0) or 0)
+        if skill_type_id <= 0:
+            continue
+
+        if recommended_level > max_alpha_level:
+            adjustments.append((skill_type_id, max_alpha_level))
+
+    return True, adjustments
+
+
 def _require_post_and_resolve(
     request,
     fitting_id: int,
@@ -511,6 +533,43 @@ def apply_skill_suggestion_view(request, fitting_id):
         doctrine_map=doctrine_map,
         message=message,
         message_level=message_level,
+    )
+
+
+@login_required
+@permissions_required('mastery.manage_fittings')
+def make_recommended_plan_alpha_compatible_view(request, fitting_id):
+    """Clamp recommended levels to Alpha caps when the required plan allows it."""
+    resolved, error_response = _require_post_and_resolve(request, fitting_id)
+    if error_response:
+        return error_response
+    fitting, doctrine, doctrine_map, _unused = resolved
+
+    preview = doctrine_skill_service.preview_fitting(doctrine_map=doctrine_map, fitting=fitting)
+    is_convertible, adjustments = _alpha_conversion_adjustments(preview["skills"])
+    if not is_convertible:
+        return _bad_request_response(
+            request,
+            _("Recommended plan cannot be made Alpha compatible because at least one required skill needs Omega"),
+        )
+
+    if not adjustments:
+        return _bad_request_response(request, _("Recommended plan is already Alpha compatible"))
+
+    for skill_type_id, alpha_level in adjustments:
+        control_service.set_recommended_level(
+            fitting_id=fitting_id,
+            skill_type_id=skill_type_id,
+            level=alpha_level,
+        )
+
+    _regenerate_fitting_plan(doctrine_map, fitting, request.user)
+    return _finalize_fitting_skills_action(
+        request,
+        fitting=fitting,
+        doctrine=doctrine,
+        doctrine_map=doctrine_map,
+        message=_("Recommended plan converted to Alpha compatibility"),
     )
 
 

@@ -9,6 +9,19 @@
         · {% translate "Saved fitting override:" %} {{ fitting_mastery_override }}
         {% endif %}
     </div>
+    <div class="small text-muted mt-1 d-flex align-items-center gap-2 flex-wrap">
+        <span>{% translate "Recommended plan clone requirement:" %}</span>
+        {% if recommended_plan_alpha_compatible %}
+        {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=False %}
+        {% else %}
+        {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True %}
+        {% endif %}
+        {% if recommended_plan_omega_skill_count %}
+        <span>{% blocktranslate with omega=recommended_plan_omega_skill_count total=recommended_plan_skill_count %}{{ omega }}/{{ total }} recommended skills require Omega{% endblocktranslate %}</span>
+        {% else %}
+        <span>{% translate "Recommended plan remains Alpha compatible." %}</span>
+        {% endif %}
+    </div>
 </div>
 
 {% for group, payload in grouped_skills.items %}

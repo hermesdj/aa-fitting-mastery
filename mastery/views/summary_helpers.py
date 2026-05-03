@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from fittings.models import Doctrine, Fitting
-from memberaudit.models import Character
+from memberaudit.models import Character, CharacterSkill
 
 from mastery.models import DoctrineSkillSetGroupMap, FittingSkillsetMap, SummaryAudienceEntity, SummaryAudienceGroup
 from mastery.services.pilots.status_buckets import (
@@ -23,6 +23,8 @@ from mastery.services.pilots.status_buckets import (
     BUCKET_RANK,
     bucket_for_progress,
 )
+
+from mastery.services import summary_cache
 
 from .deps import pilot_access_service, pilot_progress_service
 
@@ -46,8 +48,9 @@ def _approved_fitting_maps() -> dict:
     """Return fitting-id keyed maps restricted to approved skill plans."""
     return {
         obj.fitting_id: obj
-        for obj in FittingSkillsetMap.objects.select_related("skillset", "doctrine_map").all()
-        if _is_approved_fitting_map(obj)
+        for obj in FittingSkillsetMap.objects.filter(
+            status=FittingSkillsetMap.ApprovalStatus.APPROVED,
+        ).select_related("skillset", "doctrine_map")
     }
 
 
@@ -83,23 +86,42 @@ def _summary_group_entry_ids(summary_group) -> tuple[list[int], list[int]]:
     return corp_ids, alliance_ids
 
 
-def _summary_group_users(summary_group):
-    """Return users eligible for a summary group via any owned character match."""
+def _summary_group_character_filters(summary_group) -> Q | None:
+    """Build character-level scope for a summary audience group."""
     corp_ids, alliance_ids = _summary_group_entry_ids(summary_group)
     if not corp_ids and not alliance_ids:
-        return User.objects.none()
+        return None
 
     character_filters = Q()
     if corp_ids:
         character_filters |= Q(eve_character__corporation_id__in=corp_ids)
     if alliance_ids:
         character_filters |= Q(eve_character__alliance_id__in=alliance_ids)
+    return character_filters
+
+
+def _summary_group_characters_queryset(summary_group, users=None):
+    """Return in-scope characters, optionally restricted to a user queryset."""
+    character_filters = _summary_group_character_filters(summary_group)
+    if character_filters is None:
+        return Character.objects.none()
+
+    queryset = Character.objects.filter(
+        character_filters,
+        eve_character__character_ownership__user_id__isnull=False,
+    )
+    if users is not None:
+        queryset = queryset.filter(eve_character__character_ownership__user__in=users)
+    return queryset
+
+
+def _summary_group_users(summary_group):
+    """Return users eligible for a summary group via any owned character match."""
+    if _summary_group_character_filters(summary_group) is None:
+        return User.objects.none()
 
     eligible_user_ids = (
-        Character.objects.filter(
-            character_filters,
-            eve_character__character_ownership__user_id__isnull=False,
-        )
+        _summary_group_characters_queryset(summary_group)
         .values_list("eve_character__character_ownership__user_id", flat=True)
         .distinct()
     )
@@ -140,6 +162,50 @@ def _is_character_active(character, cutoff: datetime | None, include_inactive: b
     return last_seen is not None and last_seen >= cutoff
 
 
+def _resolve_main_activity_characters(eligible_user_ids: set[int], groups: dict) -> dict[int, Character]:
+    """Resolve Character rows for each user's configured main character."""
+    main_character_ids = {
+        getattr(group.get("main_character"), "id", None)
+        for group in groups.values()
+        if group.get("main_character") is not None
+    }
+    main_character_ids.discard(None)
+    if not main_character_ids or not eligible_user_ids:
+        return {}
+
+    main_activity_map: dict[int, Character] = {}
+    main_activity_chars = Character.objects.filter(
+        eve_character_id__in=main_character_ids,
+        eve_character__character_ownership__user_id__in=eligible_user_ids,
+    ).select_related("eve_character__character_ownership__user", "online_status")
+
+    for character in main_activity_chars:
+        ownership = getattr(character.eve_character, "character_ownership", None)
+        owner = None if ownership is None else ownership.user
+        if owner is None:
+            continue
+        main_activity_map[owner.id] = character
+
+    return main_activity_map
+
+
+def _is_summary_member_active(
+    group: dict, cutoff: datetime | None, include_inactive: bool
+) -> tuple[bool, datetime | None]:
+    """Evaluate activity by main character, fallback to the most recently seen in-scope character."""
+    if include_inactive or cutoff is None:
+        return True, group.get("last_seen")
+
+    reference_character = group.get("main_activity_character") or group.get("fallback_activity_character")
+    if reference_character is None:
+        return False, group.get("last_seen")
+
+    return (
+        _is_character_active(reference_character, cutoff=cutoff, include_inactive=include_inactive),
+        _character_last_seen(reference_character),
+    )
+
+
 def _get_pilot_detail_characters(
     user,
     summary_group=None,
@@ -148,16 +214,15 @@ def _get_pilot_detail_characters(
 ):
     # Elevated cross-account access is only allowed within an explicit summary group scope.
     if user.has_perm("mastery.doctrine_summary") and summary_group is not None:
-        eligible_users = _summary_group_users(summary_group)
-        characters = Character.objects.filter(
-            eve_character__character_ownership__user__in=eligible_users,
-        ).select_related("eve_character", "online_status").order_by("eve_character__character_name")
-        cutoff = None if activity_days is None else timezone.now() - timedelta(days=activity_days)
-        return [
-            character
-            for character in characters
-            if _is_character_active(character, cutoff=cutoff, include_inactive=include_inactive)
-        ]
+        member_groups = _build_member_groups_for_summary(
+            summary_group=summary_group,
+            activity_days=activity_days or 14,
+            include_inactive=include_inactive,
+        )
+        return sorted(
+            [character for group in member_groups for character in group["characters"]],
+            key=lambda character: ((getattr(character.eve_character, "character_name", "") or "").lower()),
+        )
 
     return _get_member_characters(user)
 
@@ -232,18 +297,18 @@ def _build_member_groups_for_summary(summary_group, activity_days: int, include_
         return []
 
     eligible_users = _summary_group_users(summary_group)
-    if not eligible_users.exists():
-        return []
 
     cutoff = timezone.now() - timedelta(days=activity_days)
     groups = {}
 
-    characters = Character.objects.filter(
-        eve_character__character_ownership__user__in=eligible_users,
+    characters = _summary_group_characters_queryset(
+        summary_group=summary_group,
+        users=eligible_users,
     ).select_related(
+        "eve_character",
         "eve_character__character_ownership__user__profile__main_character",
         "online_status",
-    )
+    ).order_by("eve_character__character_name")
 
     for character in characters:
         ownership = getattr(character.eve_character, "character_ownership", None)
@@ -252,8 +317,6 @@ def _build_member_groups_for_summary(summary_group, activity_days: int, include_
             continue
 
         last_seen = _character_last_seen(character)
-        is_active = _is_character_active(character, cutoff=cutoff, include_inactive=include_inactive)
-
         group = groups.setdefault(
             owner.id,
             {
@@ -263,17 +326,37 @@ def _build_member_groups_for_summary(summary_group, activity_days: int, include_
                 "active_count": 0,
                 "total_count": 0,
                 "last_seen": None,
+                "fallback_activity_character": None,
+                "main_activity_character": None,
             },
         )
         group["total_count"] += 1
+        group["characters"].append(character)
         if last_seen and (group["last_seen"] is None or last_seen > group["last_seen"]):
             group["last_seen"] = last_seen
+            group["fallback_activity_character"] = character
 
-        if is_active:
-            group["characters"].append(character)
-            group["active_count"] += 1
+    main_activity_map: dict[int, Character] = {}
+    if not include_inactive and groups:
+        eligible_user_ids = {group["user"].id for group in groups.values()}
+        main_activity_map = _resolve_main_activity_characters(
+            eligible_user_ids=eligible_user_ids,
+            groups=groups,
+        )
+    results = []
+    for group in groups.values():
+        group["main_activity_character"] = main_activity_map.get(group["user"].id)
+        is_member_active, activity_last_seen = _is_summary_member_active(
+            group=group,
+            cutoff=cutoff,
+            include_inactive=include_inactive,
+        )
+        if not is_member_active:
+            continue
+        group["active_count"] = len(group["characters"])
+        group["last_seen"] = activity_last_seen or group["last_seen"]
+        results.append(group)
 
-    results = [obj for obj in groups.values() if obj["characters"]]
     return sorted(
         results,
         key=lambda x: (
@@ -318,14 +401,157 @@ def _summary_entity_catalog() -> tuple[list[dict], list[dict]]:
 
 def _progress_for_character(skillset, character, progress_cache: dict, progress_context: dict | None = None):
     cache_key = (skillset.id, character.id)
+    p0_metrics = _summary_phase_metrics_bucket(
+        cache_context=progress_context,
+        phase_name="p0_metrics",
+        metric_name="summary_view",
+        defaults={
+            "progress_calls": 0,
+            "progress_cache_hits": 0,
+            "progress_cache_misses": 0,
+        },
+    )
+    p3_metrics = _summary_p3_progress_cache_metrics(progress_context)
+
+    if p0_metrics is not None:
+        p0_metrics["progress_calls"] += 1
+
     if cache_key not in progress_cache:
-        progress_cache[cache_key] = pilot_progress_service.build_for_character(
-            character=character,
-            skillset=skillset,
-            include_export_lines=False,
-            cache_context=progress_context,
+        if p0_metrics is not None:
+            p0_metrics["progress_cache_misses"] += 1
+
+        # P3 – try the shared inter-request Django cache before recomputing.
+        version_context = (
+            progress_context.setdefault("p3_skillset_versions", {})
+            if progress_context is not None
+            else None
         )
+        cached_progress, django_cache_key = summary_cache.get_cached_progress(
+            character_id=character.id,
+            skillset_id=skillset.id,
+            version_context=version_context,
+        )
+
+        if cached_progress is not None:
+            if p3_metrics is not None:
+                p3_metrics["cache_hits"] += 1
+            progress_cache[cache_key] = cached_progress
+        else:
+            if p3_metrics is not None:
+                p3_metrics["cache_misses"] += 1
+            computed = pilot_progress_service.build_for_character(
+                character=character,
+                skillset=skillset,
+                include_export_lines=False,
+                cache_context=progress_context,
+            )
+            progress_cache[cache_key] = computed
+            summary_cache.set_cached_progress(django_cache_key, computed)
+            if p3_metrics is not None:
+                p3_metrics["cache_writes"] += 1
+
+    elif p0_metrics is not None:
+        p0_metrics["progress_cache_hits"] += 1
     return progress_cache[cache_key]
+
+
+def _summary_phase_metrics_bucket(
+    cache_context: dict | None,
+    phase_name: str,
+    metric_name: str,
+    defaults: dict,
+) -> dict | None:
+    """Return a request-scoped metrics bucket for a given optimization phase."""
+    if cache_context is None:
+        return None
+
+    phase_bucket = cache_context.setdefault(phase_name, {})
+    metrics_bucket = phase_bucket.setdefault(metric_name, {})
+    for key, value in defaults.items():
+        metrics_bucket.setdefault(key, value)
+    return metrics_bucket
+
+
+def _summary_p2_character_skills_metrics(cache_context: dict | None) -> dict | None:
+    """Return request-scoped instrumentation bucket for P2 character-skill batching."""
+    return _summary_phase_metrics_bucket(
+        cache_context=cache_context,
+        phase_name="p2_metrics",
+        metric_name="character_skills",
+        defaults={
+            "prime_calls": 0,
+            "prime_character_ids_total": 0,
+            "prime_already_cached": 0,
+            "prime_uncached": 0,
+            "prime_rows_loaded": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "db_loads": 0,
+            "skills_loaded": 0,
+        },
+    )
+
+
+def _summary_p3_progress_cache_metrics(cache_context: dict | None) -> dict | None:
+    """Return request-scoped instrumentation bucket for P3 shared progress cache."""
+    return _summary_phase_metrics_bucket(
+        cache_context=cache_context,
+        phase_name="p3_metrics",
+        metric_name="shared_progress_cache",
+        defaults={
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "cache_writes": 0,
+            "stale_fallbacks": 0,
+        },
+    )
+
+
+def _prime_summary_character_skills_cache_context(member_groups: list, cache_context: dict | None = None) -> None:
+    """Preload character skills for in-scope members into request cache context."""
+    if cache_context is None:
+        return
+
+    metrics = _summary_p2_character_skills_metrics(cache_context)
+    if metrics is not None:
+        metrics["prime_calls"] += 1
+
+    character_skill_bucket = cache_context.setdefault("character_skills", {})
+
+    character_ids = {
+        character.id
+        for group in member_groups
+        for character in group.get("characters", [])
+        if getattr(character, "id", None) is not None
+    }
+    if metrics is not None:
+        metrics["prime_character_ids_total"] += len(character_ids)
+    if not character_ids:
+        return
+
+    uncached_character_ids = [
+        character_id
+        for character_id in character_ids
+        if character_id not in character_skill_bucket
+    ]
+    if metrics is not None:
+        metrics["prime_uncached"] += len(uncached_character_ids)
+        metrics["prime_already_cached"] += len(character_ids) - len(uncached_character_ids)
+    if not uncached_character_ids:
+        return
+
+    preloaded_skill_map = {
+        character_id: {}
+        for character_id in uncached_character_ids
+    }
+    for skill in CharacterSkill.objects.filter(
+        character_id__in=uncached_character_ids,
+    ).select_related("eve_type"):
+        preloaded_skill_map[skill.character_id][skill.eve_type_id] = skill
+        if metrics is not None:
+            metrics["prime_rows_loaded"] += 1
+
+    character_skill_bucket.update(preloaded_skill_map)
 
 
 def _build_fitting_user_rows(
@@ -391,6 +617,7 @@ def _char_status_bucket(progress: dict) -> str:
 
 def _build_fitting_kpis(user_rows: list) -> dict:
     users_total = len(user_rows)
+    characters_total = 0
     flyable_now_users = 0
     flyable_now_characters = 0
     recommended_ready = 0
@@ -404,6 +631,7 @@ def _build_fitting_kpis(user_rows: list) -> dict:
     for row in user_rows:
         best_progress = row["best_progress"]
         can_fly = bool(best_progress.get("can_fly"))
+        characters_total += len(row.get("character_rows", []))
 
         flyable_now_characters += sum(
             1 for pilot in row.get("character_rows", []) if pilot["progress"].get("can_fly")
@@ -435,6 +663,7 @@ def _build_fitting_kpis(user_rows: list) -> dict:
 
     return {
         "users_total": users_total,
+        "characters_total": characters_total,
         "flyable_now_users": flyable_now_users,
         "flyable_now_characters": flyable_now_characters,
         "recommended_ready": recommended_ready,
@@ -501,10 +730,18 @@ def _build_doctrine_kpis(fittings: list, users_tracked: int) -> dict:
     users_total = users_tracked
     recommended_avg = round((recommended_sum / users_total), 1) if users_total else 0.0
 
+    flyable_now_characters = (
+        bucket_counts[BUCKET_ELITE]
+        + bucket_counts[BUCKET_ALMOST_ELITE]
+        + bucket_counts[BUCKET_CAN_FLY]
+    )
+    characters_total = sum(bucket_counts.values())
+
     return {
         "users_total": users_total,
+        "characters_total": characters_total,
         "flyable_now_users": flyable_now_users,
-        "flyable_now_characters": sum(bucket_counts.values()),
+        "flyable_now_characters": flyable_now_characters,
         "recommended_ready": recommended_ready,
         "elite_characters": bucket_counts[BUCKET_ELITE],
         "almost_elite_characters": bucket_counts[BUCKET_ALMOST_ELITE],
@@ -612,6 +849,8 @@ def _build_doctrine_summary(
             progress_cache=progress_cache,
             progress_context=progress_context,
         )
+        user_rows = _annotate_member_detail_pilots(user_rows)
+
         for row in user_rows:
             if row["flyable_count"] > 0:
                 users_with_any_flyable.add(row["user"].id)

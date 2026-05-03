@@ -34,6 +34,11 @@
         {% translate 'Manage Skill Plans' %}
     </a>
 </li>
+<li class="nav-item">
+    <a class="nav-link {% navactive request 'mastery:summary_p2_metrics_debug' %}" href="{% url 'mastery:summary_p2_metrics_debug' %}">
+        {% translate 'Summary Debug Metrics' %}
+    </a>
+</li>
 {% endif %}
 {% endblock header_nav_collapse_left %}
 
@@ -63,6 +68,36 @@ This block is left empty intentionally to disable defaults.
         border-bottom: 2px solid var(--bs-border-color, #dee2e6);
         font-weight: 600;
         padding: 0.75rem;
+    }
+
+    .mastery-page .mastery-clone-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        min-width: 1.9rem;
+        line-height: 1;
+        font-weight: 600;
+        background-color: var(--mastery-clone-badge-bg, #dbeafe) !important;
+        color: var(--mastery-clone-badge-color, #1e3a8a) !important;
+        border: 1px solid var(--mastery-clone-badge-border, #93c5fd) !important;
+    }
+
+    .mastery-page .mastery-clone-badge-sm {
+        font-size: 0.68rem;
+        padding: 0.22rem 0.4rem;
+    }
+
+    .mastery-page .mastery-clone-badge-alpha {
+        --mastery-clone-badge-bg: #dbeafe;
+        --mastery-clone-badge-color: #1e3a8a;
+        --mastery-clone-badge-border: #93c5fd;
+    }
+
+    .mastery-page .mastery-clone-badge-omega {
+        --mastery-clone-badge-bg: #fff3cd;
+        --mastery-clone-badge-color: #7a4b00;
+        --mastery-clone-badge-border: #f1c75b;
     }
 
     html[data-bs-theme="dark"] .mastery-page .card.border-0.shadow-sm,

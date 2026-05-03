@@ -6,8 +6,9 @@ from memberaudit.models import CharacterSkillSetCheck, SkillSetSkill
 
 from mastery import app_settings
 from mastery.models import DoctrineSkillSetGroupMap
+from mastery.services import summary_cache
 from mastery.services.fittings import FittingApprovalService, FittingSkillExtractor, FittingMapService
-from mastery.services.sde import MasteryService
+from mastery.services.sde import CloneGradeService, MasteryService, NullCloneGradeService
 from mastery.services.skill_requirements import merge_skill_maps, normalize_default_skill_map
 from mastery.services.skills import SkillControlService, SkillSuggestionService
 
@@ -23,6 +24,7 @@ class DoctrineSkillService:
             suggestion_service: SkillSuggestionService,
             fitting_map_service: FittingMapService,
             approval_service: FittingApprovalService = None,
+            clone_grade_service: CloneGradeService | NullCloneGradeService = None,
     ):
         """Inject collaborating services used to compute and persist skill plans."""
         self._extractor = extractor
@@ -31,6 +33,7 @@ class DoctrineSkillService:
         self._suggestion_service = suggestion_service
         self._fitting_map_service = fitting_map_service
         self._approval_service = approval_service or FittingApprovalService()
+        self._clone_grade_service = clone_grade_service or NullCloneGradeService()
 
     @staticmethod
     def _resolve_effective_mastery_level(doctrine_map, fitting_map, mastery_level: int = None) -> int:
@@ -67,6 +70,7 @@ class DoctrineSkillService:
             fitting, recommended_skills, fitting_required_skills=min_skills
         )
         all_skill_ids = sorted(set(min_skills) | set(recommended_skills) | set(controls_map))
+        alpha_caps = self._clone_grade_service.get_alpha_caps(all_skill_ids)
 
         skill_rows = []
         pending_suggestions = {}
@@ -81,6 +85,10 @@ class DoctrineSkillService:
                 recommended_level = int(recommended_override)
             recommended_level = max(recommended_level, required_level)
             is_blacklisted = skill_id in blacklisted
+            # cloneGrades is authoritative: missing skill means Omega-only (alpha cap = 0)
+            alpha_cap_level = int(alpha_caps.get(skill_id, 0) or 0)
+            required_requires_omega = required_level > alpha_cap_level
+            recommended_requires_omega = recommended_level > alpha_cap_level
 
             # Une suggestion est consideree comme deja appliquee si l'etat actuel
             # correspond deja a l'action demandee.
@@ -113,6 +121,10 @@ class DoctrineSkillService:
                     "suggestion_action": None if suggestion is None else suggestion.get("action", "remove"),
                     "suggestion_reason": None if suggestion is None else suggestion["reason"],
                     "suggestion_group": None if suggestion is None else suggestion.get("group"),
+                    "max_alpha_level": alpha_cap_level,
+                    "required_requires_omega": required_requires_omega,
+                    "recommended_requires_omega": recommended_requires_omega,
+                    "requires_omega": required_requires_omega or recommended_requires_omega,
                 }
             )
 
@@ -178,6 +190,9 @@ class DoctrineSkillService:
         )
 
         self._control_service.sync_suggestions(fitting.id, preview["suggestions"])
+        # P3 – invalidate the shared progress cache so summary pages immediately
+        # reflect the updated skill plan the next time they are loaded.
+        summary_cache.invalidate_progress_cache_for_skillset(fitting_map.skillset_id)
 
     def generate_for_doctrine(
         self,

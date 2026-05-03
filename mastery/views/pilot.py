@@ -90,6 +90,19 @@ def _build_character_filter_choices_with_counts(character_rows):
     ]
 
 
+def _progress_missing_sp_payload(progress: dict) -> dict[str, int]:
+    """Return required/recommended missing SP summary extracted from a progress payload."""
+    mode_stats = progress.get("mode_stats") or {}
+    return {
+        "required_missing_sp": int(
+            (mode_stats.get(pilot_progress_service.EXPORT_MODE_REQUIRED) or {}).get("total_missing_sp") or 0
+        ),
+        "recommended_missing_sp": int(
+            (mode_stats.get(pilot_progress_service.EXPORT_MODE_RECOMMENDED) or {}).get("total_missing_sp") or 0
+        ),
+    }
+
+
 def _pilot_detail_action_params(
     character_id: int,
     character_filter: str,
@@ -212,6 +225,13 @@ def index(request):
             if not fitting_map:
                 continue
 
+            recommended_plan_clone_profile = pilot_progress_service.summarize_plan_clone_requirements(
+                fitting_map.skillset,
+                cache_context=progress_context,
+            )
+            if not isinstance(recommended_plan_clone_profile, dict):
+                recommended_plan_clone_profile = {}
+
             character_rows = []
             for character in member_characters:
                 progress = pilot_progress_service.build_for_character(
@@ -219,14 +239,6 @@ def index(request):
                     skillset=fitting_map.skillset,
                     include_export_lines=False,
                     cache_context=progress_context,
-                )
-                required_stats = (progress.get("mode_stats") or {}).get(
-                    pilot_progress_service.EXPORT_MODE_REQUIRED,
-                    {},
-                )
-                recommended_stats = (progress.get("mode_stats") or {}).get(
-                    pilot_progress_service.EXPORT_MODE_RECOMMENDED,
-                    {},
                 )
                 action_params = {
                     "character_id": character.id,
@@ -237,8 +249,7 @@ def index(request):
                         "character": character,
                         "progress": progress,
                         "status_bucket": bucket_for_progress(progress),
-                        "required_missing_sp": int(required_stats.get("total_missing_sp") or 0),
-                        "recommended_missing_sp": int(recommended_stats.get("total_missing_sp") or 0),
+                        **_progress_missing_sp_payload(progress),
                         "action_url": (
                             f"{reverse('mastery:pilot_fitting_detail', args=[fitting.id])}?"
                             f"{urlencode(action_params)}"
@@ -307,6 +318,15 @@ def index(request):
                         (row["progress"]["recommended_pct"] for row in character_rows), default=0
                     ),
                     "can_any_fly": any(row["progress"]["can_fly"] for row in character_rows),
+                    "recommended_plan_skill_count": int(
+                        recommended_plan_clone_profile.get("recommended_plan_skill_count", 0) or 0
+                    ),
+                    "recommended_plan_omega_skill_count": int(
+                        recommended_plan_clone_profile.get("recommended_plan_omega_skill_count", 0) or 0
+                    ),
+                    "recommended_plan_alpha_compatible": bool(
+                        recommended_plan_clone_profile.get("recommended_plan_alpha_compatible", True)
+                    ),
                     "selected_progress": selected_progress,
                     "elite_rows": bucket_map[BUCKET_ELITE],
                     "almost_elite_rows": bucket_map[BUCKET_ALMOST_ELITE],
@@ -453,11 +473,10 @@ def pilot_fitting_detail_view(request, fitting_id):
             ),
         }
 
-    selected_character_pk = None if selected_character is None else selected_character.id
     for row in character_rows:
-        row["is_selected"] = bool(selected_character_pk and row["character"].id == selected_character_pk)
+        row["is_selected"] = bool(selected_character and row["character"].id == selected_character.id)
     for row in filtered_character_rows:
-        row["is_selected"] = bool(selected_character_pk and row["character"].id == selected_character_pk)
+        row["is_selected"] = bool(selected_character and row["character"].id == selected_character.id)
 
     export_lines = [] if not selected_progress else pilot_progress_service.build_export_lines(
         selected_progress,
@@ -476,6 +495,12 @@ def pilot_fitting_detail_view(request, fitting_id):
         character=selected_character,
         language=export_language,
     )
+    recommended_plan_clone_profile = pilot_progress_service.summarize_plan_clone_requirements(
+        fitting_map.skillset,
+        cache_context={},
+    )
+    if not isinstance(recommended_plan_clone_profile, dict):
+        recommended_plan_clone_profile = {}
 
     context = {
         "fitting": fitting,
@@ -495,6 +520,13 @@ def pilot_fitting_detail_view(request, fitting_id):
         "selected_mode_stats": selected_mode_stats,
         "selected_export_lines": export_lines,
         "skill_plan_summary": skill_plan_summary,
+        "recommended_plan_skill_count": int(recommended_plan_clone_profile.get("recommended_plan_skill_count", 0) or 0),
+        "recommended_plan_omega_skill_count": int(
+            recommended_plan_clone_profile.get("recommended_plan_omega_skill_count", 0) or 0
+        ),
+        "recommended_plan_alpha_compatible": bool(
+            recommended_plan_clone_profile.get("recommended_plan_alpha_compatible", True)
+        ),
         "export_language": export_language,
         "export_language_scope_label": _("Affects export and selected missing-skill labels"),
         "export_language_choices": pilot_progress_service.export_language_choices(),

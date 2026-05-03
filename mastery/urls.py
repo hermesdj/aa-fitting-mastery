@@ -22,6 +22,7 @@ urlpatterns = [
     ),
     # Summaries
     path("summaries/", views.summary_list_view, name="summary_list"),
+    path("summaries/debug/p2-metrics/", views.summary_p2_metrics_debug_view, name="summary_p2_metrics_debug"),
     path("summaries/doctrine/<int:doctrine_id>/", views.summary_doctrine_detail_view, name="summary_doctrine_detail"),
     path("summaries/fitting/<int:fitting_id>/", views.summary_fitting_detail_view, name="summary_fitting_detail"),
     path("summaries/settings/", views.summary_settings_view, name="summary_settings"),
@@ -67,6 +68,11 @@ urlpatterns = [
         "fitting/<int:fitting_id>/skills/group-controls/",
         views.update_skill_group_controls_view,
         name="update_skill_group_controls",
+    ),
+    path(
+        "fitting/<int:fitting_id>/skills/make-alpha-compatible/",
+        views.make_recommended_plan_alpha_compatible_view,
+        name="make_recommended_plan_alpha_compatible",
     ),
     path("fitting/<int:fitting_id>/mastery/", views.update_fitting_mastery, name="update_fitting_mastery"),
     path("fitting/<int:fitting_id>/priority/", views.update_fitting_priority, name="update_fitting_priority"),

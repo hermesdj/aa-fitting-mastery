@@ -1,63 +1,65 @@
 {% load i18n %}
 
-<div class="row g-2">
-    <div class="col-6 col-md-4 col-lg-2">
-        <div class="small text-muted">{% translate "Flyable now (players)" %}</div>
-        <div class="fw-semibold">{{ flyable_now }}/{{ users_total }}</div>
-    </div>
+<div class="d-flex flex-column gap-2">
+    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-2">
+        <div class="col">
+            <div class="small text-muted">{% translate "Flyable now (characters)" %}</div>
+            <div class="fw-semibold">{{ kpis.flyable_now_characters }}/{{ kpis.characters_total }}</div>
+        </div>
 
     {% if interactive %}
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="elite">
             <span class="d-block small text-success fw-semibold">{% translate "Elite" %}</span>
             <span class="d-block fw-semibold text-success">{{ kpis.elite_characters }}</span>
         </button>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="almost_elite">
             <span class="d-block small text-primary fw-semibold">{% translate "Almost elite" %}</span>
             <span class="d-block fw-semibold text-primary">{{ kpis.almost_elite_characters }}</span>
         </button>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="can_fly">
             <span class="d-block small text-info fw-semibold">{% translate "Can fly" %}</span>
             <span class="d-block fw-semibold text-info">{{ kpis.can_fly_characters }}</span>
         </button>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="almost_fit">
             <span class="d-block small text-warning fw-semibold">{% translate "Almost fit" %}</span>
             <span class="d-block fw-semibold text-warning">{{ kpis.almost_fit_characters }}</span>
         </button>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <button type="button" class="btn btn-sm w-100 text-start kpi-filter-btn" data-filter="needs_training">
             <span class="d-block small text-danger fw-semibold">{% translate "Needs training" %}</span>
             <span class="d-block fw-semibold text-danger">{{ kpis.needs_training_characters }}</span>
         </button>
     </div>
     {% else %}
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <div class="small text-success fw-semibold">{% translate "Elite" %}</div>
         <div class="fw-semibold text-success">{{ kpis.elite_characters }}</div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <div class="small text-primary fw-semibold">{% translate "Almost elite" %}</div>
         <div class="fw-semibold text-primary">{{ kpis.almost_elite_characters }}</div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <div class="small text-info fw-semibold">{% translate "Can fly" %}</div>
         <div class="fw-semibold text-info">{{ kpis.can_fly_characters }}</div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <div class="small text-warning fw-semibold">{% translate "Almost fit" %}</div>
         <div class="fw-semibold text-warning">{{ kpis.almost_fit_characters }}</div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2">
+    <div class="col">
         <div class="small text-danger fw-semibold">{% translate "Needs training" %}</div>
         <div class="fw-semibold text-danger">{{ kpis.needs_training_characters }}</div>
     </div>
     {% endif %}
+    </div>
 </div>
 

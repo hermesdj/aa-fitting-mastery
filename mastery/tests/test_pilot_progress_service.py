@@ -208,7 +208,11 @@ class TestPilotProgressService(SimpleTestCase):
             service,
             "_load_skill_dogma",
             return_value={1001: {"rank": 1, "primary_attribute": None, "secondary_attribute": None}},
-        ) as mock_load_skill_dogma:
+        ) as mock_load_skill_dogma, patch.object(
+            service._clone_grade_service,
+            "get_alpha_caps",
+            return_value={1001: 4},
+        ) as mock_get_alpha_caps:
             first = service.build_for_character(
                 character=character,
                 skillset=skillset,
@@ -226,4 +230,48 @@ class TestPilotProgressService(SimpleTestCase):
         self.assertEqual(skillset_relation.select_related_calls, 1)
         self.assertEqual(character_relation.select_related_calls, 1)
         mock_load_skill_dogma.assert_called_once_with([1001])
+        mock_get_alpha_caps.assert_called_once_with([1001])
+
+    def test_load_character_skill_map_tracks_p2_cache_metrics(self):
+        class DummyRelation:
+            def __init__(self, items):
+                self._items = list(items)
+                self.select_related_calls = 0
+
+            def select_related(self, *_args, **_kwargs):
+                self.select_related_calls += 1
+                return self
+
+            def all(self):
+                return list(self._items)
+
+        trained_skill = SimpleNamespace(
+            eve_type_id=1001,
+            active_skill_level=3,
+            skillpoints_in_skill=8000,
+        )
+        character_relation = DummyRelation([trained_skill])
+        character = SimpleNamespace(id=7, skills=character_relation)
+        service = PilotProgressService()
+        cache_context = {}
+
+        first_map = service._load_character_skill_map(character, cache_context=cache_context)
+        second_map = service._load_character_skill_map(character, cache_context=cache_context)
+
+        self.assertEqual(first_map, second_map)
+        self.assertEqual(character_relation.select_related_calls, 1)
+        self.assertEqual(
+            cache_context["p2_metrics"]["character_skills"],
+            {
+                "prime_calls": 0,
+                "prime_character_ids_total": 0,
+                "prime_already_cached": 0,
+                "prime_uncached": 0,
+                "prime_rows_loaded": 0,
+                "cache_hits": 1,
+                "cache_misses": 1,
+                "db_loads": 1,
+                "skills_loaded": 1,
+            },
+        )
 

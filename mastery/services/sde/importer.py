@@ -5,7 +5,13 @@ import zipfile
 import requests
 import yaml
 
-from mastery.models import CertificateSkill, ShipMastery, ShipMasteryCertificate, SdeVersion
+from mastery.models import (
+    CertificateSkill,
+    SdeCloneGradeSkill,
+    SdeVersion,
+    ShipMastery,
+    ShipMasteryCertificate,
+)
 
 
 class SdeMasteryImporter:
@@ -86,12 +92,38 @@ class SdeMasteryImporter:
         ShipMasteryCertificate.objects.bulk_create(cert_objs, batch_size=1000)
 
     @staticmethod
-    def exec_import(latest, masteries, certificates, dry_run=False):
+    def import_clone_grades(data):
+        """Replace clone-grade skill caps from SDE cloneGrades payload."""
+        caps = SdeMasteryImporter.clone_grade_skill_caps(data)
+
+        objs = [
+            SdeCloneGradeSkill(skill_type_id=skill_type_id, max_alpha_level=max_level)
+            for skill_type_id, max_level in caps.items()
+        ]
+
+        SdeCloneGradeSkill.objects.all().delete()
+        SdeCloneGradeSkill.objects.bulk_create(objs, batch_size=1000)
+
+    @staticmethod
+    def clone_grade_skill_caps(data) -> dict[int, int]:
+        """Return canonical `{typeID: max_alpha_level}` map from cloneGrades payload."""
+        grade_data = data.get(1)
+        if grade_data is None:
+            raise KeyError(1)
+
+        return {
+            skill["typeID"]: skill["level"]
+            for skill in grade_data.get("skills", [])
+        }
+
+    @staticmethod
+    def exec_import(latest, masteries, certificates, clone_grades, dry_run=False):
         """Execute full import and update active SDE version marker."""
         importer = SdeMasteryImporter()
         if not dry_run:
             importer.import_certificates(certificates)
             importer.import_masteries(masteries)
+            importer.import_clone_grades(clone_grades)
 
             SdeVersion.objects.update_or_create(
                 build_number=latest["build_number"],

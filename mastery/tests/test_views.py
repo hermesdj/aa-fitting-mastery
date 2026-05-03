@@ -5,7 +5,10 @@ from unittest.mock import Mock, patch
 
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.template import Context, Template
+from django.template.loader import render_to_string
 from django.test import RequestFactory, SimpleTestCase
+from django.utils.translation import override
 
 from mastery import views
 from mastery.models import FittingSkillsetMap
@@ -32,6 +35,8 @@ from mastery.views.summary_helpers import (
     _missing_skillset_error,
     _parse_activity_days,
     _parse_training_days,
+    _progress_for_character,
+    _prime_summary_character_skills_cache_context,
     _summary_entity_catalog,
     _summary_group_users,
 )
@@ -46,6 +51,42 @@ def _view_user():
 
 
 class TestViewHelpers(SimpleTestCase):
+    def test_debug_ratio_template_handles_missing_progress_cache_misses(self):
+        template = Template(
+            """
+            {% with p0=snapshot.metrics.p0_metrics.summary_view %}
+                {% with p0_hits=p0.progress_cache_hits|default:0 p0_misses=p0.progress_cache_misses|default:0 %}
+                    {% with total=p0_hits|add:p0_misses %}
+                        {% if total %}
+                            {% widthratio p0_hits total 100 %}
+                        {% else %}
+                            -
+                        {% endif %}
+                    {% endwith %}
+                {% endwith %}
+            {% endwith %}
+            """
+        )
+
+        output = template.render(
+            Context(
+                {
+                    "snapshot": {
+                        "metrics": {
+                            "p0_metrics": {
+                                "summary_view": {
+                                    "progress_cache_hits": 3,
+                                    # progress_cache_misses missing on purpose
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+        )
+
+        self.assertIn("100", output)
+
     def test_group_state_filters_detect_active_and_blacklisted_rows(self):
         skills = [
             {"is_blacklisted": True},
@@ -232,6 +273,114 @@ class TestViewHelpers(SimpleTestCase):
         self.assertTrue(payload["has_active_skills"])
         self.assertFalse(payload["all_blacklisted"])
 
+    def test_clone_grade_badge_partial_renders_greek_symbols_with_accessible_label(self):
+        alpha_html = render_to_string(
+            "mastery/partials/_clone_grade_badge.html",
+            {"requires_omega": False},
+        )
+        omega_html = render_to_string(
+            "mastery/partials/_clone_grade_badge.html",
+            {"requires_omega": True},
+        )
+
+        self.assertIn("&alpha;", alpha_html)
+        self.assertIn("visually-hidden", alpha_html)
+        self.assertIn("Alpha", alpha_html)
+        self.assertIn("background-color:#dbeafe", alpha_html)
+        self.assertIn("--mastery-clone-badge-bg:#dbeafe", alpha_html)
+        self.assertIn('data-bs-tooltip="aa-mastery"', alpha_html)
+        self.assertIn('data-bs-title="Alpha clone compatible"', alpha_html)
+        self.assertIn("&Omega;", omega_html)
+        self.assertIn("Omega", omega_html)
+        self.assertIn("background-color:#fff3cd", omega_html)
+        self.assertIn("--mastery-clone-badge-bg:#fff3cd", omega_html)
+        self.assertIn('data-bs-title="Requires Omega clone"', omega_html)
+
+    def test_clone_grade_badge_partial_translates_tooltip_in_french(self):
+        with override("fr_FR"):
+            omega_html = render_to_string(
+                "mastery/partials/_clone_grade_badge.html",
+                {"requires_omega": True},
+            )
+
+        self.assertIn('data-bs-title="Clone Omega requis"', omega_html)
+
+    def test_recommended_plan_clone_badge_switches_between_alpha_and_omega(self):
+        template = Template(
+            """
+            {% if recommended_plan_alpha_compatible %}
+                {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=False %}
+            {% else %}
+                {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True %}
+            {% endif %}
+            """
+        )
+
+        alpha_output = template.render(Context({"recommended_plan_alpha_compatible": True}))
+        omega_output = template.render(Context({"recommended_plan_alpha_compatible": False}))
+
+        self.assertIn("mastery-clone-badge-alpha", alpha_output)
+        self.assertNotIn("mastery-clone-badge-omega", alpha_output)
+        self.assertIn("mastery-clone-badge-omega", omega_output)
+
+    def test_missing_skill_rows_show_omega_badge_only_for_omega_targets(self):
+        template = Template(
+            """
+            {% for skill in skills %}
+                <span class="badge mastery-level-badge-target">{{ skill.target_level }}</span>
+                {% if skill.target_requires_omega %}
+                    {% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True size='sm' %}
+                {% endif %}
+            {% endfor %}
+            """
+        )
+
+        output = template.render(
+            Context(
+                {
+                    "skills": [
+                        {"target_level": 4, "target_requires_omega": False},
+                        {"target_level": 5, "target_requires_omega": True},
+                    ]
+                }
+            )
+        )
+
+        self.assertEqual(output.count("mastery-clone-badge-omega"), 1)
+        self.assertNotIn("mastery-clone-badge-alpha", output)
+
+    def test_group_preview_skills_propagates_clone_grade_flags_to_row_payload(self):
+        mocked_skill = SimpleNamespace(
+            id=404,
+            name="Long Range Targeting",
+            description="",
+            group=SimpleNamespace(id=42, name="Targeting"),
+        )
+
+        with patch("mastery.views.common.ItemType.objects.select_related") as mock_select_related, patch(
+            "mastery.views.common.TypeDogma.objects.filter"
+        ) as mock_dogma_filter:
+            mock_select_related.return_value.filter.return_value = [mocked_skill]
+            mock_dogma_filter.return_value.values.return_value = []
+
+            grouped = _group_preview_skills(
+                [
+                    {
+                        "skill_type_id": 404,
+                        "required_level": 3,
+                        "recommended_level": 4,
+                        "required_requires_omega": False,
+                        "recommended_requires_omega": True,
+                        "requires_omega": True,
+                    }
+                ]
+            )
+
+        row = grouped["Targeting"]["skills"][0]
+        self.assertFalse(row["required_requires_omega"])
+        self.assertTrue(row["recommended_requires_omega"])
+        self.assertTrue(row["requires_omega"])
+
     @patch("mastery.views.common._build_plan_kpis")
     @patch("mastery.views.common._get_skill_name_options", return_value=[])
     @patch("mastery.views.common._group_preview_skills", return_value={})
@@ -270,6 +419,136 @@ class TestViewHelpers(SimpleTestCase):
         mock_build_plan_kpis.assert_called_once_with([
             {"skill_type_id": 1, "is_blacklisted": False},
         ])
+
+    @patch("mastery.views.common._build_plan_kpis", return_value={"required_plan_omega_skill_count": 2})
+    @patch("mastery.views.common._get_skill_name_options", return_value=[])
+    @patch("mastery.views.common._group_preview_skills", return_value={})
+    @patch("mastery.views.common.doctrine_skill_service.preview_fitting")
+    def test_build_fitting_preview_context_exposes_plan_kpis(
+        self,
+        mock_preview_fitting,
+        _mock_group_preview_skills,
+        _mock_get_skill_name_options,
+        _mock_build_plan_kpis,
+    ):
+        from mastery.views.common import _build_fitting_preview_context
+
+        mock_preview_fitting.return_value = {
+            "effective_mastery_level": 4,
+            "skills": [{"skill_type_id": 1, "is_blacklisted": False}],
+        }
+
+        context = _build_fitting_preview_context(
+            fitting=SimpleNamespace(id=1),
+            doctrine_map=SimpleNamespace(default_mastery_level=4),
+            fitting_map=None,
+        )
+
+        self.assertEqual(context["required_plan_omega_skill_count"], 2)
+
+    @patch(
+        "mastery.views.common._build_plan_kpis",
+        return_value={
+            "required_plan_alpha_compatible": True,
+            "recommended_plan_alpha_compatible": False,
+        },
+    )
+    @patch("mastery.views.common._get_skill_name_options", return_value=[])
+    @patch("mastery.views.common._group_preview_skills", return_value={})
+    @patch("mastery.views.common.doctrine_skill_service.preview_fitting")
+    def test_build_fitting_preview_context_exposes_alpha_conversion_availability(
+        self,
+        mock_preview_fitting,
+        _mock_group_preview_skills,
+        _mock_get_skill_name_options,
+        _mock_build_plan_kpis,
+    ):
+        from mastery.views.common import _build_fitting_preview_context
+
+        mock_preview_fitting.return_value = {
+            "effective_mastery_level": 4,
+            "skills": [{"skill_type_id": 1, "is_blacklisted": False}],
+        }
+
+        context = _build_fitting_preview_context(
+            fitting=SimpleNamespace(id=1),
+            doctrine_map=SimpleNamespace(default_mastery_level=4),
+            fitting_map=None,
+        )
+
+        self.assertTrue(context["can_make_recommended_plan_alpha_compatible"])
+
+    @patch(
+        "mastery.views.common._build_plan_kpis",
+        return_value={
+            "required_plan_alpha_compatible": False,
+            "recommended_plan_alpha_compatible": False,
+        },
+    )
+    @patch("mastery.views.common._get_skill_name_options", return_value=[])
+    @patch("mastery.views.common._group_preview_skills", return_value={})
+    @patch("mastery.views.common.doctrine_skill_service.preview_fitting")
+    def test_build_fitting_preview_context_hides_alpha_conversion_when_required_needs_omega(
+        self,
+        mock_preview_fitting,
+        _mock_group_preview_skills,
+        _mock_get_skill_name_options,
+        _mock_build_plan_kpis,
+    ):
+        from mastery.views.common import _build_fitting_preview_context
+
+        mock_preview_fitting.return_value = {
+            "effective_mastery_level": 4,
+            "skills": [{"skill_type_id": 1, "is_blacklisted": False}],
+        }
+
+        context = _build_fitting_preview_context(
+            fitting=SimpleNamespace(id=1),
+            doctrine_map=SimpleNamespace(default_mastery_level=4),
+            fitting_map=None,
+        )
+
+        self.assertFalse(context["can_make_recommended_plan_alpha_compatible"])
+
+    @patch("mastery.views.common.TypeDogma.objects.filter")
+    def test_build_plan_kpis_includes_alpha_omega_compatibility_counts(self, mock_dogma_filter):
+        from mastery.views.common import _build_plan_kpis
+
+        mock_dogma_filter.return_value.values.return_value = []
+
+        kpis = _build_plan_kpis(
+            [
+                {
+                    "skill_type_id": 1,
+                    "required_level": 3,
+                    "recommended_level": 4,
+                    "required_requires_omega": False,
+                    "recommended_requires_omega": False,
+                },
+                {
+                    "skill_type_id": 2,
+                    "required_level": 2,
+                    "recommended_level": 2,
+                    "required_requires_omega": True,
+                    "recommended_requires_omega": True,
+                },
+                {
+                    "skill_type_id": 3,
+                    "required_level": 0,
+                    "recommended_level": 1,
+                    "required_requires_omega": False,
+                    "recommended_requires_omega": True,
+                },
+            ]
+        )
+
+        self.assertEqual(kpis["required_plan_skill_count"], 2)
+        self.assertEqual(kpis["required_plan_omega_skill_count"], 1)
+        self.assertFalse(kpis["required_plan_alpha_compatible"])
+
+        self.assertEqual(kpis["recommended_plan_skill_count"], 3)
+        self.assertEqual(kpis["recommended_plan_omega_skill_count"], 2)
+        self.assertFalse(kpis["recommended_plan_alpha_compatible"])
 
 
 class TestFittingSkillsAjax(SimpleTestCase):
@@ -468,6 +747,109 @@ class TestFittingSkillsAjax(SimpleTestCase):
             message="No pending suggestion to apply",
             message_level="info",
         )
+
+    @patch("mastery.views.fitting._finalize_fitting_skills_action")
+    @patch("mastery.views.fitting.doctrine_skill_service.generate_for_fitting")
+    @patch("mastery.views.fitting.control_service.set_recommended_level")
+    @patch("mastery.views.fitting.doctrine_skill_service.preview_fitting")
+    @patch("mastery.views.fitting._get_doctrine_and_map_for_fitting")
+    def test_make_recommended_plan_alpha_compatible_updates_over_omega_recommended_levels(
+        self,
+        mock_get_doctrine_and_map,
+        mock_preview,
+        mock_set_recommended_level,
+        mock_generate,
+        mock_finalize,
+    ):
+        fitting = SimpleNamespace(id=1)
+        doctrine = SimpleNamespace(id=2)
+        doctrine_map = SimpleNamespace(id=3)
+        mock_get_doctrine_and_map.return_value = (fitting, doctrine, doctrine_map, None)
+        mock_preview.return_value = {
+            "skills": [
+                {
+                    "skill_type_id": 55,
+                    "required_requires_omega": False,
+                    "recommended_level": 4,
+                    "max_alpha_level": 3,
+                    "is_blacklisted": False,
+                },
+                {
+                    "skill_type_id": 66,
+                    "required_requires_omega": False,
+                    "recommended_level": 2,
+                    "max_alpha_level": 2,
+                    "is_blacklisted": False,
+                },
+            ]
+        }
+        mock_finalize.return_value = JsonResponse({"status": "ok"})
+
+        request = self.factory.post(
+            "/fitting/1/skills/make-alpha-compatible/",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        request.user = _view_user()
+
+        response = views.make_recommended_plan_alpha_compatible_view(request, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        mock_preview.assert_called_once_with(doctrine_map=doctrine_map, fitting=fitting)
+        mock_set_recommended_level.assert_called_once_with(
+            fitting_id=1,
+            skill_type_id=55,
+            level=3,
+        )
+        mock_generate.assert_called_once()
+        call_args = mock_generate.call_args
+        self.assertEqual(call_args[0], (doctrine_map, fitting))
+        self.assertEqual(call_args[1]["modified_by"], request.user)
+        self.assertEqual(call_args[1]["status"], FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
+        mock_finalize.assert_called_once_with(
+            request,
+            fitting=fitting,
+            doctrine=doctrine,
+            doctrine_map=doctrine_map,
+            message="Recommended plan converted to Alpha compatibility",
+        )
+
+    @patch("mastery.views.fitting.doctrine_skill_service.preview_fitting")
+    @patch("mastery.views.fitting._get_doctrine_and_map_for_fitting")
+    def test_make_recommended_plan_alpha_compatible_rejects_when_required_skill_needs_omega(
+        self,
+        mock_get_doctrine_and_map,
+        mock_preview,
+    ):
+        mock_get_doctrine_and_map.return_value = (
+            SimpleNamespace(id=1),
+            SimpleNamespace(id=2),
+            SimpleNamespace(id=3),
+            None,
+        )
+        mock_preview.return_value = {
+            "skills": [
+                {
+                    "skill_type_id": 77,
+                    "required_requires_omega": True,
+                    "recommended_level": 4,
+                    "max_alpha_level": 3,
+                    "is_blacklisted": False,
+                }
+            ]
+        }
+
+        request = self.factory.post(
+            "/fitting/1/skills/make-alpha-compatible/",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        request.user = _view_user()
+
+        response = views.make_recommended_plan_alpha_compatible_view(request, fitting_id=1)
+
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.content.decode())
+        self.assertEqual(payload["status"], "error")
+        self.assertIn("cannot be made Alpha compatible", payload["message"])
 
 
 class TestFittingPreviewAccess(SimpleTestCase):
@@ -995,35 +1377,30 @@ class TestSummaryHelpers(SimpleTestCase):
         )
 
     @patch("mastery.views.summary_helpers.Character.objects.filter")
+    @patch("mastery.views.summary_helpers._summary_group_characters_queryset")
     @patch("mastery.views.summary_helpers._summary_group_users")
     @patch("mastery.views.summary_helpers.timezone.now")
-    def test_build_member_groups_for_summary_keeps_all_owned_characters_for_user_matched_by_alt(
+    def test_build_member_groups_for_summary_keeps_only_in_scope_characters_and_uses_main_activity(
         self,
         mock_now,
         mock_group_users,
+        mock_summary_group_characters_queryset,
         mock_character_filter,
     ):
         now = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
         mock_now.return_value = now
+        summary_group = SimpleNamespace(id=3)
         user = SimpleNamespace(
             id=7,
             username="pilot7",
             profile=SimpleNamespace(
-                main_character=SimpleNamespace(character_name="Main Outside Audience"),
+                main_character=SimpleNamespace(id=101, character_name="Main Outside Audience"),
             ),
         )
         eligible_users = Mock()
         eligible_users.exists.return_value = True
-        eligible_users.__iter__ = Mock(return_value=iter([user]))
         mock_group_users.return_value = eligible_users
-        main_character = SimpleNamespace(
-            id=101,
-            eve_character=SimpleNamespace(
-                character_name="Main Outside Audience",
-                character_ownership=SimpleNamespace(user=user),
-            ),
-            online_status=SimpleNamespace(last_login=now - timedelta(days=1), last_logout=None),
-        )
+
         matching_alt = SimpleNamespace(
             id=202,
             eve_character=SimpleNamespace(
@@ -1032,10 +1409,22 @@ class TestSummaryHelpers(SimpleTestCase):
             ),
             online_status=SimpleNamespace(last_login=now - timedelta(days=2), last_logout=None),
         )
-        mock_character_filter.return_value.select_related.return_value = [main_character, matching_alt]
+        scoped_queryset = Mock()
+        mock_summary_group_characters_queryset.return_value = scoped_queryset
+        scoped_queryset.select_related.return_value.order_by.return_value = [matching_alt]
+
+        main_activity_character = SimpleNamespace(
+            id=101,
+            eve_character=SimpleNamespace(
+                character_name="Main Outside Audience",
+                character_ownership=SimpleNamespace(user=user),
+            ),
+            online_status=SimpleNamespace(last_login=now - timedelta(days=1), last_logout=None),
+        )
+        mock_character_filter.return_value.select_related.return_value = [main_activity_character]
 
         groups = _build_member_groups_for_summary(
-            summary_group=SimpleNamespace(id=3),
+            summary_group=summary_group,
             activity_days=14,
             include_inactive=False,
         )
@@ -1044,18 +1433,73 @@ class TestSummaryHelpers(SimpleTestCase):
         group = groups[0]
         self.assertEqual(group["user"], user)
         self.assertEqual(group["main_character"].character_name, "Main Outside Audience")
-        self.assertEqual(
-            [character.id for character in group["characters"]],
-            [101, 202],
+        self.assertEqual([character.id for character in group["characters"]], [202])
+        self.assertEqual(group["active_count"], 1)
+        self.assertEqual(group["total_count"], 1)
+        mock_summary_group_characters_queryset.assert_called_once_with(
+            summary_group=summary_group,
+            users=eligible_users,
         )
-        self.assertEqual(group["active_count"], 2)
-        self.assertEqual(group["total_count"], 2)
         mock_character_filter.assert_called_once_with(
-            eve_character__character_ownership__user__in=eligible_users,
+            eve_character_id__in={101},
+            eve_character__character_ownership__user_id__in={7},
         )
 
+    @patch("mastery.views.summary_helpers.Character.objects.filter")
+    @patch("mastery.views.summary_helpers._summary_group_characters_queryset")
+    @patch("mastery.views.summary_helpers._summary_group_users")
+    @patch("mastery.views.summary_helpers.timezone.now")
+    def test_build_member_groups_for_summary_excludes_user_when_main_is_inactive(
+        self,
+        mock_now,
+        mock_group_users,
+        mock_summary_group_characters_queryset,
+        mock_character_filter,
+    ):
+        now = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
+        mock_now.return_value = now
+        user = SimpleNamespace(
+            id=10,
+            username="pilot10",
+            profile=SimpleNamespace(main_character=SimpleNamespace(id=606, character_name="Main P10")),
+        )
+        eligible_users = Mock()
+        eligible_users.exists.return_value = True
+        mock_group_users.return_value = eligible_users
+
+        in_scope_alt = SimpleNamespace(
+            id=707,
+            eve_character=SimpleNamespace(
+                character_name="Alt Scoped",
+                character_ownership=SimpleNamespace(user=user),
+            ),
+            online_status=SimpleNamespace(last_login=now - timedelta(days=1), last_logout=None),
+        )
+        scoped_queryset = Mock()
+        mock_summary_group_characters_queryset.return_value = scoped_queryset
+        scoped_queryset.select_related.return_value.order_by.return_value = [in_scope_alt]
+
+        main_activity_character = SimpleNamespace(
+            id=808,
+            eve_character=SimpleNamespace(
+                character_name="Main P10",
+                character_ownership=SimpleNamespace(user=user),
+            ),
+            online_status=SimpleNamespace(last_login=now - timedelta(days=30), last_logout=None),
+        )
+        mock_character_filter.return_value.select_related.return_value = [main_activity_character]
+
+        groups = _build_member_groups_for_summary(
+            summary_group=SimpleNamespace(id=9),
+            activity_days=14,
+            include_inactive=False,
+        )
+
+        self.assertEqual(groups, [])
+
+    @patch("mastery.views.summary_helpers.summary_cache")
     @patch("mastery.views.summary_helpers.pilot_progress_service")
-    def test_build_fitting_user_rows_uses_best_alt_character_progress_for_user(self, mock_progress_service):
+    def test_build_fitting_user_rows_uses_best_alt_character_progress_for_user(self, mock_progress_service, mock_summary_cache):
         main_progress = {
             "can_fly": False,
             "recommended_pct": 40.0,
@@ -1067,6 +1511,7 @@ class TestSummaryHelpers(SimpleTestCase):
             "required_pct": 100.0,
         }
         mock_progress_service.build_for_character.side_effect = [main_progress, alt_progress]
+        mock_summary_cache.get_cached_progress.return_value = (None, "test_key")
 
         main_character = SimpleNamespace(id=11)
         alt_character = SimpleNamespace(id=22)
@@ -1108,73 +1553,273 @@ class TestSummaryHelpers(SimpleTestCase):
         mock_character_filter.assert_not_called()
         mock_user_none.assert_called_once_with()
 
-    @patch("mastery.views.summary_helpers.Character.objects.filter")
-    @patch("mastery.views.summary_helpers._summary_group_users")
-    @patch("mastery.views.summary_helpers.timezone.now")
-    def test_get_pilot_detail_characters_filters_group_characters_by_activity_window(
+    @patch("mastery.views.summary_helpers._build_member_groups_for_summary")
+    def test_get_pilot_detail_characters_uses_summary_groups_and_flattens_sorted_characters(
         self,
-        mock_now,
-        mock_group_users,
-        mock_character_filter,
+        mock_build_member_groups,
     ):
-        now = datetime(2026, 4, 16, tzinfo=dt_timezone.utc)
-        mock_now.return_value = now
-        mock_group_users.return_value = [SimpleNamespace(id=1)]
-        active_character = SimpleNamespace(
-            id=10,
-            online_status=SimpleNamespace(last_login=now - timedelta(days=3), last_logout=None),
-        )
-        inactive_character = SimpleNamespace(
-            id=11,
-            online_status=SimpleNamespace(last_login=now - timedelta(days=30), last_logout=None),
-        )
-        mock_character_filter.return_value.select_related.return_value.order_by.return_value = [
-            active_character,
-            inactive_character,
+        char_z = SimpleNamespace(id=10, eve_character=SimpleNamespace(character_name="Zulu"))
+        char_a = SimpleNamespace(id=11, eve_character=SimpleNamespace(character_name="Alpha"))
+        summary_group = SimpleNamespace(id=5)
+        mock_build_member_groups.return_value = [
+            {"characters": [char_z]},
+            {"characters": [char_a]},
         ]
 
         result = _get_pilot_detail_characters(
             _view_user(),
-            summary_group=SimpleNamespace(id=5),
+            summary_group=summary_group,
             activity_days=14,
             include_inactive=False,
         )
 
-        self.assertEqual(result, [active_character])
+        self.assertEqual(result, [char_a, char_z])
+        mock_build_member_groups.assert_called_once_with(
+            summary_group=summary_group,
+            activity_days=14,
+            include_inactive=False,
+        )
 
     @patch("mastery.views.summary_helpers.Character.objects.filter")
+    @patch("mastery.views.summary_helpers._summary_group_characters_queryset")
     @patch("mastery.views.summary_helpers._summary_group_users")
     @patch("mastery.views.summary_helpers.timezone.now")
-    def test_get_pilot_detail_characters_keeps_inactive_when_requested(
+    def test_build_member_groups_for_summary_include_inactive_keeps_all_in_scope_only(
         self,
         mock_now,
         mock_group_users,
+        mock_summary_group_characters_queryset,
         mock_character_filter,
     ):
-        now = datetime(2026, 4, 16, tzinfo=dt_timezone.utc)
+        now = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
         mock_now.return_value = now
-        mock_group_users.return_value = [SimpleNamespace(id=1)]
-        active_character = SimpleNamespace(
-            id=10,
-            online_status=SimpleNamespace(last_login=now - timedelta(days=3), last_logout=None),
-        )
-        inactive_character = SimpleNamespace(
+        user = SimpleNamespace(
             id=11,
-            online_status=SimpleNamespace(last_login=now - timedelta(days=30), last_logout=None),
+            username="pilot11",
+            profile=SimpleNamespace(main_character=SimpleNamespace(id=901, character_name="Main P11")),
         )
-        mock_character_filter.return_value.select_related.return_value.order_by.return_value = [
-            active_character,
-            inactive_character,
-        ]
+        eligible_users = Mock()
+        eligible_users.exists.return_value = True
+        mock_group_users.return_value = eligible_users
 
-        result = _get_pilot_detail_characters(
-            _view_user(),
-            summary_group=SimpleNamespace(id=5),
+        in_scope_old = SimpleNamespace(
+            id=1001,
+            eve_character=SimpleNamespace(
+                character_name="Scoped Old",
+                character_ownership=SimpleNamespace(user=user),
+            ),
+            online_status=SimpleNamespace(last_login=now - timedelta(days=70), last_logout=None),
+        )
+        in_scope_recent = SimpleNamespace(
+            id=1002,
+            eve_character=SimpleNamespace(
+                character_name="Scoped Recent",
+                character_ownership=SimpleNamespace(user=user),
+            ),
+            online_status=SimpleNamespace(last_login=now - timedelta(days=2), last_logout=None),
+        )
+        scoped_queryset = Mock()
+        mock_summary_group_characters_queryset.return_value = scoped_queryset
+        scoped_queryset.select_related.return_value.order_by.return_value = [in_scope_old, in_scope_recent]
+        mock_character_filter.return_value.select_related.return_value = []
+
+        groups = _build_member_groups_for_summary(
+            summary_group=SimpleNamespace(id=10),
             activity_days=14,
             include_inactive=True,
         )
 
-        self.assertEqual(result, [active_character, inactive_character])
+        self.assertEqual(len(groups), 1)
+        self.assertEqual([char.id for char in groups[0]["characters"]], [1001, 1002])
+        self.assertEqual(groups[0]["total_count"], 2)
+        mock_character_filter.assert_not_called()
+
+    @patch("mastery.views.summary_helpers._summary_group_characters_queryset")
+    @patch("mastery.views.summary_helpers._summary_group_users")
+    @patch("mastery.views.summary_helpers.timezone.now")
+    def test_build_member_groups_for_summary_skips_users_without_in_scope_characters(
+        self,
+        mock_now,
+        mock_group_users,
+        mock_summary_group_characters_queryset,
+    ):
+        mock_now.return_value = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
+        eligible_users = Mock()
+        eligible_users.exists.return_value = True
+        mock_group_users.return_value = eligible_users
+
+        scoped_queryset = Mock()
+        mock_summary_group_characters_queryset.return_value = scoped_queryset
+        scoped_queryset.select_related.return_value.order_by.return_value = []
+
+        groups = _build_member_groups_for_summary(
+            summary_group=SimpleNamespace(id=11),
+            activity_days=14,
+            include_inactive=False,
+        )
+
+        self.assertEqual(groups, [])
+
+    @patch("mastery.views.summary_helpers._summary_group_characters_queryset")
+    @patch("mastery.views.summary_helpers._summary_group_users")
+    @patch("mastery.views.summary_helpers.timezone.now")
+    def test_build_member_groups_for_summary_does_not_call_exists_on_eligible_users(
+        self,
+        mock_now,
+        mock_group_users,
+        mock_summary_group_characters_queryset,
+    ):
+        mock_now.return_value = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
+        eligible_users = Mock()
+        eligible_users.exists.side_effect = AssertionError("exists() should not be called")
+        mock_group_users.return_value = eligible_users
+
+        scoped_queryset = Mock()
+        mock_summary_group_characters_queryset.return_value = scoped_queryset
+        scoped_queryset.select_related.return_value.order_by.return_value = []
+
+        groups = _build_member_groups_for_summary(
+            summary_group=SimpleNamespace(id=77),
+            activity_days=14,
+            include_inactive=False,
+        )
+
+        self.assertEqual(groups, [])
+
+    @patch("mastery.views.summary_helpers.CharacterSkill.objects.filter")
+    def test_prime_summary_character_skills_cache_context_preloads_uncached_characters(self, mock_filter):
+        cached_skill_map = {88: {42: "already-cached"}}
+        cache_context = {"character_skills": cached_skill_map.copy()}
+        member_groups = [
+            {
+                "characters": [
+                    SimpleNamespace(id=10),
+                    SimpleNamespace(id=11),
+                    SimpleNamespace(id=88),
+                ]
+            }
+        ]
+        preloaded_skill = SimpleNamespace(character_id=10, eve_type_id=1001)
+        mock_filter.return_value.select_related.return_value = [preloaded_skill]
+
+        _prime_summary_character_skills_cache_context(
+            member_groups=member_groups,
+            cache_context=cache_context,
+        )
+
+        called_ids = mock_filter.call_args.kwargs["character_id__in"]
+        self.assertCountEqual(called_ids, [10, 11])
+        self.assertEqual(cache_context["character_skills"][10][1001], preloaded_skill)
+        self.assertEqual(cache_context["character_skills"][11], {})
+        self.assertEqual(cache_context["character_skills"][88], {42: "already-cached"})
+        self.assertEqual(
+            cache_context["p2_metrics"]["character_skills"],
+            {
+                "prime_calls": 1,
+                "prime_character_ids_total": 3,
+                "prime_already_cached": 1,
+                "prime_uncached": 2,
+                "prime_rows_loaded": 1,
+                "cache_hits": 0,
+                "cache_misses": 0,
+                "db_loads": 0,
+                "skills_loaded": 0,
+            },
+        )
+
+    @patch("mastery.views.summary_helpers.summary_cache")
+    @patch("mastery.views.summary_helpers.pilot_progress_service.build_for_character")
+    def test_progress_for_character_tracks_p0_progress_cache_metrics(self, mock_build_for_character, mock_summary_cache):
+        skillset = SimpleNamespace(id=10)
+        character = SimpleNamespace(id=20)
+        progress_cache = {}
+        progress_context = {}
+        mock_build_for_character.return_value = {"can_fly": True}
+        mock_summary_cache.get_cached_progress.return_value = (None, "test_key")
+
+        first = _progress_for_character(skillset, character, progress_cache, progress_context)
+        second = _progress_for_character(skillset, character, progress_cache, progress_context)
+
+        self.assertEqual(first, second)
+        mock_build_for_character.assert_called_once()
+        self.assertEqual(
+            progress_context["p0_metrics"]["summary_view"],
+            {
+                "progress_calls": 2,
+                "progress_cache_hits": 1,
+                "progress_cache_misses": 1,
+            },
+        )
+
+    @patch("mastery.views.summary_helpers.summary_cache")
+    @patch("mastery.views.summary_helpers.pilot_progress_service.build_for_character")
+    def test_progress_for_character_p3_cache_hit_skips_build_and_increments_metrics(
+        self, mock_build_for_character, mock_summary_cache
+    ):
+        """P3 cache hit: build_for_character is not called and p3 hit counter incremented."""
+        cached = {"can_fly": True, "recommended_pct": 100.0, "required_pct": 100.0}
+        mock_summary_cache.get_cached_progress.return_value = (cached, "test_key")
+
+        skillset = SimpleNamespace(id=10)
+        character = SimpleNamespace(id=20)
+        progress_cache = {}
+        progress_context = {}
+
+        result = _progress_for_character(skillset, character, progress_cache, progress_context)
+
+        mock_build_for_character.assert_not_called()
+        mock_summary_cache.set_cached_progress.assert_not_called()
+        self.assertEqual(result, cached)
+        self.assertEqual(progress_context["p3_metrics"]["shared_progress_cache"]["cache_hits"], 1)
+        self.assertEqual(progress_context["p3_metrics"]["shared_progress_cache"]["cache_misses"], 0)
+        self.assertEqual(progress_context["p3_metrics"]["shared_progress_cache"]["cache_writes"], 0)
+
+    @patch("mastery.views.summary_helpers.summary_cache")
+    @patch("mastery.views.summary_helpers.pilot_progress_service.build_for_character")
+    def test_progress_for_character_p3_cache_miss_calls_build_and_writes_cache(
+        self, mock_build_for_character, mock_summary_cache
+    ):
+        """P3 cache miss: build_for_character is called, result written to shared cache."""
+        computed = {"can_fly": False, "recommended_pct": 50.0, "required_pct": 80.0}
+        mock_build_for_character.return_value = computed
+        mock_summary_cache.get_cached_progress.return_value = (None, "test_key")
+
+        skillset = SimpleNamespace(id=10)
+        character = SimpleNamespace(id=20)
+        progress_cache = {}
+        progress_context = {}
+
+        result = _progress_for_character(skillset, character, progress_cache, progress_context)
+
+        mock_build_for_character.assert_called_once()
+        mock_summary_cache.set_cached_progress.assert_called_once_with("test_key", computed)
+        self.assertEqual(result, computed)
+        self.assertEqual(progress_context["p3_metrics"]["shared_progress_cache"]["cache_misses"], 1)
+        self.assertEqual(progress_context["p3_metrics"]["shared_progress_cache"]["cache_writes"], 1)
+        self.assertEqual(progress_context["p3_metrics"]["shared_progress_cache"]["cache_hits"], 0)
+
+    @patch("mastery.views.summary_helpers.summary_cache")
+    @patch("mastery.views.summary_helpers.pilot_progress_service.build_for_character")
+    def test_progress_for_character_p3_cache_hit_then_p0_intra_request_hit(
+        self, mock_build_for_character, mock_summary_cache
+    ):
+        """Second call on same character/skillset uses P0 intra-request cache, not P3."""
+        cached = {"can_fly": True, "recommended_pct": 100.0, "required_pct": 100.0}
+        mock_summary_cache.get_cached_progress.return_value = (cached, "test_key")
+
+        skillset = SimpleNamespace(id=10)
+        character = SimpleNamespace(id=20)
+        progress_cache = {}
+        progress_context = {}
+
+        first = _progress_for_character(skillset, character, progress_cache, progress_context)
+        second = _progress_for_character(skillset, character, progress_cache, progress_context)
+
+        self.assertEqual(first, second)
+        # P3 get_cached_progress only called once (second hit goes via intra-request cache)
+        mock_summary_cache.get_cached_progress.assert_called_once()
+        self.assertEqual(progress_context["p0_metrics"]["summary_view"]["progress_cache_hits"], 1)
+        self.assertEqual(progress_context["p3_metrics"]["shared_progress_cache"]["cache_hits"], 1)
 
     # -- _build_fitting_kpis -------------------------------------------------
 
@@ -1207,6 +1852,7 @@ class TestSummaryHelpers(SimpleTestCase):
     def test_build_fitting_kpis_empty_rows(self):
         kpis = _build_fitting_kpis([])
         self.assertEqual(kpis["users_total"], 0)
+        self.assertEqual(kpis["characters_total"], 0)
         self.assertEqual(kpis["flyable_now_users"], 0)
         self.assertEqual(kpis["recommended_avg_pct"], 0.0)
 
@@ -1214,10 +1860,44 @@ class TestSummaryHelpers(SimpleTestCase):
         rows = [self._make_user_row(can_fly=True, recommended_pct=100.0)]
         kpis = _build_fitting_kpis(rows)
         self.assertEqual(kpis["users_total"], 1)
+        self.assertEqual(kpis["characters_total"], 1)
         self.assertEqual(kpis["flyable_now_users"], 1)
         self.assertEqual(kpis["flyable_now_characters"], 1)
         self.assertEqual(kpis["recommended_ready"], 1)
         self.assertEqual(kpis["recommended_avg_pct"], 100.0)
+
+    def test_build_fitting_kpis_counts_total_characters_and_only_flyable_now(self):
+        flyable_progress = {
+            "can_fly": True,
+            "recommended_pct": 100.0,
+            "required_pct": 100.0,
+            "mode_stats": {},
+        }
+        training_progress = {
+            "can_fly": False,
+            "recommended_pct": 40.0,
+            "required_pct": 80.0,
+            "mode_stats": {},
+        }
+        rows = [
+            {
+                "user": SimpleNamespace(id=1),
+                "best_progress": flyable_progress,
+                "character_rows": [
+                    {"character": SimpleNamespace(id=10), "progress": flyable_progress},
+                    {"character": SimpleNamespace(id=11), "progress": training_progress},
+                ],
+                "flyable_count": 1,
+                "active_count": 2,
+                "total_count": 2,
+                "last_seen": None,
+            }
+        ]
+
+        kpis = _build_fitting_kpis(rows)
+
+        self.assertEqual(kpis["characters_total"], 2)
+        self.assertEqual(kpis["flyable_now_characters"], 1)
 
 
     # -- _build_doctrine_kpis ------------------------------------------------
@@ -1231,6 +1911,7 @@ class TestSummaryHelpers(SimpleTestCase):
     def test_build_doctrine_kpis_empty_fittings(self):
         kpis = _build_doctrine_kpis([], users_tracked=0)
         self.assertEqual(kpis["users_total"], 0)
+        self.assertEqual(kpis["characters_total"], 0)
         self.assertEqual(kpis["flyable_now_users"], 0)
 
     def test_build_doctrine_kpis_skips_unconfigured_fittings(self):
@@ -1260,6 +1941,38 @@ class TestSummaryHelpers(SimpleTestCase):
         ]
         kpis = _build_doctrine_kpis(fittings, users_tracked=1)
         self.assertEqual(kpis["flyable_now_users"], 1)
+        self.assertEqual(kpis["characters_total"], 1)
+        self.assertEqual(kpis["flyable_now_characters"], 1)
+
+    def test_build_doctrine_kpis_distinguishes_flyable_and_total_characters(self):
+        user = SimpleNamespace(id=99)
+        elite_progress = {
+            "can_fly": True,
+            "recommended_pct": 100.0,
+            "required_pct": 100.0,
+            "mode_stats": {},
+        }
+        almost_fit_progress = {
+            "can_fly": False,
+            "recommended_pct": 20.0,
+            "required_pct": 95.0,
+            "mode_stats": {},
+        }
+        row = {
+            "user": user,
+            "best_progress": elite_progress,
+            "character_rows": [
+                {"character": SimpleNamespace(id=201), "progress": elite_progress},
+                {"character": SimpleNamespace(id=202), "progress": almost_fit_progress},
+            ],
+        }
+
+        kpis = _build_doctrine_kpis(
+            [self._make_fitting_entry(configured=True, user_rows=[row])],
+            users_tracked=1,
+        )
+
+        self.assertEqual(kpis["characters_total"], 2)
         self.assertEqual(kpis["flyable_now_characters"], 1)
 
     # -- _annotate_member_detail_pilots --------------------------------------
@@ -1353,6 +2066,62 @@ class TestSummaryHelpers(SimpleTestCase):
 
         self.assertEqual(summary["priority"], 8)
         self.assertEqual([row["fitting"].name for row in summary["fittings"]], ["Fit High", "Fit Low"])
+
+    @patch("mastery.views.summary_helpers._build_doctrine_kpis", return_value={"needs_training_characters": 2})
+    @patch("mastery.views.summary_helpers._build_fitting_kpis", return_value={"needs_training_characters": 2})
+    @patch("mastery.views.summary_helpers._annotate_member_detail_pilots")
+    @patch("mastery.views.summary_helpers.DoctrineSkillSetGroupMap.objects.filter")
+    @patch("mastery.views.summary_helpers._build_fitting_user_rows")
+    def test_build_doctrine_summary_builds_kpis_from_filtered_rows(
+        self,
+        mock_build_user_rows,
+        mock_doctrine_map_filter,
+        mock_annotate_rows,
+        mock_fit_kpis,
+        mock_doctrine_kpis,
+    ):
+        doctrine = SimpleNamespace(id=1, name="Alpha", fittings=Mock())
+        fitting = SimpleNamespace(id=10, name="Fit")
+        doctrine.fittings.all.return_value = [fitting]
+        mock_doctrine_map_filter.return_value.values_list.return_value.first.return_value = 5
+
+        raw_rows = [
+            {
+                "user": SimpleNamespace(id=7),
+                "flyable_count": 0,
+                "best_progress": {"required_pct": 20.0, "recommended_pct": 10.0},
+                "character_rows": [{"progress": {"can_fly": False}}],
+            }
+        ]
+        visible_rows = [
+            {
+                "user": SimpleNamespace(id=7),
+                "flyable_count": 0,
+                "best_progress": {"required_pct": 20.0, "recommended_pct": 10.0},
+                "character_rows": [{"progress": {"can_fly": False}}],
+            }
+        ]
+        mock_build_user_rows.return_value = raw_rows
+        mock_annotate_rows.return_value = visible_rows
+
+        summary = _build_doctrine_summary(
+            doctrine=doctrine,
+            fitting_maps={
+                fitting.id: SimpleNamespace(
+                    priority=4,
+                    skillset=SimpleNamespace(id=101),
+                    status=FittingSkillsetMap.ApprovalStatus.APPROVED,
+                )
+            },
+            member_groups=[{"active_count": 1}],
+            progress_cache={},
+            progress_context={},
+        )
+
+        self.assertEqual(summary["fittings"][0]["user_rows"], visible_rows)
+        mock_fit_kpis.assert_called_once_with(visible_rows)
+        doctrine_kpi_fittings = mock_doctrine_kpis.call_args.kwargs["fittings"]
+        self.assertEqual(doctrine_kpi_fittings[0]["user_rows"], visible_rows)
 
     # -- _build_fitting_user_rows --------------------------------------------
 
@@ -1460,15 +2229,15 @@ class TestSummaryHelpers(SimpleTestCase):
             )
         )
 
-    @patch("mastery.views.summary_helpers.FittingSkillsetMap.objects.select_related")
-    def test_approved_fitting_maps_filters_only_approved_status(self, mock_select_related):
+    @patch("mastery.views.summary_helpers.FittingSkillsetMap.objects.filter")
+    def test_approved_fitting_maps_filters_only_approved_status(self, mock_filter):
         approved = SimpleNamespace(fitting_id=10, status=FittingSkillsetMap.ApprovalStatus.APPROVED)
-        pending = SimpleNamespace(fitting_id=11, status=FittingSkillsetMap.ApprovalStatus.IN_PROGRESS)
-        mock_select_related.return_value.all.return_value = [approved, pending]
+        mock_filter.return_value.select_related.return_value = [approved]
 
         result = _approved_fitting_maps()
 
         self.assertEqual(result, {10: approved})
+        mock_filter.assert_called_once_with(status=FittingSkillsetMap.ApprovalStatus.APPROVED)
 
 
 # ---------------------------------------------------------------------------
@@ -1495,7 +2264,7 @@ class TestSummaryViews(SimpleTestCase):
         self.assertEqual(response.status_code, 400)
 
     @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
-    @patch("mastery.views.summary._build_fitting_kpis", side_effect=lambda rows: {"users_total": len(rows)})
+    @patch("mastery.views.summary._prime_summary_character_skills_cache_context")
     @patch("mastery.views.summary._build_doctrine_summary")
     @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
     @patch("mastery.views.summary._approved_fitting_maps")
@@ -1510,7 +2279,7 @@ class TestSummaryViews(SimpleTestCase):
         mock_approved_fitting_maps,
         mock_member_groups,
         mock_build_summary,
-        _mock_build_fitting_kpis,
+        mock_prime_character_skills,
         mock_render,
     ):
         selected_group = SimpleNamespace(id=7, name="Group", entries=Mock())
@@ -1539,6 +2308,7 @@ class TestSummaryViews(SimpleTestCase):
         self.assertEqual(context["selected_group"], selected_group)
         self.assertEqual(context["activity_days"], 21)
         self.assertTrue(context["include_inactive"])
+        mock_prime_character_skills.assert_called_once()
 
     # -- summary_fitting_detail_view -----------------------------------------
 
@@ -1614,6 +2384,49 @@ class TestSummaryViews(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
 
     @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.summary._build_fitting_kpis", return_value={})
+    @patch("mastery.views.summary._annotate_member_detail_pilots")
+    @patch("mastery.views.summary._build_fitting_user_rows")
+    @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
+    @patch("mastery.views.summary._approved_fitting_maps")
+    @patch("mastery.views.summary._get_accessible_fitting_or_404")
+    @patch("mastery.views.summary._get_selected_summary_group")
+    @patch("mastery.views.summary.pilot_progress_service")
+    def test_summary_fitting_detail_view_builds_kpis_from_annotated_rows(
+        self,
+        mock_pilot_service,
+        mock_get_group,
+        mock_fitting_404,
+        _mock_approved_fitting_maps,
+        _mock_member_groups,
+        mock_build_user_rows,
+        mock_annotate,
+        mock_build_kpis,
+        _mock_render,
+    ):
+        selected_group = SimpleNamespace(id=1, name="Group", entries=Mock())
+        mock_get_group.return_value = ([selected_group], selected_group)
+        fitting_map = SimpleNamespace(skillset=SimpleNamespace(id=10), doctrine_map=SimpleNamespace(priority=0))
+        mock_fitting_404.return_value = (
+            SimpleNamespace(id=1, name="Fit"),
+            fitting_map,
+            SimpleNamespace(id=2),
+        )
+        mock_pilot_service.export_mode_choices.return_value = []
+
+        raw_rows = [{"user": SimpleNamespace(id=1), "character_rows": [{"progress": {"can_fly": False}}]}]
+        visible_rows = [{"user": SimpleNamespace(id=1), "character_rows": [{"progress": {"can_fly": False}}]}]
+        mock_build_user_rows.return_value = raw_rows
+        mock_annotate.return_value = visible_rows
+
+        req = self._req(path="/summary/fitting/1/")
+        response = views.summary_fitting_detail_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        mock_build_kpis.assert_called_once_with(visible_rows)
+
+    @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.summary._prime_summary_character_skills_cache_context")
     @patch("mastery.views.summary._annotate_member_detail_pilots", return_value=[])
     @patch("mastery.views.summary._build_fitting_kpis", return_value={})
     @patch("mastery.views.summary._build_fitting_user_rows", return_value=[])
@@ -1632,6 +2445,7 @@ class TestSummaryViews(SimpleTestCase):
         _mock_user_rows,
         _mock_kpis,
         _mock_annotate,
+        mock_prime_character_skills,
         mock_render,
     ):
         selected_group = SimpleNamespace(id=7, name="Group", entries=Mock())
@@ -1655,10 +2469,12 @@ class TestSummaryViews(SimpleTestCase):
         self.assertEqual(context["selected_group"], selected_group)
         self.assertEqual(context["activity_days"], 21)
         self.assertTrue(context["include_inactive"])
+        mock_prime_character_skills.assert_called_once()
 
     # -- summary_list_view ---------------------------------------------------
 
     @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.summary._prime_summary_character_skills_cache_context")
     @patch("mastery.views.summary._build_doctrine_summary")
     @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
     @patch("mastery.views.summary._approved_fitting_maps")
@@ -1671,6 +2487,7 @@ class TestSummaryViews(SimpleTestCase):
         mock_approved_fitting_maps,
         _mock_member_groups,
         mock_build_doctrine_summary,
+        mock_prime_character_skills,
         mock_render,
     ):
         selected_group = SimpleNamespace(id=1, name="Group", entries=Mock())
@@ -1690,6 +2507,7 @@ class TestSummaryViews(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         context = mock_render.call_args[0][2]
         self.assertIn("doctrine_summaries", context)
+        mock_prime_character_skills.assert_called_once()
 
     @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
     @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
@@ -1785,6 +2603,212 @@ class TestSummaryViews(SimpleTestCase):
             [item["doctrine"].name for item in context["doctrine_summaries"]],
             ["Zulu", "Alpha"],
         )
+
+    @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.summary._store_summary_metrics_debug_snapshot")
+    @patch("mastery.views.summary._build_doctrine_summary")
+    @patch("mastery.views.summary._build_member_groups_for_summary", return_value=[])
+    @patch("mastery.views.summary._approved_fitting_maps")
+    @patch("mastery.views.summary.pilot_access_service")
+    @patch("mastery.views.summary._get_selected_summary_group")
+    def test_summary_list_view_stores_summary_debug_snapshot_for_admin_debug(
+        self,
+        mock_get_group,
+        mock_pilot_access,
+        mock_approved_fitting_maps,
+        _mock_member_groups,
+        mock_build_doctrine_summary,
+        mock_store_snapshot,
+        _mock_render,
+    ):
+        selected_group = SimpleNamespace(id=1, name="Group", entries=Mock())
+        doctrine = SimpleNamespace(id=1, name="Alpha", fittings=Mock())
+        doctrine.fittings.all.return_value = []
+        mock_get_group.return_value = ([selected_group], selected_group)
+        mock_pilot_access.accessible_doctrines.return_value.prefetch_related.return_value = [doctrine]
+        mock_approved_fitting_maps.return_value = {}
+        mock_build_doctrine_summary.return_value = {
+            "doctrine": doctrine,
+            "configured_fittings": 1,
+            "priority": 0,
+            "fittings": [],
+            "active_characters_total": 0,
+            "kpis": {},
+        }
+
+        req = self._req(path="/summary/")
+        req.session = {}
+        response = views.summary_list_view(req)
+
+        self.assertEqual(response.status_code, 200)
+        mock_store_snapshot.assert_called_once()
+        self.assertEqual(mock_store_snapshot.call_args.kwargs["source"], "summary_list")
+        progress_context = mock_store_snapshot.call_args.kwargs["progress_context"]
+        self.assertEqual(progress_context["p0_metrics"]["summary_view"]["member_groups"], 0)
+        self.assertEqual(progress_context["p0_metrics"]["summary_view"]["visible_doctrines"], 1)
+
+    def test_store_p2_metrics_debug_snapshot_skips_non_admin_user(self):
+        from mastery.views.summary import _store_summary_metrics_debug_snapshot
+
+        req = self._req(path="/summary/")
+        req.user = SimpleNamespace(
+            is_authenticated=True,
+            has_perm=lambda perm: perm != "mastery.manage_fittings",
+            has_perms=lambda _perms: True,
+        )
+        req.session = {}
+
+        _store_summary_metrics_debug_snapshot(
+            request=req,
+            source="summary_list",
+            progress_context={
+                "p0_metrics": {"summary_view": {"progress_calls": 1}},
+                "p2_metrics": {"character_skills": {"prime_calls": 1}},
+            },
+        )
+
+        self.assertEqual(req.session, {})
+
+    def test_store_p2_metrics_debug_snapshot_keeps_last_five_per_source(self):
+        from mastery.views.summary import _store_summary_metrics_debug_snapshot
+
+        req = self._req(path="/summary/")
+        req.session = {}
+
+        for idx in range(7):
+            _store_summary_metrics_debug_snapshot(
+                request=req,
+                source="summary_list",
+                progress_context={
+                    "p0_metrics": {"summary_view": {"progress_calls": idx}},
+                    "p2_metrics": {"character_skills": {"prime_calls": idx}},
+                },
+            )
+
+        for idx in range(7):
+            _store_summary_metrics_debug_snapshot(
+                request=req,
+                source="summary_fitting_detail",
+                progress_context={
+                    "p0_metrics": {"summary_view": {"progress_calls": idx}},
+                    "p2_metrics": {"character_skills": {"prime_calls": idx}},
+                },
+            )
+
+        snapshots = req.session["mastery_p2_metrics_debug_snapshots"]
+        self.assertEqual(len(snapshots), 10)
+
+        summary_list_rows = [row for row in snapshots if row["source"] == "summary_list"]
+        summary_fit_rows = [row for row in snapshots if row["source"] == "summary_fitting_detail"]
+
+        self.assertEqual(len(summary_list_rows), 5)
+        self.assertEqual(len(summary_fit_rows), 5)
+        self.assertEqual(summary_list_rows[0]["metrics"]["p0_metrics"]["summary_view"]["progress_calls"], 2)
+        self.assertEqual(summary_list_rows[-1]["metrics"]["p0_metrics"]["summary_view"]["progress_calls"], 6)
+        self.assertEqual(summary_fit_rows[0]["metrics"]["p0_metrics"]["summary_view"]["progress_calls"], 2)
+        self.assertEqual(summary_fit_rows[-1]["metrics"]["p0_metrics"]["summary_view"]["progress_calls"], 6)
+
+    @patch("mastery.views.summary.connection", new=SimpleNamespace(queries=[1, 2, 3, 4]))
+    @patch("mastery.views.summary.perf_counter", return_value=10.123)
+    def test_store_p2_metrics_debug_snapshot_enriches_p0_trace_metrics(self, _mock_perf_counter):
+        from mastery.views.summary import _store_summary_metrics_debug_snapshot
+
+        req = self._req(path="/summary/")
+        req.session = {}
+
+        _store_summary_metrics_debug_snapshot(
+            request=req,
+            source="summary_list",
+            progress_context={"p0_metrics": {"summary_view": {}}, "p2_metrics": {"character_skills": {}}},
+            trace={"started_at": 10.0, "sql_queries_start": 1},
+        )
+
+        snapshot = req.session["mastery_p2_metrics_debug_snapshots"][0]
+        self.assertEqual(snapshot["metrics"]["p0_metrics"]["summary_view"]["view_total_ms"], 123.0)
+        self.assertEqual(snapshot["metrics"]["p0_metrics"]["summary_view"]["sql_query_count"], 3)
+
+    @patch("mastery.views.summary.render", return_value=HttpResponse("ok"))
+    def test_summary_p2_metrics_debug_view_renders_latest_snapshots(self, mock_render):
+        req = self._req(path="/summaries/debug/p2-metrics/")
+        req.session = {
+            "mastery_p2_metrics_debug_snapshots": [
+                {
+                    "captured_at": "2026-05-02T08:00:00+00:00",
+                    "source": "summary_list",
+                    "metrics": {
+                        "p0_metrics": {"summary_view": {"progress_calls": 1}},
+                        "p2_metrics": {"character_skills": {"prime_calls": 1}},
+                    },
+                },
+                {
+                    "captured_at": "2026-05-02T09:00:00+00:00",
+                    "source": "summary_fitting_detail",
+                    "metrics": {
+                        "p0_metrics": {"summary_view": {"progress_calls": 2}},
+                        "p2_metrics": {"character_skills": {"prime_calls": 2}},
+                    },
+                },
+                {
+                    "captured_at": "2026-05-02T10:00:00+00:00",
+                    "source": "summary_list",
+                    "metrics": {
+                        "p0_metrics": {"summary_view": {"progress_calls": 3, "view_total_ms": 1200}},
+                        "p2_metrics": {"character_skills": {"prime_calls": 3}},
+                    },
+                },
+            ]
+        }
+
+        response = views.summary_p2_metrics_debug_view(req)
+
+        self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        self.assertEqual(context["snapshot_count"], 3)
+        self.assertEqual(context["snapshots"][0]["source"], "summary_list")
+        self.assertEqual(context["snapshots"][1]["source"], "summary_fitting_detail")
+        self.assertEqual(context["snapshots"][2]["source"], "summary_list")
+
+        # Grouped structure for source tabs
+        self.assertEqual(context["snapshot_sources"][0]["source"], "summary_list")
+        self.assertEqual(len(context["snapshot_sources"][0]["snapshots"]), 2)
+        self.assertEqual(context["snapshot_sources"][0]["snapshots"][0]["captured_at"], "2026-05-02T10:00:00+00:00")
+        self.assertEqual(context["snapshot_sources"][0]["snapshots"][1]["captured_at"], "2026-05-02T08:00:00+00:00")
+        self.assertEqual(context["snapshot_sources"][1]["source"], "summary_fitting_detail")
+        self.assertEqual(len(context["snapshot_sources"][1]["snapshots"]), 1)
+
+    def test_summary_fitting_member_coverage_csv_response_contains_only_provided_rows(self):
+        from mastery.views.summary import _summary_fitting_member_coverage_csv_response
+
+        fitting = SimpleNamespace(id=5)
+        in_scope_character = SimpleNamespace(eve_character=SimpleNamespace(character_name="In Scope Pilot"))
+        out_scope_name = "Out Scope Pilot"
+        user_rows = [
+            {
+                "user": SimpleNamespace(username="pilot_user"),
+                "main_character": SimpleNamespace(character_name="Main Label"),
+                "elite_pilots": [
+                    {
+                        "character": in_scope_character,
+                        "progress": {"required_pct": 100, "recommended_pct": 100, "can_fly": True},
+                        "required_missing_sp": 0,
+                        "recommended_missing_sp": 0,
+                    }
+                ],
+                "almost_elite_pilots": [],
+                "can_fly_pilots": [],
+                "almost_fit_pilots": [],
+                "needs_training_pilots": [],
+            }
+        ]
+
+        response = _summary_fitting_member_coverage_csv_response(
+            fitting=fitting,
+            user_rows=user_rows,
+        )
+        payload = response.content.decode("utf-8")
+
+        self.assertIn("In Scope Pilot", payload)
+        self.assertNotIn(out_scope_name, payload)
 
     # -- summary_settings_view GET -------------------------------------------
 
@@ -1960,6 +2984,45 @@ class TestPilotViews(SimpleTestCase):
         context = mock_render.call_args[0][2]
         self.assertEqual(context["fitting_priority"], 9)
         self.assertEqual(context["doctrine_priority"], 7)
+
+    @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.pilot.pilot_progress_service")
+    @patch("mastery.views.pilot._get_pilot_detail_characters")
+    @patch("mastery.views.pilot._get_accessible_fitting_or_404")
+    def test_pilot_fitting_detail_view_exposes_recommended_clone_profile(
+        self,
+        mock_fitting_404,
+        mock_get_chars,
+        mock_progress_service,
+        mock_render,
+    ):
+        fitting = SimpleNamespace(id=1, name="Fit", ship_type=SimpleNamespace(name="Drake"))
+        skillset = SimpleNamespace(id=10)
+        fitting_map = SimpleNamespace(skillset=skillset, doctrine_map=None, priority=0)
+        mock_fitting_404.return_value = (fitting, fitting_map, SimpleNamespace(id=2))
+        mock_get_chars.return_value = []
+        mock_progress_service.export_mode_choices.return_value = [("recommended", "Recommended")]
+        mock_progress_service.EXPORT_MODE_RECOMMENDED = "recommended"
+        mock_progress_service.normalize_export_language.return_value = "en"
+        mock_progress_service.export_language_choices.return_value = [("en", "English")]
+        mock_progress_service.summarize_plan_clone_requirements.return_value = {
+            "recommended_plan_skill_count": 6,
+            "recommended_plan_omega_skill_count": 2,
+            "recommended_plan_alpha_compatible": False,
+        }
+
+        req = self._req(path="/fitting/1/")
+        response = views.pilot_fitting_detail_view(req, fitting_id=1)
+
+        self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        self.assertEqual(context["recommended_plan_skill_count"], 6)
+        self.assertEqual(context["recommended_plan_omega_skill_count"], 2)
+        self.assertFalse(context["recommended_plan_alpha_compatible"])
+        mock_progress_service.summarize_plan_clone_requirements.assert_called_once_with(
+            skillset,
+            cache_context={},
+        )
 
     @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
     @patch("mastery.views.pilot.pilot_progress_service")
@@ -2340,6 +3403,67 @@ class TestPilotViews(SimpleTestCase):
         self.assertEqual(response.content.decode(), "Invalid summary group")
 
     # -- index ---------------------------------------------------------------
+
+    @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
+    @patch("mastery.views.pilot._get_doctrine_priority_map", return_value={1: 6})
+    @patch("mastery.views.pilot.pilot_progress_service")
+    @patch("mastery.views.pilot._approved_fitting_maps")
+    @patch("mastery.views.pilot._get_member_characters")
+    @patch("mastery.views.pilot.pilot_access_service")
+    def test_pilot_index_exposes_recommended_clone_profile_per_fitting(
+        self,
+        mock_access_service,
+        mock_get_chars,
+        mock_approved_fitting_maps,
+        mock_progress_service,
+        _mock_doctrine_priority_map,
+        mock_render,
+    ):
+        fitting = SimpleNamespace(
+            id=5,
+            name="Cerb Fleet",
+            ship_type=SimpleNamespace(name="Cerberus"),
+            ship_type_type_id=123,
+        )
+        doctrine = SimpleNamespace(id=1, name="Shield", fittings=Mock())
+        doctrine.fittings.all.return_value = [fitting]
+        skillset = SimpleNamespace(id=10)
+        fitting_map = SimpleNamespace(skillset=skillset, priority=8)
+        character = SimpleNamespace(id=42, eve_character=SimpleNamespace(character_name="Pilot One"))
+
+        mock_access_service.accessible_doctrines.return_value = [doctrine]
+        mock_get_chars.return_value = [character]
+        mock_approved_fitting_maps.return_value = {5: fitting_map}
+        mock_progress_service.build_for_character.return_value = {
+            "can_fly": True,
+            "required_pct": 100,
+            "recommended_pct": 80,
+            "status_label": "Can fly",
+            "status_class": "info",
+            "missing_required": [],
+            "missing_recommended": [],
+            "missing_required_count": 0,
+            "missing_recommended_count": 1,
+            "total_missing_sp": 1234,
+            "mode_stats": {"required": {"total_missing_sp": 0}, "recommended": {"total_missing_sp": 1234}},
+        }
+        mock_progress_service.summarize_plan_clone_requirements.return_value = {
+            "recommended_plan_skill_count": 7,
+            "recommended_plan_omega_skill_count": 2,
+            "recommended_plan_alpha_compatible": False,
+        }
+
+        req = self._req(path="/")
+        response = views.index(req)
+
+        self.assertEqual(response.status_code, 200)
+        context = mock_render.call_args[0][2]
+        self.assertEqual(context["configured_fittings_count"], 1)
+        fit_card = context["doctrine_cards"][0]["fittings"][0]
+        self.assertEqual(fit_card["recommended_plan_skill_count"], 7)
+        self.assertEqual(fit_card["recommended_plan_omega_skill_count"], 2)
+        self.assertFalse(fit_card["recommended_plan_alpha_compatible"])
+        mock_progress_service.summarize_plan_clone_requirements.assert_called_once()
 
     @patch("mastery.views.pilot.render", return_value=HttpResponse("ok"))
     @patch("mastery.views.pilot._approved_fitting_maps")

@@ -12,6 +12,7 @@ from mastery.services.fittings.approval_service import FittingApprovalService
 from mastery.services.fittings.skill_extractor import FittingSkillExtractor
 from mastery.services.fittings.fitting_map_service import FittingMapService
 from mastery.services.pilots.pilot_access_service import PilotAccessService
+from mastery.services.sde.clone_grade_service import CloneGradeService, NullCloneGradeService
 from mastery.services.sde.mastery_service import MasteryService
 from mastery.services.sde.version_service import SdeVersionService
 from mastery.services.skill_requirements import merge_skill_maps, normalize_default_skill_map
@@ -462,6 +463,34 @@ class TestPilotAccessService(SimpleTestCase):
         self.assertIs(result, ordered_qs)
 
 
+class TestCloneGradeService(SimpleTestCase):
+    @patch("mastery.services.sde.clone_grade_service.SdeCloneGradeSkill.objects.filter")
+    def test_get_alpha_max_level_returns_zero_when_skill_not_found(self, mock_filter):
+        mock_filter.return_value.values.return_value = []
+
+        service = CloneGradeService()
+
+        self.assertEqual(service.get_alpha_max_level(999), 0)
+
+    @patch("mastery.services.sde.clone_grade_service.SdeCloneGradeSkill.objects.filter")
+    def test_requires_omega_respects_alpha_cap_level(self, mock_filter):
+        mock_filter.return_value.values.return_value = [
+            {"skill_type_id": 10, "max_alpha_level": 3},
+        ]
+
+        service = CloneGradeService()
+
+        self.assertFalse(service.requires_omega(skill_type_id=10, target_level=2))
+        self.assertTrue(service.requires_omega(skill_type_id=10, target_level=4))
+        self.assertTrue(service.requires_omega(skill_type_id=11, target_level=1))
+
+    def test_null_clone_grade_service_treats_positive_targets_as_omega_only(self):
+        service = NullCloneGradeService()
+
+        self.assertFalse(service.requires_omega(skill_type_id=10, target_level=0))
+        self.assertTrue(service.requires_omega(skill_type_id=10, target_level=1))
+
+
 class TestDoctrineSkillService(SimpleTestCase):
     def test_resolve_effective_mastery_level_prefers_explicit_then_fitting_then_doctrine(self):
         doctrine_map = SimpleNamespace(default_mastery_level=4)
@@ -594,6 +623,52 @@ class TestDoctrineSkillService(SimpleTestCase):
 
         rows = {row["skill_type_id"]: row for row in result["skill_rows"]}
         self.assertEqual(rows[1]["required_level"], 4)
+
+    def test_preview_fitting_marks_alpha_and_omega_requirements_from_clone_grade_caps(self):
+        extractor = Mock()
+        extractor.get_required_skills_for_fitting.return_value = {1: 3, 2: 2}
+        mastery_service = Mock()
+        mastery_service.get_ship_skills.return_value = {1: 4, 2: 2, 3: 1}
+        control_service = Mock()
+        control_service.get_blacklist.return_value = set()
+        control_service.get_controls_map.return_value = {}
+        suggestion_service = Mock()
+        suggestion_service.suggest.return_value = {}
+        fitting_map_service = Mock()
+        fitting_map_service.create_fitting_map.return_value = SimpleNamespace(mastery_level=None)
+        clone_grade_service = Mock()
+        clone_grade_service.get_alpha_caps.return_value = {1: 4, 2: 1}
+
+        service = DoctrineSkillService(
+            extractor=extractor,
+            mastery_service=mastery_service,
+            control_service=control_service,
+            suggestion_service=suggestion_service,
+            fitting_map_service=fitting_map_service,
+            approval_service=Mock(),
+            clone_grade_service=clone_grade_service,
+        )
+
+        result = service.preview_fitting(
+            doctrine_map=SimpleNamespace(default_mastery_level=4),
+            fitting=SimpleNamespace(id=55, ship_type_type_id=9001),
+        )
+
+        rows = {row["skill_type_id"]: row for row in result["skill_rows"]}
+        self.assertEqual(rows[1]["max_alpha_level"], 4)
+        self.assertFalse(rows[1]["required_requires_omega"])
+        self.assertFalse(rows[1]["recommended_requires_omega"])
+        self.assertFalse(rows[1]["requires_omega"])
+
+        self.assertEqual(rows[2]["max_alpha_level"], 1)
+        self.assertTrue(rows[2]["required_requires_omega"])
+        self.assertTrue(rows[2]["recommended_requires_omega"])
+        self.assertTrue(rows[2]["requires_omega"])
+
+        self.assertEqual(rows[3]["max_alpha_level"], 0)
+        self.assertFalse(rows[3]["required_requires_omega"])
+        self.assertTrue(rows[3]["recommended_requires_omega"])
+        self.assertTrue(rows[3]["requires_omega"])
 
 
 class TestSkillRequirementsHelpers(SimpleTestCase):

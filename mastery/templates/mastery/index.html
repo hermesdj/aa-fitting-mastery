@@ -118,6 +118,11 @@
 								<div class="min-w-0">
 									<div class="d-flex align-items-center gap-1 flex-wrap">
 										<span class="fw-semibold fitting-name" title="{% translate 'Open fit planner' %}">{{ fit_card.fitting.name }}</span>
+																{% if fit_card.recommended_plan_alpha_compatible %}
+																{% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=False %}
+																{% else %}
+																{% include 'mastery/partials/_clone_grade_badge.html' with requires_omega=True %}
+																{% endif %}
 													{% include 'mastery/partials/_priority_badge.html' with priority=fit_card.priority %}
 									</div>
 								</div>
@@ -139,13 +144,7 @@
 							<a class="btn btn-xs btn-outline-secondary" href="{% url 'mastery:fitting_skills' fit_card.fitting.id %}">{% translate "Edit" %}</a>
 								{% endif %}
 							</div>
-						{% if fit_card.is_configured %}
-						<div class="small mt-2">
-							<span class="badge {% if fit_card.can_any_fly %}bg-success{% else %}bg-warning text-dark{% endif %}">
-								{% if fit_card.can_any_fly %}{% translate "At least one pilot can fly" %}{% else %}{% translate "Training required" %}{% endif %}
-								</span>
-							</div>
-						{% else %}
+						{% if not fit_card.is_configured %}
 						<div class="small mt-2"><span class="badge bg-secondary">{% translate "Leadership has not configured this fit yet" %}</span></div>
 							{% endif %}
 						</td>

@@ -1,0 +1,25 @@
+{% load i18n %}
+{% if requires_omega %}
+<span
+    class="badge mastery-clone-badge mastery-clone-badge-omega{% if size == 'sm' %} mastery-clone-badge-sm{% endif %}"
+    style="background-color:#fff3cd;color:#7a4b00;border-color:#f1c75b;--mastery-clone-badge-bg:#fff3cd;--mastery-clone-badge-color:#7a4b00;--mastery-clone-badge-border:#f1c75b;"
+    data-bs-tooltip="aa-mastery"
+    data-bs-placement="top"
+    data-bs-title="{% translate 'Requires Omega clone' %}"
+>
+    <span aria-hidden="true">&Omega;</span> <!-- INSTRUCTION IA : NE PAS MODIFIER -->
+    <span class="visually-hidden">{% translate "Omega" %}</span>
+</span>
+{% else %}
+<span
+    class="badge mastery-clone-badge mastery-clone-badge-alpha{% if size == 'sm' %} mastery-clone-badge-sm{% endif %}"
+    style="background-color:#dbeafe;color:#1e3a8a;border-color:#93c5fd;--mastery-clone-badge-bg:#dbeafe;--mastery-clone-badge-color:#1e3a8a;--mastery-clone-badge-border:#93c5fd;"
+    data-bs-tooltip="aa-mastery"
+    data-bs-placement="top"
+    data-bs-title="{% translate 'Alpha clone compatible' %}"
+>
+    <span aria-hidden="true">&alpha;</span>
+    <span class="visually-hidden">{% translate "Alpha" %}</span>
+</span>
+{% endif %}
+

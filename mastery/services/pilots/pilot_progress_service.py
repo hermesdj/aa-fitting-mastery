@@ -11,6 +11,7 @@ from eve_sde.models import ItemType
 from eve_sde.models import TypeDogma
 
 from mastery import app_settings
+from mastery.services.sde import CloneGradeService
 from mastery.services.skill_requirements import REQUIRED_SKILL_ATTRIBUTES as SHARED_REQUIRED_SKILL_ATTRIBUTES
 
 
@@ -73,9 +74,10 @@ class PilotProgressService:
         ("zh", _("Chinese")),
     ]
 
-    def __init__(self):
+    def __init__(self, clone_grade_service: CloneGradeService | None = None):
         self._prereq_cache: dict[int, list[tuple[int, int]]] = {}
         self._skill_name_cache: dict[tuple[str, int], str] = {}
+        self._clone_grade_service = clone_grade_service or CloneGradeService()
 
     @staticmethod
     def _safe_related(instance, attr_name: str):
@@ -130,6 +132,29 @@ class PilotProgressService:
             return None
         return cache_context.setdefault(bucket_name, {})
 
+    @classmethod
+    def _p2_character_skills_metrics_bucket(cls, cache_context: dict | None) -> dict | None:
+        """Return the request-scoped P2 instrumentation bucket for character skills."""
+        if cache_context is None:
+            return None
+        metrics_bucket = cls._get_cache_bucket(cache_context, "p2_metrics")
+        if metrics_bucket is None:
+            return None
+        return metrics_bucket.setdefault(
+            "character_skills",
+            {
+                "prime_calls": 0,
+                "prime_character_ids_total": 0,
+                "prime_already_cached": 0,
+                "prime_uncached": 0,
+                "prime_rows_loaded": 0,
+                "cache_hits": 0,
+                "cache_misses": 0,
+                "db_loads": 0,
+                "skills_loaded": 0,
+            },
+        )
+
     def _load_skillset_skills(self, skillset, cache_context: dict | None = None) -> list:
         bucket = self._get_cache_bucket(cache_context, "skillset_skills")
         cache_key = getattr(skillset, "id", None)
@@ -153,15 +178,25 @@ class PilotProgressService:
         if not character:
             return {}
 
+        metrics = self._p2_character_skills_metrics_bucket(cache_context)
         bucket = self._get_cache_bucket(cache_context, "character_skills")
         cache_key = getattr(character, "id", None)
         if bucket is not None and cache_key in bucket:
+            if metrics is not None:
+                metrics["cache_hits"] += 1
             return bucket[cache_key]
+
+        if metrics is not None:
+            metrics["cache_misses"] += 1
 
         skill_map = {
             obj.eve_type_id: obj
             for obj in character.skills.select_related("eve_type").all()
         }
+
+        if metrics is not None:
+            metrics["db_loads"] += 1
+            metrics["skills_loaded"] += len(skill_map)
 
         if bucket is not None:
             bucket[cache_key] = skill_map
@@ -186,6 +221,25 @@ class PilotProgressService:
             bucket[normalized_ids] = dogma_map
 
         return dogma_map
+
+    def _load_alpha_caps_cached(
+        self,
+        skill_type_ids: list[int],
+        cache_context: dict | None = None,
+    ) -> dict[int, int]:
+        normalized_ids = tuple(sorted({int(skill_type_id) for skill_type_id in skill_type_ids if skill_type_id}))
+        if not normalized_ids:
+            return {}
+
+        bucket = self._get_cache_bucket(cache_context, "alpha_caps")
+        if bucket is not None and normalized_ids in bucket:
+            return bucket[normalized_ids]
+
+        caps = self._clone_grade_service.get_alpha_caps(list(normalized_ids))
+        if bucket is not None:
+            bucket[normalized_ids] = caps
+
+        return caps
 
     @staticmethod
     def _sp_for_level(rank: int, level: int) -> int:
@@ -1007,10 +1061,17 @@ class PilotProgressService:
             localized.append(row_copy)
         return localized
 
-    def _build_skill_progress_rows(self, skills, character_skills: dict, skill_dogma_map: dict) -> dict:
+    def _build_skill_progress_rows(
+        self,
+        skills,
+        character_skills: dict,
+        skill_dogma_map: dict,
+        alpha_caps: dict[int, int] | None = None,
+    ) -> dict:
         """Compute missing skill rows and aggregate coverage percentages."""
         missing_required = []
         missing_recommended = []
+        alpha_caps = alpha_caps or {}
         totals = {
             "required_target_sp": 0,
             "required_covered_sp": 0,
@@ -1029,6 +1090,7 @@ class PilotProgressService:
             rank = self._as_int(dogma.get("rank"), default=1)
             current_level_sp = self._sp_for_level(rank, current_level)
             baseline_current_sp = max(current_sp, current_level_sp)
+            alpha_cap_level = self._as_int(alpha_caps.get(skill.eve_type_id, 0), default=0)
 
             if skill.required_level:
                 required_target_sp = self._sp_for_level(rank, self._as_int(skill.required_level))
@@ -1041,6 +1103,7 @@ class PilotProgressService:
                             "skill_name": skill.eve_type.name,
                             "current_level": current_level,
                             "target_level": skill.required_level,
+                            "target_requires_omega": skill.required_level > alpha_cap_level,
                             "current_sp": current_sp,
                         }
                     )
@@ -1056,6 +1119,7 @@ class PilotProgressService:
                             "skill_name": skill.eve_type.name,
                             "current_level": current_level,
                             "target_level": skill.recommended_level,
+                            "target_requires_omega": skill.recommended_level > alpha_cap_level,
                             "current_sp": current_sp,
                         }
                     )
@@ -1103,13 +1167,19 @@ class PilotProgressService:
         skills = self._load_skillset_skills(skillset, cache_context=cache_context)
         skill_type_ids = [obj.eve_type_id for obj in skills]
         skill_dogma_map = self._load_skill_dogma_cached(skill_type_ids, cache_context=cache_context)
+        alpha_caps = self._load_alpha_caps_cached(skill_type_ids, cache_context=cache_context)
 
         character_skills = self._load_character_skills(
             character,
             skill_type_ids,
             cache_context=cache_context,
         )
-        skill_progress = self._build_skill_progress_rows(skills, character_skills, skill_dogma_map)
+        skill_progress = self._build_skill_progress_rows(
+            skills,
+            character_skills,
+            skill_dogma_map,
+            alpha_caps=alpha_caps,
+        )
         missing_required = skill_progress["missing_required"]
         missing_recommended = skill_progress["missing_recommended"]
         required_pct = skill_progress["required_pct"]
@@ -1169,3 +1239,34 @@ class PilotProgressService:
             progress["export_lines_by_mode"] = {}
             progress["export_lines"] = []
         return progress
+
+    def summarize_plan_clone_requirements(self, skillset, cache_context: dict | None = None) -> dict:
+        """Return Alpha/Omega compatibility indicators for the recommended skill plan."""
+        skills = self._load_skillset_skills(skillset, cache_context=cache_context)
+        if not skills:
+            return {
+                "recommended_plan_skill_count": 0,
+                "recommended_plan_omega_skill_count": 0,
+                "recommended_plan_alpha_compatible": True,
+            }
+
+        skill_type_ids = [obj.eve_type_id for obj in skills]
+        alpha_caps = self._load_alpha_caps_cached(skill_type_ids, cache_context=cache_context)
+        recommended_plan_skill_count = 0
+        recommended_plan_omega_skill_count = 0
+
+        for skill in skills:
+            target_level = self._as_int(getattr(skill, "recommended_level", 0), default=0)
+            if target_level <= 0:
+                continue
+
+            recommended_plan_skill_count += 1
+            alpha_cap_level = self._as_int(alpha_caps.get(skill.eve_type_id, 0), default=0)
+            if target_level > alpha_cap_level:
+                recommended_plan_omega_skill_count += 1
+
+        return {
+            "recommended_plan_skill_count": recommended_plan_skill_count,
+            "recommended_plan_omega_skill_count": recommended_plan_omega_skill_count,
+            "recommended_plan_alpha_compatible": recommended_plan_omega_skill_count == 0,
+        }

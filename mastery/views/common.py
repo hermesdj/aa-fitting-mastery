@@ -48,6 +48,7 @@ from .summary_helpers import (  # noqa: E402 – must follow deps import
     _parse_export_language,  # re-exported
     _parse_export_mode,  # re-exported
     _parse_training_days,  # re-exported
+    _prime_summary_character_skills_cache_context,  # re-exported
     _summary_entity_catalog,  # re-exported
 )
 
@@ -363,6 +364,7 @@ def _build_fitting_preview_context(
     all_rows = list(preview["skills"])
     active_rows = [row for row in all_rows if not row.get("is_blacklisted")]
     recommended_export_text = _build_recommended_export_text(active_rows)
+    plan_kpis = _build_plan_kpis(active_rows)
     approval_status = (
                           getattr(fitting_map, "status", None)
                           if fitting_map is not None
@@ -407,7 +409,11 @@ def _build_fitting_preview_context(
         "recommended_plan_copy_line_count": (
             0 if not recommended_export_text else len(recommended_export_text.splitlines())
         ),
-        **_build_plan_kpis(active_rows),
+        **plan_kpis,
+        "can_make_recommended_plan_alpha_compatible": bool(
+            plan_kpis.get("required_plan_alpha_compatible")
+            and not plan_kpis.get("recommended_plan_alpha_compatible")
+        ),
         "plan_estimate_sp_per_hour": app_settings.MASTERY_PLAN_ESTIMATE_SP_PER_HOUR,
     }
 
@@ -587,6 +593,8 @@ def _format_duration_from_seconds(total_seconds: int) -> str:
 def _build_plan_kpis(skill_rows: list[dict]) -> dict:
     required_targets = {}
     recommended_targets = {}
+    required_alpha_flags = {}
+    recommended_alpha_flags = {}
 
     for row in skill_rows:
         skill_type_id = _to_int(row.get("skill_type_id"), default=0)
@@ -594,11 +602,25 @@ def _build_plan_kpis(skill_rows: list[dict]) -> dict:
             continue
 
         required_level, recommended_level = _resolve_row_levels(row)
+        required_requires_omega = bool(row.get("required_requires_omega", False))
+        recommended_requires_omega = bool(row.get("recommended_requires_omega", False))
 
         if required_level > 0:
             required_targets[skill_type_id] = max(required_targets.get(skill_type_id, 0), required_level)
+            required_payload = required_alpha_flags.setdefault(
+                skill_type_id,
+                {"requires_omega": False},
+            )
+            required_payload["requires_omega"] = required_payload["requires_omega"] or required_requires_omega
         if recommended_level > 0:
             recommended_targets[skill_type_id] = max(recommended_targets.get(skill_type_id, 0), recommended_level)
+            recommended_payload = recommended_alpha_flags.setdefault(
+                skill_type_id,
+                {"requires_omega": False},
+            )
+            recommended_payload["requires_omega"] = (
+                recommended_payload["requires_omega"] or recommended_requires_omega
+            )
 
     all_skill_ids = set(required_targets.keys()) | set(recommended_targets.keys())
     rank_by_skill = {skill_id: 1 for skill_id in all_skill_ids}
@@ -624,11 +646,23 @@ def _build_plan_kpis(skill_rows: list[dict]) -> dict:
     recommended_seconds = int(
         (recommended_total_sp / app_settings.MASTERY_PLAN_ESTIMATE_SP_PER_HOUR) * 3600) if recommended_total_sp else 0
 
+    required_plan_skill_count = len(required_alpha_flags)
+    recommended_plan_skill_count = len(recommended_alpha_flags)
+    required_plan_omega_skill_count = sum(1 for payload in required_alpha_flags.values() if payload["requires_omega"])
+    recommended_plan_omega_skill_count = sum(
+        1 for payload in recommended_alpha_flags.values() if payload["requires_omega"]
+    )
     return {
         "required_plan_total_sp": required_total_sp,
         "required_plan_total_time": _format_duration_from_seconds(required_seconds),
         "recommended_plan_total_sp": recommended_total_sp,
         "recommended_plan_total_time": _format_duration_from_seconds(recommended_seconds),
+        "required_plan_skill_count": required_plan_skill_count,
+        "recommended_plan_skill_count": recommended_plan_skill_count,
+        "required_plan_omega_skill_count": required_plan_omega_skill_count,
+        "recommended_plan_omega_skill_count": recommended_plan_omega_skill_count,
+        "required_plan_alpha_compatible": required_plan_omega_skill_count == 0,
+        "recommended_plan_alpha_compatible": recommended_plan_omega_skill_count == 0,
     }
 
 
@@ -712,6 +746,7 @@ __all__ = [
     "_parse_mastery_level",
     "_parse_posted_int",
     "_parse_training_days",
+    "_prime_summary_character_skills_cache_context",
     "_resolve_row_levels",
     "_summary_entity_catalog",
     "control_service",

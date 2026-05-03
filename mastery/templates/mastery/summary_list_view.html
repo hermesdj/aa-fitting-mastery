@@ -72,9 +72,9 @@
                     <tr>
                         <th>{% translate "Doctrine" %}</th>
                         <th>{% translate "Flyable now (players)" %}</th>
+                        <th>{% translate "Flyable now (characters)" %}</th>
                         {% include 'mastery/partials/_summary_status_headers.html' with include_tooltips=1 include_chars_suffix=0 %}
                         <th>{% translate "Avg recommended" %}</th>
-                        <th>{% translate "Configured fits" %}</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -93,6 +93,7 @@
                             </div>
                         </td>
                         <td>{{ item.kpis.flyable_now_users }}/{{ item.kpis.users_total }}</td>
+                        <td>{{ item.kpis.flyable_now_characters }}/{{ item.kpis.characters_total }}</td>
                         <td class="text-success fw-semibold">{{ item.kpis.elite_characters }}</td>
                         <td class="text-primary fw-semibold">{{ item.kpis.almost_elite_characters }}</td>
                         <td class="text-info fw-semibold">{{ item.kpis.can_fly_characters }}</td>
@@ -104,11 +105,10 @@
                                 <div class="progress-bar bg-primary" role="progressbar" style="width: {{ item.kpis.recommended_avg_pct|unlocalize }}%"></div>
                             </div>
                         </td>
-                        <td>{{ item.configured_fittings }}/{{ item.fittings_total }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="10" class="text-muted">{% translate "No doctrines available for this filter scope." %}</td>
+                        <td colspan="11" class="text-muted">{% translate "No doctrines available for this filter scope." %}</td>
                     </tr>
                     {% endfor %}
                     </tbody>

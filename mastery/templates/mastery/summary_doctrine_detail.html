@@ -14,7 +14,7 @@
                     <span>{{ summary.doctrine.name }}</span>
                     {% include 'mastery/partials/_priority_badge.html' with priority=summary.priority %}
                 </h2>
-                <div class="text-muted">{% blocktranslate with flyable=summary.kpis.flyable_now_users total=summary.kpis.users_total %}{{ flyable }}/{{ total }} players can fly at least one fit now{% endblocktranslate %}</div>
+                <div class="text-muted">{% blocktranslate with flyable=summary.kpis.flyable_now_users total=summary.kpis.users_total %}{{ flyable }}/{{ total }} members have a flyable alt{% endblocktranslate %}</div>
             </div>
         </div>
         <div class="d-flex gap-2">
